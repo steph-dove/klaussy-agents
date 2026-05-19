@@ -22,10 +22,17 @@ That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, 
 ## What Gets Generated
 
 ```
+CLAUDE.md                                      # Repo conventions, project-wide section (via conventions-cli)
+
 .claude/
-├── CLAUDE.md                                  # Repo conventions, path-scoped (via conventions-cli)
-├── settings.json                              # Tool permissions + deny rules + PreCommit hooks
+├── settings.json                              # Tool permissions + deny rules + PreToolUse/PostToolUse hooks
+├── hooks/
+│   ├── read_injection_guard.py                # Scans Read/WebFetch content for prompt-injection markers
+│   └── git_commit_guard.py                    # Runs format + lint when Claude tries to `git commit`
+├── rules/
+│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by conventions-cli 1.4+)
 └── skills/
+    ├── .klausify-version                      # Marker tracking which klausify version generated the skills
     ├── <repo>-review/SKILL.md                 # PR review with parallel sub-agents and repo-specific checks
     ├── <repo>-plan/SKILL.md                   # Multi-phase plan + implement (discovery, parallel architects, review)
     ├── <repo>-debug/SKILL.md                  # Debug an error with root-cause analysis and a failing test
@@ -46,7 +53,7 @@ That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, 
 
 ### What each piece does
 
-**CLAUDE.md** — Auto-detected conventions, architecture, commands, and pitfalls for your repo. As of 0.2.0 the `## Conventions` and `## Architecture` sections are grouped by inferred path globs (e.g. `### \`src/api/**/*.py\``, `### \`src/db/**/*.py\``, `### Project-wide`) so rules apply where they belong instead of as a flat list. This is what Claude Code reads to understand your project.
+**CLAUDE.md** — Auto-detected conventions, architecture, commands, and pitfalls for your repo. As of 0.2.0 path-scoped rules are split out into individual files under `.claude/rules/<glob-stem>.md` (each with `paths:` frontmatter) so rules apply where they belong instead of as a flat list — `CLAUDE.md` itself holds the project-wide content. This is what Claude Code reads to understand your project.
 
 **settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so Claude can't read them.
 
@@ -55,7 +62,7 @@ That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, 
 | Skill | What it does | Output |
 |-------|-------------|--------|
 | `<repo>-review` | Senior-level PR review against your base branch. Small PRs get a single-pass review; larger PRs fan out to parallel sub-agents (correctness, architecture, security, scope, plus an Agentic & Evals lens when the diff touches AI/agent/eval code) with a validation phase that removes false positives | `REVIEW_OUTPUT.md` |
-| `<repo>-plan` | Multi-phase task planning + implementation: discovery → parallel exploration → clarify → parallel architectures → approval → implement → parallel review → summary | — |
+| `<repo>-plan` | Multi-phase task planning + implementation: discovery → parallel exploration → clarify → parallel architectures → approval → implement → parallel review → summary. The approved plan is written to `plan.md` and used as a resumable checklist | `plan.md` |
 | `<repo>-test` | Writes tests for current changes matching your repo's test patterns. Covers happy path, edge cases, and error paths without over-mocking | — |
 | `<repo>-fix` | Fixes all lint, format, and type errors | — |
 | `<repo>-pr` | Generates a ready-to-paste PR description | `pr-description.md` |
@@ -66,15 +73,19 @@ That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, 
 | `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 
-**PreCommit hooks** — Auto-detects your lint/format commands and runs them before each commit.
+**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When Claude is about to commit, the guard runs your auto-detected format + lint commands and blocks the commit on any non-zero exit. Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time.
+
+**Read-injection guard** — A `PreToolUse` hook (for `Read`) and `PostToolUse` hook (for `WebFetch`) that scans content for prompt-injection markers (`ignore previous instructions`, ChatML/Llama control tokens, role-prefix injection, persona reassignment) before Claude consumes it. Local files matching the patterns are blocked; web responses are surfaced back as untrusted-content warnings. Pure-stdlib Python so the repo stays portable. Lives at `.claude/hooks/read_injection_guard.py`.
 
 **PR template** — A basic PR template, only created if your repo doesn't already have one (checks root, `.github/`, and `docs/`).
 
-**.gitignore** — Appends `pr-description.md` and `REVIEW_OUTPUT.md` so generated outputs don't get committed.
+**.gitignore** — Appends `pr-description.md`, `REVIEW_OUTPUT.md`, and `plan.md` so generated outputs don't get committed.
 
 ### Migrating from 0.1.x
 
-If you ran an earlier version of klausify, you have `.claude/commands/*.md` files. On the next `klausify init` (with 0.2.0+) those files — and only the ones klausify itself created — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
+If you ran an earlier version of klausify, you have `.claude/commands/*.md` files. On the next `klausify init` (with 0.2.0+) those files — and only the ones klausify itself created (tracked via `.claude/commands/.klausify-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
+
+If you've already klausified at 0.2.0+ and want to refresh after upgrading klausify itself, use `klausify init --force` (or the `klausify-update` skill if you have the plugin installed).
 
 ## Options
 
@@ -135,13 +146,14 @@ klausify init
 
 ### As a Claude Code Plugin
 
-Install the plugin directly from GitHub:
+Add the klausify marketplace, then install the plugin:
 
 ```
-/plugin install https://github.com/steph-dove/klausify
+/plugin marketplace add steph-dove/klausify
+/plugin install klausify@klausify
 ```
 
-This gives you the `klausify-init` skill and the MCP server.
+This gives you two plugin-level skills — `klausify-init` (scaffold a fresh repo) and `klausify-update` (refresh generated boilerplate after upgrading klausify) — plus the MCP server. The plugin manifest lives in `.claude-plugin/plugin.json` and the marketplace entry in `.claude-plugin/marketplace.json`.
 
 ### As an MCP Server
 

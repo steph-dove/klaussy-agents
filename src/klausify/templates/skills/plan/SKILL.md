@@ -6,6 +6,8 @@ allowed-tools: Read Grep Glob Bash Write Edit TodoWrite Agent
 
 You are helping plan and implement a task in this repo. Follow these phases in order — do NOT skip Phase 3 (clarifying questions).
 
+**Output file:** the approved plan is written to `plan.md` at the repo root. Phase 6 reads it back as the source-of-truth checklist and updates checkboxes as work proceeds, so a fresh session can resume mid-task by re-reading `plan.md`. The file is gitignored.
+
 Use TodoWrite throughout: create one task per phase up front, mark each in_progress when starting and completed when done. The flow is long-running, and the todo list keeps the user oriented.
 
 **Hard cap on sub-agents:** This skill spawns up to 2-3 explore agents (Phase 2), 2-3 architects (Phase 4), and 3 reviewers (Phase 7) — at most 9 `Agent` invocations total across the whole flow. Do NOT exceed that cap. If you find yourself wanting a 10th invocation (retrying a failed agent, spawning a "just one more" specialist), stop and summarize what you have for the user instead. Retries hide failures; extra specialists are scope creep.
@@ -82,11 +84,36 @@ After agents return, present the user a brief summary of each blueprint, the tra
 
 ## Phase 5 — Approval gate
 
-Still in plan mode. Write the chosen plan to the plan file, and call ExitPlanMode to request approval. Do NOT edit any files until the user approves. Once approved, plan mode exits automatically and Phase 6 begins.
+Still in plan mode. Write the chosen plan to `plan.md` at the repo root using the structure below, then call ExitPlanMode to request approval. Do NOT edit any other files until the user approves. Once approved, plan mode exits automatically and Phase 6 begins.
+
+`plan.md` structure:
+
+```markdown
+# <task title>
+
+<one-paragraph summary of what's being built and why>
+
+## Decisions (from Phase 3)
+- <ambiguity>: <chosen resolution>
+
+## Build sequence
+- [ ] <step 1 — file:line scope, concrete change>
+- [ ] <step 2 ...>
+
+## Out of scope
+- <thing we explicitly aren't doing>
+
+## Verification
+- <how we'll know it works — tests, manual checks>
+```
+
+Resume rule: if `plan.md` already exists when this skill starts, ask the user whether to resume from it (pick up at the first unchecked box) or discard and start a new plan. Do not silently overwrite an in-progress plan.
 
 ## Phase 6 — Implementation
 
-Work in small, independently-shippable batches. Update TodoWrite as each batch starts and completes. After each batch:
+`plan.md` is the source-of-truth checklist. Work the unchecked boxes top-to-bottom in small, independently-shippable batches. After each batch:
+- Update the checkbox in `plan.md` (`- [ ]` → `- [x]`) so a fresh session can resume.
+- Update TodoWrite to mirror plan progress.
 - Verify the code parses / compiles / lints (`node -c`, `tsc --noEmit`, `cargo check`, etc., as the language requires).
 - Briefly state what changed (1–2 sentences).
 - Pause if the next batch touches a different surface area or needs a separate user decision.

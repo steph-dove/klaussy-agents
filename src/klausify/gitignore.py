@@ -10,6 +10,7 @@ GITIGNORE_ENTRIES = [
     "# klausify outputs",
     "pr-description.md",
     "REVIEW_OUTPUT.md",
+    "plan.md",
 ]
 
 
