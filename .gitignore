@@ -10,6 +10,7 @@ build/
 .venv/
 venv/
 env/
+uv.lock
 
 # IDE
 .idea/
@@ -40,3 +41,6 @@ Thumbs.db
 # klausify outputs
 pr-description.md
 REVIEW_OUTPUT.md
+
+# Companion desktop app lives in its own private repo (steph-dove/klausify-desktop)
+desktop/
