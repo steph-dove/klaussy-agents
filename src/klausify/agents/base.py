@@ -25,12 +25,22 @@ from klausify.skills import SKILL_NAMES, sanitize_skill_namespace
 
 @dataclass(frozen=True)
 class CapabilityProfile:
-    """What a target agent can express, used to adapt skill bodies.
+    """How to adapt Claude-authored skill bodies for a target agent.
 
     `skills_root` is the repo-relative directory the agent reads `SKILL.md`
-    folders from. The boolean flags drive `render.adapt_body`: when an agent
-    lacks a capability the body is rewritten to capture the same request in a
-    form that agent can act on, rather than shipping inert Claude-only syntax.
+    folders from. The boolean flags drive `render.adapt_body`.
+
+    `subagents` and `plan_mode` mean "the skill body's Claude-native syntax for
+    this is correct as-is for this agent" — True only for Claude. They do NOT
+    claim other agents lack the capability: as of 2026 Cursor (`Task`), Codex
+    (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a
+    model-invocable parallel sub-agent tool, and most have a plan/approval mode.
+    When False, a translation banner tells the agent to map Claude's
+    `Agent`/`subagent_type` (or `ExitPlanMode`) wording to its own equivalent,
+    falling back to sequential only if it genuinely has none.
+
+    `dynamic_shell` is True when the agent executes ```! blocks at load time
+    (Claude, Gemini); when False they're rewritten to plain run-instructions.
     """
 
     key: str

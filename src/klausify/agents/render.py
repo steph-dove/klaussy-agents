@@ -2,14 +2,17 @@
 
 The goal is fidelity of *intent*, not bytes: a skill must capture the same
 request in a form the reading agent can act on. Three Claude-isms need
-adaptation for agents that lack them:
+adaptation, because the skill bodies are written in Claude's syntax:
 
 * ```! dynamic-shell blocks — execute at load time in Claude/Gemini, inert
   elsewhere. Rewritten to explicit "run this command" instructions.
-* parallel sub-agent orchestration — softened to "do this sequentially" via a
-  capability banner so single-threaded agents still perform the work.
-* plan mode / ExitPlanMode — mapped to "present your plan and wait for
-  approval" via the same banner.
+* parallel sub-agent orchestration — the body uses Claude's `Agent`/
+  `subagent_type` syntax. Most agents now have their own sub-agent tool
+  (Cursor `Task`, Codex `spawn_agent`, Gemini subagents, Copilot `task`), so a
+  capability banner tells the agent to use its equivalent (or go sequential if
+  it has none) rather than asserting the capability is absent.
+* plan mode / ExitPlanMode — mapped to "use your plan/approval mode, else
+  present your plan and wait for approval" via the same banner.
 
 `.claude/skills/...` path references are rewritten to the agent's own skills
 root so cross-file references (e.g. review → sub-agents.md) stay valid.
@@ -42,22 +45,26 @@ def _replace_dynamic_block(match: re.Match[str]) -> str:
 def _capability_banner(body: str, profile: CapabilityProfile) -> str:
     """A short translation note, only for capabilities the body actually uses.
 
-    Added only when the skill references parallel sub-agents / plan mode AND the
-    target lacks them — so simple skills (commit, pr, explain) get no banner.
+    Added when the skill references parallel sub-agents / plan mode using
+    Claude's native syntax and the target isn't Claude — so the agent knows to
+    map that syntax to its own equivalent (or go sequential). Simple skills
+    (commit, pr, explain) reference neither, so they get no banner.
     """
     notes: list[str] = []
     if not profile.subagents and _SUBAGENT_HINT.search(body):
         notes.append(
-            "Where this skill says to launch sub-agents in parallel (via a "
-            "Task/Agent tool), your environment has no such tool — do that work "
-            "yourself, sequentially: apply each described lens or angle to the "
-            "material in turn and combine the findings."
+            "This skill orchestrates parallel sub-agents using Claude's `Agent` "
+            "tool / `subagent_type` syntax. Most coding agents now have their own "
+            "parallel sub-agent or task mechanism (e.g. Cursor's `Task`, Codex's "
+            "`spawn_agent`, Gemini subagents, Copilot's `task`) — use yours and "
+            "translate the wording. If it truly has none, apply each lens or angle "
+            "yourself, sequentially, and combine the findings."
         )
     if not profile.plan_mode and _PLAN_MODE_HINT.search(body):
         notes.append(
-            "Where it says to \"enter plan mode\" or call `ExitPlanMode`, instead "
-            "present your plan to the user and wait for their approval before "
-            "editing any files."
+            "Where it references \"plan mode\" or `ExitPlanMode`, use your agent's "
+            "own plan/approval mode if it has one; otherwise present your plan and "
+            "wait for explicit approval before editing any files."
         )
     if not notes:
         return ""
