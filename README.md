@@ -69,7 +69,7 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 **settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so Claude can't read them.
 
-**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klausify/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`, the prompt-side mirror of klaussy-desktop's `humanize-comment.js`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent.
+**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klausify/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klausify also ships a **deterministic, code-preserving scrubber**: the `klausify.humanize` module and a `klausify humanize` CLI (pipe a comment with `printf '%s' "$c" | klausify humanize`, or scrub files with `klausify humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
@@ -176,6 +176,7 @@ klausify skills                 # Regenerate all skills
 klausify settings               # Regenerate settings.json
 klausify hooks                  # Regenerate hook configs
 klausify github                 # Regenerate PR template
+klausify humanize [FILE...]     # Deterministically scrub AI tells from prose (stdin if no files)
 ```
 
 All subcommands support `--repo`, `--force`, and `--base-branch` where applicable. `skills`, `settings`, and `init` also accept `--agents`/`--all` to target agents beyond Claude.

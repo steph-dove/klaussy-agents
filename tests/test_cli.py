@@ -1053,6 +1053,79 @@ class TestCrossPlatformHooks:
         assert hooks_mod._hook_python() == "python3"
 
 
+class TestHumanizeScrubber:
+    """Deterministic humanizer — ported from klaussy-desktop humanize-comment.test.js."""
+
+    def test_normalizes_em_and_en_dashes_in_prose(self):
+        from klausify.humanize import humanize
+
+        assert humanize("Leaks a connection — wrap it.") == "Leaks a connection, wrap it."
+        assert humanize("range 1–5 here") == "range 1 - 5 here"
+
+    def test_strips_leading_filler_opener_and_recapitalizes(self):
+        from klausify.humanize import humanize
+
+        assert (
+            humanize("It's worth noting that the handler swallows the error.")
+            == "The handler swallows the error."
+        )
+
+    def test_drops_trailing_chatbot_scaffolding(self):
+        from klausify.humanize import humanize
+
+        assert (
+            humanize("This races on startup.\nLet me know if you have questions!")
+            == "This races on startup."
+        )
+
+    def test_tightens_verbose_phrasings(self):
+        from klausify.humanize import humanize
+
+        assert humanize("Refactor in order to avoid the N+1.") == "Refactor to avoid the N+1."
+        assert humanize("This could potentially deadlock.") == "This could deadlock."
+
+    def test_never_touches_code(self):
+        from klausify.humanize import humanize
+
+        out = humanize("Use `a — b` then:\n```\nx — y\n```\nbut this — changes.")
+        assert "`a — b`" in out  # inline code dash preserved
+        assert "x — y" in out  # fenced code dash preserved
+        assert "but this, changes." in out  # prose dash normalized
+
+    def test_leaves_clean_comment_unchanged(self):
+        from klausify.humanize import humanize
+
+        assert humanize("Nit: rename foo to bar.") == "Nit: rename foo to bar."
+
+    def test_passes_non_strings_through(self):
+        from klausify.humanize import humanize
+
+        assert humanize(None) is None
+        assert humanize("") == ""
+
+
+class TestHumanizeCli:
+    def test_stdin_to_stdout(self):
+        result = runner.invoke(app, ["humanize"], input="Fix this — now.")
+        assert result.exit_code == 0
+        assert "Fix this, now." in result.stdout
+
+    def test_write_in_place(self, tmp_path: Path):
+        f = tmp_path / "REVIEW_OUTPUT.md"
+        f.write_text("It's worth noting that this leaks — close it.\n")
+        result = runner.invoke(app, ["humanize", str(f), "--write"])
+        assert result.exit_code == 0
+        assert f.read_text() == "This leaks, close it."
+
+    def test_check_flags_without_modifying(self, tmp_path: Path):
+        f = tmp_path / "pr.md"
+        original = "Leaks a connection — wrap it."
+        f.write_text(original)
+        result = runner.invoke(app, ["humanize", str(f), "--check"])
+        assert result.exit_code == 1
+        assert f.read_text() == original  # unmodified
+
+
 class TestGitignore:
     def test_update_gitignore_new(self, repo: Path):
         update_gitignore(repo=repo)

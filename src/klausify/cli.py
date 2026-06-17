@@ -1,6 +1,7 @@
 """CLI entry point for klausify."""
 
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from klausify.checklist import generate_checklist
 from klausify.claude_md import run_init
 from klausify.github import scaffold_github
 from klausify.gitignore import update_gitignore
+from klausify.humanize import humanize as humanize_text
 
 app = typer.Typer(name="klausify", help="Multi-agent repo boilerplate generator.")
 console = Console()
@@ -225,6 +227,49 @@ def github(
 ) -> None:
     """Generate PR template for the repository."""
     scaffold_github(repo=repo, force=force)
+
+
+@app.command()
+def humanize(
+    files: list[Path] | None = typer.Argument(
+        None, help="Files to humanize. Reads stdin and writes stdout if omitted."
+    ),
+    write: bool = typer.Option(
+        False, "--write", "-w", help="Rewrite files in place instead of printing."
+    ),
+    check: bool = typer.Option(
+        False, "--check", help="Exit 1 if any file would change; don't modify."
+    ),
+) -> None:
+    """Deterministically humanize prose (strip AI tells), preserving all code.
+
+    The canonical scrubber shared with klaussy-desktop. With no files it reads
+    stdin and writes the result to stdout — so other tools can pipe through it
+    (e.g. `printf '%s' "$comment" | klausify humanize`).
+    """
+    if not files:
+        sys.stdout.write(humanize_text(sys.stdin.read()))
+        return
+
+    changed = False
+    for path in files:
+        original = path.read_text()
+        cleaned = humanize_text(original)
+        if cleaned != original:
+            changed = True
+        if check:
+            if cleaned != original:
+                console.print(f"[yellow]would humanize {path}[/yellow]")
+            continue
+        if write:
+            if cleaned != original:
+                path.write_text(cleaned)
+                console.print(f"[green]✔ humanized {path}[/green]")
+        else:
+            sys.stdout.write(cleaned)
+
+    if check and changed:
+        raise typer.Exit(1)
 
 
 def main() -> None:
