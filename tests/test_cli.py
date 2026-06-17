@@ -947,9 +947,59 @@ class TestReviewPrecisionUpgrades:
         # Collaborative delivery...
         assert "constructive" in review.lower()
         assert "critique the code" in review and "not the author" in review
-        assert "constructive collaborator" in sub
+        assert "Critique the code, not the author" in sub
         # ...without dropping substance.
         assert "must not dilute substance" in review
+
+    def test_review_has_blunt_tone_toggle(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        assert "Default to Collaborative" in review
+        assert "Blunt (on request)" in review
+
+
+class TestHumanize:
+    PROSE_SKILLS = ["review", "pr", "commit", "explain"]
+
+    def test_humanize_block_substituted_in_prose_skills(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in self.PROSE_SKILLS:
+            text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            assert "{{HUMANIZE}}" not in text, f"{skill} left a literal token"
+            assert "Write like a person" in text, f"{skill} missing humanize block"
+            assert "No em-dashes" in text
+
+    def test_non_prose_skills_have_no_humanize_block(self, repo: Path):
+        # plan/debug/etc. didn't opt in — the token shouldn't appear there.
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        plan = (repo / ".claude" / "skills" / f"{ns}-plan" / "SKILL.md").read_text()
+        assert "Write like a person" not in plan
+
+    def test_humanize_reaches_other_agents_and_survives_enrichment(
+        self, repo_with_claude_md: Path
+    ):
+        from klausify.agents.backends import GeminiBackend
+        from klausify.checklist import generate_checklist
+
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        # Multi-agent path.
+        GeminiBackend().run_skills(
+            repo_with_claude_md, force=True, base_branch="main", review_template=None
+        )
+        gem = (
+            repo_with_claude_md / ".gemini" / "skills" / f"{ns}-pr" / "SKILL.md"
+        ).read_text()
+        assert "Write like a person" in gem and "{{HUMANIZE}}" not in gem
+        # Claude review-enrichment path must also substitute the token.
+        scaffold_skills(repo=repo_with_claude_md, force=True)
+        generate_checklist(repo=repo_with_claude_md, force=True)
+        review = (
+            repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "SKILL.md"
+        ).read_text()
+        assert "Write like a person" in review and "{{HUMANIZE}}" not in review
 
 
 class TestSecretExclusions:

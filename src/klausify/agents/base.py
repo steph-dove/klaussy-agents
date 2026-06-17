@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 
 from klausify.checklist import build_enrichment_block
-from klausify.skills import SKILL_NAMES, sanitize_skill_namespace
+from klausify.skills import HUMANIZE_BLOCK, SKILL_NAMES, sanitize_skill_namespace
 
 
 @dataclass(frozen=True)
@@ -115,6 +115,7 @@ def build_skill_payloads(
             text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment)
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{REPO}}", namespace)
+            .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
         )
 
     payloads: list[SkillPayload] = []

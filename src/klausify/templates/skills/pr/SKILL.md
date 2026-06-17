@@ -60,6 +60,8 @@ Rules:
 - If there are database changes, call them out explicitly.
 - If there are new dependencies, mention them.
 
+{{HUMANIZE}}
+
 Write the output to `pr-description.md` in the repo root.
 
 ## When NOT to use
