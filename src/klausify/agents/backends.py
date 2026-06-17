@@ -23,6 +23,12 @@ from klausify.agents.base import (
     read_canonical_conventions,
 )
 from klausify.agents.emit import write_skills
+from klausify.agents.hooks import (
+    codex_hooks,
+    copilot_hooks,
+    cursor_hooks,
+    gemini_hooks,
+)
 from klausify.checklist import generate_checklist
 from klausify.hooks import scaffold_hooks
 from klausify.settings import _detect_stack, generate_settings
@@ -256,6 +262,9 @@ class GeminiBackend(GenericBackend):
             what=".gemini/settings.json",
         )
 
+    def emit_hooks(self, repo, *, force):
+        gemini_hooks(repo, force=force)
+
 
 class CursorBackend(GenericBackend):
     key = "cursor"
@@ -312,6 +321,9 @@ class CursorBackend(GenericBackend):
             what=".cursor/permissions.json",
         )
 
+    def emit_hooks(self, repo, *, force):
+        cursor_hooks(repo, force=force)
+
 
 class CodexBackend(GenericBackend):
     key = "codex"
@@ -361,6 +373,9 @@ class CodexBackend(GenericBackend):
             "sandbox_mode governs file access instead.[/dim]"
         )
 
+    def emit_hooks(self, repo, *, force):
+        codex_hooks(repo, force=force)
+
 
 class CopilotBackend(GenericBackend):
     key = "copilot"
@@ -404,6 +419,9 @@ class CopilotBackend(GenericBackend):
             "[dim][GitHub Copilot] no per-repo permission model — skipping "
             "settings (instructions + skills cover behavior).[/dim]"
         )
+
+    def emit_hooks(self, repo, *, force):
+        copilot_hooks(repo, force=force)
 
 
 BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {

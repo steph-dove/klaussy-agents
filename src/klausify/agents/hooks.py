@@ -1,0 +1,216 @@
+"""Per-agent hook emission: install guard scripts + write native hook configs.
+
+Every supported agent has a hooks mechanism, but the config file, event names,
+matchers, timeout units, and command form all differ. The *guard scripts* are
+shared (cross-agent, dialect-tolerant — see templates/hooks/multi/), so this
+module's job is placement + wiring. Coverage isn't uniform: only Gemini and
+Cursor expose a pre-file-read event, only Gemini exposes a post-web-fetch event,
+and Codex/Copilot only gate shell/tool execution. We wire what each protocol
+genuinely supports and log the gaps rather than emit hooks that never fire.
+"""
+
+from __future__ import annotations
+
+import json
+import stat
+from importlib import resources
+from pathlib import Path
+
+from rich.console import Console
+
+from klausify.hooks import _detect_format_command, _detect_lint_command
+
+console = Console()
+
+COMMIT_GUARD = "klausify_commit_guard.py"
+READ_GUARD = "klausify_read_guard.py"
+
+
+def _python_literal(value: str | None) -> str:
+    return repr(value) if value is not None else "None"
+
+
+def _install_script(
+    repo: Path,
+    relpath: str,
+    template_name: str,
+    *,
+    format_cmd: str | None = None,
+    lint_cmd: str | None = None,
+) -> None:
+    """Copy a guard template into the repo, baking in commands, and chmod +x."""
+    dest = repo / relpath
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        resources.files("klausify")
+        .joinpath(f"templates/hooks/multi/{template_name}")
+        .read_text()
+    )
+    content = content.replace(
+        '"__KLAUSIFY_FORMAT_CMD__"', _python_literal(format_cmd)
+    ).replace('"__KLAUSIFY_LINT_CMD__"', _python_literal(lint_cmd))
+    dest.write_text(content)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _commit_cmds(repo: Path) -> tuple[str | None, str | None]:
+    return _detect_format_command(repo), _detect_lint_command(repo)
+
+
+def _write_json(path: Path, data: dict, *, force: bool, label: str) -> bool:
+    if path.exists() and not force:
+        console.print(
+            f"[yellow]⚠ [{label}] {path.name} exists; use --force.[/yellow]"
+        )
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    return True
+
+
+def gemini_hooks(repo: Path, *, force: bool) -> None:
+    """Gemini: BeforeTool (shell + read) and AfterTool (web_fetch)."""
+    label = "Gemini CLI"
+    fmt, lint = _commit_cmds(repo)
+    hooks_dir = ".gemini/hooks"
+
+    before: list[dict] = []
+    if fmt or lint:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint,
+        )
+        before.append({
+            "matcher": "run_shell_command",
+            "hooks": [{"type": "command",
+                       "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                       "timeout": 60000}],
+        })
+    _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
+    read_cmd = {"type": "command", "command": f"python3 {hooks_dir}/{READ_GUARD}",
+                "timeout": 60000}
+    before.append({"matcher": "read_file", "hooks": [read_cmd]})
+
+    settings_path = repo / ".gemini" / "settings.json"
+    settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+    if "hooks" in settings and not force:
+        console.print(f"[yellow]⚠ [{label}] hooks already configured; use --force.[/yellow]")
+        return
+    settings["hooks"] = {
+        "BeforeTool": before,
+        "AfterTool": [{"matcher": "web_fetch", "hooks": [read_cmd]}],
+    }
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+    _report(label, bool(fmt or lint), read=True, web=True)
+
+
+def cursor_hooks(repo: Path, *, force: bool) -> None:
+    """Cursor: beforeShellExecution + beforeReadFile (no web-fetch event)."""
+    label = "Cursor"
+    fmt, lint = _commit_cmds(repo)
+    hooks_dir = ".cursor/hooks"
+
+    hooks: dict[str, list[dict]] = {}
+    if fmt or lint:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint,
+        )
+        # Cursor execs the command path directly; rely on the script's shebang.
+        hooks["beforeShellExecution"] = [
+            {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command"}
+        ]
+    _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
+    hooks["beforeReadFile"] = [{"command": f"{hooks_dir}/{READ_GUARD}", "type": "command"}]
+
+    if _write_json(repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks},
+                   force=force, label=label):
+        _report(label, bool(fmt or lint), read=True, web=False)
+
+
+def codex_hooks(repo: Path, *, force: bool) -> None:
+    """Codex: PreToolUse on Bash only — no pre-read or web-fetch hook surface."""
+    label = "Codex CLI"
+    fmt, lint = _commit_cmds(repo)
+    hooks_dir = ".codex/hooks"
+
+    if not (fmt or lint):
+        console.print(
+            f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
+        )
+        return
+    _install_script(
+        repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+        format_cmd=fmt, lint_cmd=lint,
+    )
+    config = {
+        "hooks": {
+            "PreToolUse": [{
+                "matcher": "^Bash$",
+                "hooks": [{"type": "command",
+                           "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                           "timeout": 60}],
+            }]
+        }
+    }
+    if _write_json(repo / ".codex" / "hooks.json", config, force=force, label=label):
+        _report(label, True, read=False, web=False,
+                read_note="Codex has no pre-file-read hook event")
+
+
+def copilot_hooks(repo: Path, *, force: bool) -> None:
+    """Copilot: preToolUse (fail-closed) — wire only the defensive commit guard."""
+    label = "GitHub Copilot"
+    fmt, lint = _commit_cmds(repo)
+    hooks_dir = ".github/hooks"
+
+    if not (fmt or lint):
+        console.print(
+            f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
+        )
+        return
+    _install_script(
+        repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+        format_cmd=fmt, lint_cmd=lint,
+    )
+    config = {
+        "version": 1,
+        "hooks": {
+            "preToolUse": [{
+                "type": "command",
+                "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                "timeoutSec": 60,
+            }]
+        },
+    }
+    if _write_json(repo / ".github" / "hooks" / "klausify-guards.json", config,
+                   force=force, label=label):
+        _report(label, True, read=False, web=False,
+                read_note="Copilot preToolUse is fail-closed; read-injection "
+                          "tool args are unconfirmed, so it's omitted")
+
+
+def _report(
+    label: str,
+    commit: bool,
+    *,
+    read: bool,
+    web: bool,
+    read_note: str | None = None,
+) -> None:
+    parts = []
+    if commit:
+        parts.append("git-commit")
+    if read:
+        parts.append("read-injection")
+    if web:
+        parts.append("web-fetch")
+    wired = ", ".join(parts) if parts else "none"
+    console.print(f"[green]✔ [{label}] hooks wired: {wired}[/green]")
+    if not commit:
+        console.print(
+            f"[dim][{label}] git-commit guard skipped (no lint/format detected).[/dim]"
+        )
+    if read_note:
+        console.print(f"[dim][{label}] {read_note}.[/dim]")

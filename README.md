@@ -115,7 +115,17 @@ klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conven
 
 **Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and inlined `### Applies to:` sections for `GEMINI.md` / `AGENTS.md`.
 
-**Caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`). Hooks (the read-injection and git-commit guards) are currently Claude-only — every other agent uses a different hook I/O protocol, so klausify prints a note instead of emitting a guard that wouldn't fire. Copilot has no per-repo permission model, so its settings step is skipped.
+**Hooks.** klausify ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klausify wires each guard to whatever events the agent's protocol exposes:
+
+| Guard | Claude | Gemini | Cursor | Codex | Copilot |
+|-------|--------|--------|--------|-------|---------|
+| git-commit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| read-injection (local read) | ✅ | ✅ | ✅ | — | — |
+| read-injection (web fetch) | ✅ | ✅ | — | — | — |
+
+Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klausify wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klausify-guards.json`.
+
+**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`). Copilot has no per-repo permission model, so its settings step is skipped.
 
 ## Options
 
