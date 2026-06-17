@@ -50,6 +50,9 @@ Output format:
 ```
 
 Rules:
+- **Write for a reviewer who has 30 seconds.** Lead with what changed and why it matters; surface the one thing they must look at. The Summary should orient them before they open a single file.
+- **Don't echo the diff.** The reviewer can read the diff. Summarize intent and group related changes — do not narrate every edit line by line.
+- **Describe the current end state, not a changelog.** Write what the PR *is*, not a chronological story of how you got there ("first I tried X, then changed to Y"). If you revised an approach mid-branch, describe only the final shape.
 - Be specific — reference actual file names, functions, and components.
 - Focus on the "why" not just the "what".
 - If the branch name has a ticket reference, include it in the summary.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "klausify"
-version = "0.2.1"
+version = "0.3.0"
 description = "Multi-agent repo boilerplate generator — scaffolds conventions, repo-namespaced skills, settings, and hooks for Claude Code, Gemini CLI, Cursor, Codex, and Copilot"
 readme = "README.md"
 license = "MIT"

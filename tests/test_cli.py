@@ -897,6 +897,49 @@ class TestMultiAgentHooks:
         assert rg._extract_path({}) == ""
 
 
+class TestAdrSubReview:
+    def test_review_skill_has_adr_detection(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        assert "Architecture Decision Record" in review
+        assert "Sub-agent 6" in review
+        # Runs regardless of PR size (ADR PRs are often small).
+        assert "regardless of PR size" in review
+
+    def test_sub_agents_has_adr_lens(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        assert "Architecture Decision & Design Doc" in sub
+        # Key rubric items from the research.
+        assert "Alternatives considered" in sub
+        assert "Code-vs-decision consistency" in sub
+        assert "Sprint" in sub and "Fairy Tale" in sub  # named anti-patterns
+
+    def test_adr_lens_reaches_other_agents(self, repo: Path):
+        # The ADR lens ships via sub-agents.md, so non-Claude agents get it too.
+        from klausify.agents.backends import GeminiBackend
+
+        ns = sanitize_skill_namespace(repo.name)
+        GeminiBackend().run_skills(
+            repo, force=True, base_branch="main", review_template=None
+        )
+        sub = (repo / ".gemini" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        assert "Architecture Decision & Design Doc" in sub
+
+
+class TestReviewPrecisionUpgrades:
+    def test_review_has_precision_and_reachability_rules(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        assert "Precision over recall" in review
+        assert "concrete trigger" in review
+        assert "Removed-behavior audit" in review
+        assert "Argue the author's side" in review  # self-refutation in validation
+
+
 class TestSecretExclusions:
     def test_gemini_writes_geminiignore_and_filtering(self, repo: Path):
         from klausify.agents.backends import GeminiBackend

@@ -1,6 +1,6 @@
 # Parallel review sub-agent prompts
 
-Loaded by `{{REPO}}-review` Phase 2 when the diff is ≥ 150 lines. The sub-agents share a common scaffold (intro, context, output format, ground rules) and each adds its own focused lens. Sub-agents 1–4 always run; Sub-agent 5 (Agentic & Evals) is conditional — see its detection signals at the top of its section below.
+Loaded by `{{REPO}}-review` Phase 2 when the diff is ≥ 150 lines. The sub-agents share a common scaffold (intro, context, output format, ground rules) and each adds its own focused lens. Sub-agents 1–4 always run; Sub-agents 5 (Agentic & Evals) and 6 (Architecture Decision & Design-Doc) are conditional — see the detection signals at the top of each section below. Sub-agent 6 also runs in the small-PR path when an ADR/design doc is detected, since those PRs are often under the 150-line threshold.
 
 ## How to compose a sub-agent prompt
 
@@ -253,4 +253,81 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 ```
 - Cite the exact file:line and the SDK/library/model being used (e.g. "src/agent.py:42 — `anthropic.messages.create(model=<literal>, ...)` with no cache_control on the system prompt").
 - Distinguish "smell" (e.g. hardcoded model ID, missing cache_control) from "bug" (e.g. unbounded loop, swallowed 429) in your severity. Smells are typically Medium/Low; bugs are High/Blocker.
+```
+
+---
+
+## Sub-agent 6: Architecture Decision & Design Doc (conditional)
+
+**Spawn this sub-agent ONLY if the PR adds or changes an Architecture Decision Record (ADR), RFC, or technical design doc.** Detection signals (a path hit OR a content hit; both = high confidence):
+
+- **Path**: `docs/adr/`, `doc/adr/`, `adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, `rfcs/`, `docs/rfcs/`, `docs/design/`, `design-docs/`; or filenames `NNNN-title.md`, `ADR-NNNN-*.md`, `*.adr.md`, `*.rfc.md`, `*.design.md`.
+- **Content**: a changed Markdown file with ≥3 of `## Status`, `## Context`, `## Decision`, `## Consequences`; MADR headings (`## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`); Rust-RFC headings (`## Motivation`, `## Rationale and alternatives`, `## Drawbacks`); or YAML frontmatter with `status:` / `deciders:`.
+
+If no ADR/design doc is present, skip this sub-agent. Pass it the **full text of the detected doc(s)** plus the rest of the diff (so it can check code-vs-decision consistency).
+
+### Lens
+
+```
+## Look for: the quality of the architecture decision / design doc itself
+
+You are reviewing a design artifact, not just code. Apply this rubric (drawn from
+the Nygard ADR format, MADR, Rust RFCs, and "Design Docs at Google"). For each gap,
+quote the doc section (or note its absence) and explain what's missing and why it
+matters.
+
+### Decision quality
+- **Problem/context is concrete** — the doc states the actual problem and forces at
+  play, not a vague preamble. Flag a problem statement so generic it could precede
+  any decision.
+- **The decision is explicit** — there is an unambiguous "we will do X" outcome, not
+  just discussion that trails off.
+- **Alternatives considered, with reasons rejected** — at least one real alternative
+  is evaluated and the rejection is justified. A decision with no alternatives is the
+  "Sprint" anti-pattern; flag it (High — this is the single most common ADR defect).
+- **Decision drivers / criteria** — the factors behind the choice are named, and when
+  they conflict, prioritized.
+- **Consequences are honest** — both positive AND negative consequences are stated.
+  Only-upside docs are the "Fairy Tale" anti-pattern; flag missing trade-offs.
+- **Reversibility** — is this a one-way or two-way door? High-cost-to-reverse
+  decisions deserve more scrutiny and should say so.
+- **Scope** — goals AND non-goals are stated. Unbounded scope is a smell.
+
+### Lifecycle & consistency
+- **Status** — a valid lifecycle value is present (proposed / accepted / deprecated /
+  superseded). A doc with no status is incomplete.
+- **Supersession** — if this decision replaces an earlier ADR, it links to it (and
+  ideally the old one is marked superseded). Flag a decision that silently contradicts
+  an existing ADR in the repo without superseding it.
+- **Code-vs-decision consistency** — if the same PR also changes code, verify the code
+  actually implements the decided design. Flag drift between "we will do X" and code
+  that does Y. This is the highest-value check a PR-time review can make that a
+  standalone doc review cannot.
+
+### Cross-cutting
+- Security, privacy, operational, and maintenance implications are considered
+  (or explicitly out of scope). For decisions with backwards-incompatibility, the doc
+  should call out the migration/compat impact.
+
+### Anti-patterns to name explicitly
+- **Sprint**: only one option; only short-term effects considered.
+- **Fairy Tale**: shallow justification, pros only, no cons.
+- **Ghost architecture**: code makes an architecturally significant choice that the doc
+  doesn't actually record (or vice versa).
+- **Rubber-stamp**: a "decision" written after the fact to legitimize code already
+  merged, with no real evaluation.
+
+Do not nitpick prose, grammar, or formatting — that is not your job. Focus on whether
+the decision is sound, honestly argued, and matches the code.
+```
+
+### Additional rules
+
+```
+- Severity guide: missing alternatives or missing consequences = High (the doc can't
+  be trusted as a decision record). Code-vs-decision drift = High or Blocker depending
+  on blast radius. Missing status/supersession links = Medium. Scope/cross-cutting
+  gaps = Medium/Low.
+- If the doc is genuinely complete and well-argued, say so in one line and return no
+  findings. A good ADR is common; don't manufacture problems.
 ```

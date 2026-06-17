@@ -130,6 +130,7 @@ After implementation, launch 3 reviewer subagents IN PARALLEL via the Agent tool
 - Validate every finding by tracing the code path. Drop findings that are wrong because (a) the issue is already handled elsewhere, (b) the path is unreachable, (c) a framework guarantees the behavior, or (d) the concern is about unchanged code.
 - For each surviving finding: severity (Blocker / High / Medium / Low / Nit), file:line + code snippet, what is wrong + why, what to do.
 - Prefer a short accurate review over a long one with false positives.
+- Flag only gaps that affect correctness or the stated requirements. Do NOT chase every possible improvement — a reviewer told to find gaps will always find some, and acting on them adds speculative abstractions, defensive code, and tests for cases that can't happen. That is over-engineering, not quality.
 
 ### Per-reviewer focuses
 

@@ -68,7 +68,7 @@ Still in plan mode. Design your approach before writing code. Keep it minimal â€
 
 Now write the code. Follow these rules strictly:
 
-1. **Tests first for bug fixes.** If this is a bug fix or behavior change, write the failing test(s) now and run them to confirm they fail for the right reason. Then write the fix.
+1. **Tests first for bug fixes.** If this is a bug fix or behavior change, write the failing test(s) now and run them to confirm they fail for the right reason. **Commit the failing tests before writing the fix** â€” that locks in what "correct" means, so the implementation can't be quietly changed to make a weaker test pass, and the diff shows exactly what the fix changed. Then write the fix; do not edit the committed tests to make them pass.
 2. **One logical change at a time.** Don't batch unrelated edits into a single pass.
 3. **Follow existing patterns.** Match the style, naming, structure, and conventions already in the codebase. Do not introduce new patterns unless the task explicitly requires it.
 4. **Reuse existing code.** If a utility, helper, or base class exists for what you need, use it. Do not write a new abstraction for something that's already solved.
