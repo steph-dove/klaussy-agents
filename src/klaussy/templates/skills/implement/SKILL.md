@@ -68,7 +68,7 @@ Still in plan mode. Design your approach before writing code. Keep it minimal �
 
 Now write the code. Follow these rules strictly:
 
-1. **Tests first for bug fixes.** If this is a bug fix or behavior change, write the failing test(s) now and run them to confirm they fail for the right reason. Then write the fix.
+1. **Tests first for bug fixes.** If this is a bug fix or behavior change, write the failing test(s) now and run them to confirm they fail for the right reason. **Commit the failing tests before writing the fix** — that locks in what "correct" means, so the implementation can't be quietly changed to make a weaker test pass, and the diff shows exactly what the fix changed. Then write the fix; do not edit the committed tests to make them pass.
 2. **One logical change at a time.** Don't batch unrelated edits into a single pass.
 3. **Follow existing patterns.** Match the style, naming, structure, and conventions already in the codebase. Do not introduce new patterns unless the task explicitly requires it.
 4. **Reuse existing code.** If a utility, helper, or base class exists for what you need, use it. Do not write a new abstraction for something that's already solved.
@@ -81,7 +81,8 @@ Now write the code. Follow these rules strictly:
    - Handle the error cases that realistically occur.
    - If the task involves data, verify you're reading from the correct source — re-check the actual query, not your assumption.
    - If the task changes behavior, make sure the change propagates everywhere it needs to (UI, API, tests, types).
-7. **After each file edit,** re-read the file to verify the change looks correct in context.
+7. **Comment only for non-obvious WHY.** When the code you add genuinely needs a comment, keep it to one short line about intent, a gotcha, or an invariant. Don't narrate what the code plainly does, don't echo names, don't leave changelog / "AI-tell" comments ("// Now we…", "// Added to fix…"), and don't leave commented-out code. (Docstrings on public APIs are fine.)
+8. **After each file edit,** re-read the file to verify the change looks correct in context.
 
 ---
 

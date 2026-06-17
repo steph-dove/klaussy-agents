@@ -49,6 +49,8 @@ Rules:
 - Focus on "why" in the body, not "what" (the diff already shows "what").
 - If the branch name has a ticket reference (e.g. FEAT-1234), include it in the body.
 
+{{HUMANIZE}}
+
 Output ONLY the commit message, nothing else. Do not wrap it in code blocks.
 
 ## When NOT to use

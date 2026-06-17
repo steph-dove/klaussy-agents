@@ -23,6 +23,9 @@ import sys
 # (no detected command) or a shell command string.
 FORMAT_CMD: str | None = "__KLAUSSY_FORMAT_CMD__"
 LINT_CMD: str | None = "__KLAUSSY_LINT_CMD__"
+# Deterministic commented-out-code check (e.g. `ruff check --select ERA .`).
+# Block-only — it flags commented-out code; it does not delete it.
+COMMENT_CHECK_CMD: str | None = "__KLAUSSY_COMMENT_CHECK_CMD__"
 
 # Matches `git commit` and `git -C path commit`, but not `git commitlint`,
 # `git log --grep=commit`, or shell-quoted strings that mention commit.
@@ -55,7 +58,7 @@ def main() -> int:
     if not _is_git_commit(command):
         return 0
 
-    for cmd in (FORMAT_CMD, LINT_CMD):
+    for cmd in (FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD):
         if not cmd:
             continue
         rc = _run(cmd)

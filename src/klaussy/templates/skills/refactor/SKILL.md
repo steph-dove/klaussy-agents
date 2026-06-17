@@ -68,6 +68,7 @@ Only after the test is green again move on to the next step.
 - **Preserve all public interfaces** unless the explicit goal is to change them. If you change a function signature, update every caller in the same step.
 - **Don't "improve" things outside the refactor scope.** No drive-by style fixes, no adding types to unrelated code, no renaming things you aren't restructuring.
 - **Match existing conventions.** If moving code to a new file, follow the naming and structure patterns already in the codebase.
+- **Don't add narrating comments.** Restructuring is not an excuse to annotate. When you delete or move code, delete its now-stale comments too; keep only short comments that explain a non-obvious WHY, and never leave commented-out code behind.
 
 ---
 

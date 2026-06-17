@@ -1,6 +1,6 @@
 # Parallel review sub-agent prompts
 
-Loaded by `{{REPO}}-review` Phase 2 when the diff is ≥ 150 lines. The sub-agents share a common scaffold (intro, context, output format, ground rules) and each adds its own focused lens. Sub-agents 1–4 always run; Sub-agent 5 (Agentic & Evals) is conditional — see its detection signals at the top of its section below.
+Loaded by `{{REPO}}-review` Phase 2 when the diff is ≥ 150 lines. The sub-agents share a common scaffold (intro, context, output format, ground rules) and each adds its own focused lens. Sub-agents 1–4 always run; Sub-agents 5 (Agentic & Evals) and 6 (Architecture Decision & Design-Doc) are conditional — see the detection signals at the top of each section below. Sub-agent 6 also runs in the small-PR path when an ADR/design doc is detected, since those PRs are often under the 150-line threshold.
 
 ## How to compose a sub-agent prompt
 
@@ -38,10 +38,11 @@ Read every changed file in full for surrounding context.
 
 ## Ground rules (always)
 
-- Be skeptical and precise.
+- Be skeptical and precise in analysis; collaborative in delivery.
 - Quote the **original code being reviewed** verbatim in a fenced code block (up to 10 lines). This is what the comment IS ABOUT — not your fix. Do NOT include a suggested change in that same block; if you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
 - If something relies on an unstated assumption, call it out.
 - Prefer concrete fixes over vague advice.
+- **Critique the code, not the author, and write in a plain human voice:** no em-dashes, no filler openers ("It's worth noting that…"), no chatbot scaffolding ("Hope this helps"), no ALL-CAPS scolding. Don't tune for a target tone — the synthesis step applies the reviewer's chosen delivery (collaborative by default, blunt on request). Never drop detail: severity, file:line, the trigger, and the concrete fix all stay.
 - Return ONLY your findings. Do not write any files.
 ```
 
@@ -138,7 +139,7 @@ For each finding, be specific about the failure mode (the exact input or state t
 
 ### Readability & Maintainability
 - Ambiguous naming, overly clever code.
-- Comments that explain "what" instead of "why".
+- Comment hygiene: flag comments that restate what the code plainly does, narrate obvious steps, or read as changelog / "AI-tell" notes ("// Now we handle…", "// Added to fix…"); and multi-line blocks where one short line (or none) would do. Fix = delete or condense to a one-line WHY. Do NOT flag docstrings/JSDoc on public APIs, license/file headers, or genuine "why" comments.
 - Functions that are too long or do too many things.
 - Magic numbers or strings without explanation.
 - Dead code or unreachable branches.
@@ -230,7 +231,7 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 
 - **Dynamic context injection** — `` !`<command>` `` inline form or ` ```! ` fenced blocks inside SKILL.md bodies. Documented at `code.claude.com/docs/en/skills.md` under "Inject dynamic context". The shell command runs at skill-load time and its output replaces the placeholder. Flag only if the command leaks secrets, hits an external service unintentionally, or runs something destructive — never flag the syntax itself.
 - **`$ARGUMENTS` / `$N` / `${CLAUDE_SESSION_ID}` / `${CLAUDE_SKILL_DIR}` substitution** in SKILL.md bodies. Documented in the skills frontmatter spec under "Available string substitutions". When a skill is auto-triggered without args, `$ARGUMENTS` resolves to empty — that is by design, not a defect.
-- **`{{REPO}}` / `{{BASE_BRANCH}}` / `{{REPO_SPECIFIC_CHECKS}}` placeholders** in klaussy-managed templates. These get substituted at scaffold time by `klaussy init` / `klaussy checklist`. Flag only if you see the literal `{{...}}` token in a *generated* SKILL.md or rules file under `.claude/` (substitution failed) — never in a template source under `templates/`.
+- **`{{REPO}}` / `{{BASE_BRANCH}}` / `{{REPO_SPECIFIC_CHECKS}}` / `{{HUMANIZE}}` placeholders** in klaussy-managed templates. These get substituted at scaffold time by `klaussy init` / `klaussy checklist`. Flag only if you see the literal `{{...}}` token in a *generated* SKILL.md or rules file under `.claude/` (substitution failed) — never in a template source under `templates/`.
 - **Frontmatter fields** `name`, `description`, `when_to_use`, `allowed-tools`, `disable-model-invocation`, `user-invocable`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `argument-hint`, `arguments` — all documented in the skills frontmatter table. Don't flag a field's existence; flag wrong values.
 - **Glob patterns inside `allowed-tools`** — `Bash(git diff *)` matches `git diff` with any args (`git diff`, `git diff --cached`, `git diff main...HEAD`, `git diff <file>`, multi-flag invocations, etc.). The `*` is a glob, not a literal. Do NOT flag a body command as "missing from allowed-tools" just because the literal flags don't appear inside the parentheses; the glob covers them. Only flag when the body invokes a *different command* (e.g. `git status` when allowed-tools has only `Bash(git diff *)`).
 - **`.claude/rules/<name>.md` with YAML `paths:` frontmatter** — documented at `code.claude.com/docs/en/memory.md` under "Organize rules with .claude/rules/" → "Path-specific rules". Each rule file with `paths:` frontmatter loads only when Claude reads files matching the glob. Do NOT confuse this with Cursor's `.cursor/rules/*.mdc` (different tool, different format). Rule files without `paths:` load unconditionally alongside CLAUDE.md. Flag misuse (e.g. invalid YAML in the frontmatter, paths that don't match anything in the repo) but not the *presence* of this feature.
@@ -253,4 +254,81 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 ```
 - Cite the exact file:line and the SDK/library/model being used (e.g. "src/agent.py:42 — `anthropic.messages.create(model=<literal>, ...)` with no cache_control on the system prompt").
 - Distinguish "smell" (e.g. hardcoded model ID, missing cache_control) from "bug" (e.g. unbounded loop, swallowed 429) in your severity. Smells are typically Medium/Low; bugs are High/Blocker.
+```
+
+---
+
+## Sub-agent 6: Architecture Decision & Design Doc (conditional)
+
+**Spawn this sub-agent ONLY if the PR adds or changes an Architecture Decision Record (ADR), RFC, or technical design doc.** Detection signals (a path hit OR a content hit; both = high confidence):
+
+- **Path**: `docs/adr/`, `doc/adr/`, `adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, `rfcs/`, `docs/rfcs/`, `docs/design/`, `design-docs/`; or filenames `NNNN-title.md`, `ADR-NNNN-*.md`, `*.adr.md`, `*.rfc.md`, `*.design.md`.
+- **Content**: a changed Markdown file with ≥3 of `## Status`, `## Context`, `## Decision`, `## Consequences`; MADR headings (`## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`); Rust-RFC headings (`## Motivation`, `## Rationale and alternatives`, `## Drawbacks`); or YAML frontmatter with `status:` / `deciders:`.
+
+If no ADR/design doc is present, skip this sub-agent. Pass it the **full text of the detected doc(s)** plus the rest of the diff (so it can check code-vs-decision consistency).
+
+### Lens
+
+```
+## Look for: the quality of the architecture decision / design doc itself
+
+You are reviewing a design artifact, not just code. Apply this rubric (drawn from
+the Nygard ADR format, MADR, Rust RFCs, and "Design Docs at Google"). For each gap,
+quote the doc section (or note its absence) and explain what's missing and why it
+matters.
+
+### Decision quality
+- **Problem/context is concrete** — the doc states the actual problem and forces at
+  play, not a vague preamble. Flag a problem statement so generic it could precede
+  any decision.
+- **The decision is explicit** — there is an unambiguous "we will do X" outcome, not
+  just discussion that trails off.
+- **Alternatives considered, with reasons rejected** — at least one real alternative
+  is evaluated and the rejection is justified. A decision with no alternatives is the
+  "Sprint" anti-pattern; flag it (High — this is the single most common ADR defect).
+- **Decision drivers / criteria** — the factors behind the choice are named, and when
+  they conflict, prioritized.
+- **Consequences are honest** — both positive AND negative consequences are stated.
+  Only-upside docs are the "Fairy Tale" anti-pattern; flag missing trade-offs.
+- **Reversibility** — is this a one-way or two-way door? High-cost-to-reverse
+  decisions deserve more scrutiny and should say so.
+- **Scope** — goals AND non-goals are stated. Unbounded scope is a smell.
+
+### Lifecycle & consistency
+- **Status** — a valid lifecycle value is present (proposed / accepted / deprecated /
+  superseded). A doc with no status is incomplete.
+- **Supersession** — if this decision replaces an earlier ADR, it links to it (and
+  ideally the old one is marked superseded). Flag a decision that silently contradicts
+  an existing ADR in the repo without superseding it.
+- **Code-vs-decision consistency** — if the same PR also changes code, verify the code
+  actually implements the decided design. Flag drift between "we will do X" and code
+  that does Y. This is the highest-value check a PR-time review can make that a
+  standalone doc review cannot.
+
+### Cross-cutting
+- Security, privacy, operational, and maintenance implications are considered
+  (or explicitly out of scope). For decisions with backwards-incompatibility, the doc
+  should call out the migration/compat impact.
+
+### Anti-patterns to name explicitly
+- **Sprint**: only one option; only short-term effects considered.
+- **Fairy Tale**: shallow justification, pros only, no cons.
+- **Ghost architecture**: code makes an architecturally significant choice that the doc
+  doesn't actually record (or vice versa).
+- **Rubber-stamp**: a "decision" written after the fact to legitimize code already
+  merged, with no real evaluation.
+
+Do not nitpick prose, grammar, or formatting — that is not your job. Focus on whether
+the decision is sound, honestly argued, and matches the code.
+```
+
+### Additional rules
+
+```
+- Severity guide: missing alternatives or missing consequences = High (the doc can't
+  be trusted as a decision record). Code-vs-decision drift = High or Blocker depending
+  on blast radius. Missing status/supersession links = Medium. Scope/cross-cutting
+  gaps = Medium/Low.
+- If the doc is genuinely complete and well-argued, say so in one line and return no
+  findings. A good ADR is common; don't manufacture problems.
 ```

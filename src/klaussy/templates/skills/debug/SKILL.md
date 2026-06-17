@@ -29,7 +29,9 @@ Do NOT write any fix yet. Investigate read-only until you understand the root ca
    - Read the file where the failure occurs — the full file, not just the function.
    - Trace backwards: what calls this code? What data does it receive?
 2. **Find the actual data source.** If the bug involves wrong values, read the query or data access that produces them. Do not assume — read the actual code.
-3. **Identify the root cause.** Ask yourself:
+3. **Form 3–5 competing hypotheses** for the root cause and rank them by likelihood. Do not anchor on the first plausible explanation — the obvious one is often itself a symptom. For each hypothesis, note what evidence would confirm it and what would kill it.
+4. **Gather runtime evidence — don't conclude from static reading alone.** Where practical, add temporary logging, inspect the actual runtime values / server logs, or step through the repro, and see which hypothesis the real data supports. Reading code *suggests* a cause; runtime behavior *confirms* it. (Skipping this is the classic failure mode: rewriting logic to fix a guessed cause without ever checking the actual data.)
+5. **Identify the root cause.** Ask yourself:
    - Is this a logic error, a data error, or a state error?
    - Is this a regression from a recent change? Check `git diff` and `git log`.
    - Could this be caused by something upstream of where the error appears?
@@ -69,9 +71,10 @@ Now implement the fix.
 ## Phase 5: Verify
 
 1. **Run your failing test** — it should pass now. If it doesn't, your fix is wrong. Go back to Phase 2.
-2. **Run the full test suite.** If other tests break, your fix caused a regression. Do not patch the other tests to make them pass — re-examine your fix.
-3. **Run linters/formatters** if available.
-4. **Check your diff.** Run `git diff` and verify every changed line is necessary for the fix. Remove anything unrelated.
+2. **Falsify: prove the test actually catches the bug.** Temporarily revert the fix (`git stash` or comment it out) and confirm the test now *fails*, then restore the fix and confirm it passes again. A test that passes both with and without your change proves nothing — it isn't exercising the bug. (This is the red→green check: red without the fix, green with it.)
+3. **Run the full test suite.** If other tests break, your fix caused a regression. Do not patch the other tests to make them pass — re-examine your fix.
+4. **Run linters/formatters** if available.
+5. **Check your diff.** Run `git diff` and verify every changed line is necessary for the fix. Remove anything unrelated.
 
 ---
 

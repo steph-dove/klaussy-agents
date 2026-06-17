@@ -6,7 +6,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from klaussy.skills import sanitize_skill_namespace
+from klaussy.skills import HUMANIZE_BLOCK, sanitize_skill_namespace
 
 console = Console()
 
@@ -153,6 +153,39 @@ def _review_skill_dir(repo: Path) -> str:
     return f"{sanitize_skill_namespace(repo.name)}-review"
 
 
+def build_enrichment_block(repo: Path) -> str:
+    """Compute the repo-specific {{REPO_SPECIFIC_CHECKS}} block for the review skill.
+
+    Parses CLAUDE.md (project-wide sections) and `.claude/rules/*.md` (path-scoped
+    rules) into review check items. Returns the empty string when no conventions,
+    commands, or pitfalls are found. Shared by `generate_checklist` (Claude path)
+    and the multi-agent skill payload builder so every target's review skill gets
+    the same enrichment.
+    """
+    claude_md = _resolve_claude_md(repo)
+    if claude_md is None:
+        return ""
+
+    sections = _parse_claude_md(claude_md)
+    path_scoped_bullets = _parse_rules_dir(repo / ".claude" / "rules")
+
+    project_wide = list(sections["conventions"])
+    project_wide.extend(path_scoped_bullets)
+
+    enrichments: list[str] = []
+    conv_checks = _build_convention_checks(project_wide)
+    if conv_checks:
+        enrichments.append(conv_checks)
+    cmd_checks = _build_command_checks(sections["commands"])
+    if cmd_checks:
+        enrichments.append(cmd_checks)
+    pitfall_checks = _build_pitfall_checks(sections["pitfalls"])
+    if pitfall_checks:
+        enrichments.append(pitfall_checks)
+
+    return "\n\n".join(enrichments) if enrichments else ""
+
+
 def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "main") -> Path:
     """Generate a review skill enriched with CLAUDE.md and .claude/rules/ findings."""
     repo = repo.resolve()
@@ -176,24 +209,7 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
         raise SystemExit(1)
 
     template = _read_review_template()
-    sections = _parse_claude_md(claude_md)
-    path_scoped_bullets = _parse_rules_dir(repo / ".claude" / "rules")
-
-    project_wide = list(sections["conventions"])
-    project_wide.extend(path_scoped_bullets)
-
-    enrichments: list[str] = []
-    conv_checks = _build_convention_checks(project_wide)
-    if conv_checks:
-        enrichments.append(conv_checks)
-    cmd_checks = _build_command_checks(sections["commands"])
-    if cmd_checks:
-        enrichments.append(cmd_checks)
-    pitfall_checks = _build_pitfall_checks(sections["pitfalls"])
-    if pitfall_checks:
-        enrichments.append(pitfall_checks)
-
-    enrichment_block = "\n\n".join(enrichments) if enrichments else ""
+    enrichment_block = build_enrichment_block(repo)
     repo_namespace = sanitize_skill_namespace(repo.name)
 
     def _substitute(text: str) -> str:
@@ -201,6 +217,7 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
             text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment_block)
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{REPO}}", repo_namespace)
+            .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
         )
 
     skill_dir.mkdir(parents=True, exist_ok=True)

@@ -45,6 +45,8 @@ git diff {{BASE_BRANCH}}...HEAD
 - If something looks like a bug or smells off, mention it once, then stay focused on explaining.
 - Don't suggest changes unless asked.
 
+{{HUMANIZE}}
+
 ## When NOT to use
 
 - The user wants to *change* code — use the implement, refactor, debug, or fix skill instead.

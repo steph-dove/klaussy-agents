@@ -30,6 +30,7 @@ Write tests for the current changes. Follow these steps:
 - **Don't under-test.** If you changed a conditional, test both branches. If you added error handling, test the error path. "Happy path only" is not adequate coverage.
 - **Each test should test one thing.** If a test name needs "and" in it, split it into two tests.
 - **Tests must be deterministic.** No reliance on timing, ordering, or random data without seeds.
+- **A test that can't fail is worthless.** For your key behavioral tests, make sure the assertion would actually break if the behavior were wrong — a green test against code you never verified can fail is false confidence. If a test passes no matter what, it's testing the mock or nothing.
 
 ## When NOT to use
 

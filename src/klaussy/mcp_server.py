@@ -31,18 +31,25 @@ def klaussy_init(
     base_branch: str = "main",
     force: bool = False,
     skip_enrich: bool = False,
+    agents: str = "all",
 ) -> str:
-    """Generate all Claude Code boilerplate for a repository.
+    """Generate repo boilerplate for one or more AI coding agents.
 
-    Creates CLAUDE.md, settings.json, repo-namespaced skills under
-    .claude/skills/<repo>-<skill>/, hook configs, the PR template, and
-    .gitignore entries.
+    Creates CLAUDE.md (the shared conventions source), then per selected agent:
+    skills (review, plan, debug, …) in that agent's native skills directory, a
+    native conventions file, and stack-appropriate permissions. `agents` is a
+    comma-separated list from: claude, gemini, cursor, codex, copilot (or "all").
+    Defaults to all agents. Also writes the PR template and .gitignore entries.
     """
     args = ["init", "--repo", repo, "--base-branch", base_branch]
     if force:
         args.append("--force")
     if skip_enrich:
         args.append("--skip-enrich")
+    if agents.strip().lower() == "all":
+        args.append("--all")
+    else:
+        args.extend(["--agents", agents])
     return _run_klaussy(*args, cwd=repo)
 
 
@@ -60,11 +67,22 @@ def klaussy_checklist(
 
 
 @mcp.tool()
-def klaussy_settings(repo: str = ".", force: bool = False) -> str:
-    """Generate .claude/settings.json with auto-detected stack permissions."""
+def klaussy_settings(
+    repo: str = ".", force: bool = False, agents: str = "all"
+) -> str:
+    """Generate stack-appropriate permissions for each selected agent.
+
+    `agents` is a comma-separated list from claude, gemini, cursor, codex,
+    copilot (or "all"); defaults to all. Copilot has no per-repo permission
+    model and is skipped.
+    """
     args = ["settings", "--repo", repo]
     if force:
         args.append("--force")
+    if agents.strip().lower() == "all":
+        args.append("--all")
+    else:
+        args.extend(["--agents", agents])
     return _run_klaussy(*args, cwd=repo)
 
 
@@ -79,15 +97,21 @@ def klaussy_skills(
     repo: str = ".",
     base_branch: str = "main",
     force: bool = False,
+    agents: str = "all",
 ) -> str:
-    """Scaffold the bundled klaussy skills as .claude/skills/<repo>-<skill>/SKILL.md.
+    """Scaffold the bundled klaussy skills into each selected agent's skills dir.
 
-    Writes one skill directory per entry in SKILL_NAMES. See
-    src/klaussy/skills.py for the current set.
+    Writes one SKILL.md folder per entry in SKILL_NAMES, adapted to each agent.
+    `agents` is a comma-separated list from claude, gemini, cursor, codex,
+    copilot (or "all"); defaults to all. See src/klaussy/skills.py for the set.
     """
     args = ["skills", "--repo", repo, "--base-branch", base_branch]
     if force:
         args.append("--force")
+    if agents.strip().lower() == "all":
+        args.append("--all")
+    else:
+        args.extend(["--agents", agents])
     return _run_klaussy(*args, cwd=repo)
 
 

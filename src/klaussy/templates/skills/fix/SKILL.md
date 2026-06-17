@@ -31,6 +31,7 @@ If none of these are configured (no `pyproject.toml`/`package.json`/`go.mod`/`Ca
 - Do NOT change logic or behavior. Only fix style, formatting, and type issues.
 - If a type error reveals a real bug (e.g. a function call missing a required argument), STOP. Report it as a bug for the debug skill to take, don't paper over it with a cast or `Any`.
 - If lint flags an existing violation in unchanged code (not from your diff), leave it alone unless explicitly asked to fix repo-wide.
+- Remove commented-out code in the lines you're touching (the pre-commit guard blocks it). Don't add narrating comments while fixing — keep only short "why" comments.
 
 ## When NOT to use
 
