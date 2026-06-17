@@ -33,10 +33,12 @@ See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
 
 ## What Gets Generated
 
-```
-CLAUDE.md                                      # Repo conventions, project-wide section (via klaussy-repo-conventions)
+For **each selected agent** (all five by default), klaussy generates a native conventions file, the bundled workflow skills, and stack-appropriate permissions — see [Multi-agent targets](#multi-agent-targets) for the per-agent paths. The Claude Code layout below is one concrete example; the other agents get the equivalent under `.gemini/`, `.cursor/`, `.agents/`, and `.github/`.
 
-.claude/
+```
+CLAUDE.md                                      # Shared conventions source (also emitted as GEMINI.md / AGENTS.md / copilot-instructions.md / .cursor/rules per agent)
+
+.claude/                                       # Claude Code layout (example — see Multi-agent targets for the others)
 ├── settings.json                              # Tool permissions + deny rules + PreToolUse/PostToolUse hooks
 ├── hooks/
 │   ├── read_injection_guard.py                # Scans Read/WebFetch content for prompt-injection markers
@@ -65,11 +67,11 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 ### What each piece does
 
-**CLAUDE.md** — Auto-detected conventions, architecture, commands, and pitfalls for your repo. As of 0.2.0 path-scoped rules are split out into individual files under `.claude/rules/<glob-stem>.md` (each with `paths:` frontmatter) so rules apply where they belong instead of as a flat list — `CLAUDE.md` itself holds the project-wide content. This is what Claude Code reads to understand your project.
+**CLAUDE.md** — Auto-detected conventions, architecture, commands, and pitfalls for your repo. As of 0.2.0 path-scoped rules are split out into individual files under `.claude/rules/<glob-stem>.md` (each with `paths:` frontmatter) so rules apply where they belong instead of as a flat list — `CLAUDE.md` itself holds the project-wide content. It's the conventions source each agent reads, emitted in that agent's native file (`CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `.github/copilot-instructions.md`, or `.cursor/rules/`).
 
-**settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so Claude can't read them.
+**settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so the agent can't read them. Each agent gets this in its native form — see **Permissions & secrets** under [Multi-agent targets](#multi-agent-targets).
 
-**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klaussy/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klaussy also ships a **deterministic, code-preserving scrubber**: the `klaussy.humanize` module and a `klaussy humanize` CLI (pipe a comment with `printf '%s' "$c" | klaussy humanize`, or scrub files with `klaussy humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
+**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so the agent auto-triggers them by description and they don't collide across repos. They're written into each selected agent's skills directory (`.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`). The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klaussy/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klaussy also ships a **deterministic, code-preserving scrubber**: the `klaussy.humanize` module and a `klaussy humanize` CLI (pipe a comment with `printf '%s' "$c" | klaussy humanize`, or scrub files with `klaussy humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
@@ -85,9 +87,9 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 | `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 
-**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When Claude is about to commit, the guard runs your auto-detected format + lint commands and blocks the commit on any non-zero exit. For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
+**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When the agent is about to commit, the guard runs your auto-detected format + lint commands and blocks the commit on any non-zero exit. The same guard is wired into every selected agent (see **Hooks** under [Multi-agent targets](#multi-agent-targets)). For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
 
-**Read-injection guard** — A `PreToolUse` hook (for `Read`) and `PostToolUse` hook (for `WebFetch`) that scans content for prompt-injection markers (`ignore previous instructions`, ChatML/Llama control tokens, role-prefix injection, persona reassignment) before Claude consumes it. Local files matching the patterns are blocked; web responses are surfaced back as untrusted-content warnings. Pure-stdlib Python so the repo stays portable. Lives at `.claude/hooks/read_injection_guard.py`.
+**Read-injection guard** — A `PreToolUse` hook (for `Read`) and `PostToolUse` hook (for `WebFetch`) that scans content for prompt-injection markers (`ignore previous instructions`, ChatML/Llama control tokens, role-prefix injection, persona reassignment) before the agent consumes it. Local files matching the patterns are blocked; web responses are surfaced back as untrusted-content warnings. Pure-stdlib Python so the repo stays portable. Lives at `.claude/hooks/read_injection_guard.py`.
 
 **PR template** — A basic PR template, only created if your repo doesn't already have one (checks root, `.github/`, and `docs/`).
 
@@ -189,10 +191,11 @@ All subcommands support `--repo`, `--force`, and `--base-branch` where applicabl
 4. Detects your stack from marker files (`pyproject.toml`, `package.json`, `go.mod`, etc.)
 5. Sets permissions, deny rules, and hooks based on what it finds
 6. Skips anything that already exists (PR template) unless `--force` is used
+7. Translates the conventions and skills into each selected agent's native files — by default, all five (see [Multi-agent targets](#multi-agent-targets))
 
-## Claude Code Integration
+## Running klaussy
 
-klaussy can be used three ways with Claude Code:
+The CLI is agent-agnostic — `klaussy init` scaffolds whichever agents you target (all five by default). If you use Claude Code, klaussy can additionally run as a Claude Code plugin or MCP server:
 
 ### As a CLI (simplest)
 
