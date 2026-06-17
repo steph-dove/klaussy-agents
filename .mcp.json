@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "klausify": {
+    "klaussy": {
       "command": "python",
-      "args": ["-m", "klausify.mcp_server"],
+      "args": ["-m", "klaussy.mcp_server"],
       "env": {
         "PYTHONUNBUFFERED": "1"
       }

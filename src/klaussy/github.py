@@ -25,7 +25,7 @@ def scaffold_github(*, repo: Path, force: bool = False) -> Path | None:
         console.print("[dim]PR template already exists, skipping.[/dim]")
         return None
 
-    templates = resources.files("klausify").joinpath("templates/github")
+    templates = resources.files("klaussy").joinpath("templates/github")
     content = templates.joinpath("PULL_REQUEST_TEMPLATE.md").read_text()
     pr_template_file.parent.mkdir(parents=True, exist_ok=True)
     pr_template_file.write_text(content)

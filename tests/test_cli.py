@@ -1,4 +1,4 @@
-"""Tests for klausify CLI and modules."""
+"""Tests for klaussy CLI and modules."""
 
 import json
 from pathlib import Path
@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from klausify.checklist import _parse_claude_md, _parse_rules_dir, generate_checklist
-from klausify.cli import app
-from klausify.github import scaffold_github
-from klausify.gitignore import update_gitignore
-from klausify.hooks import _detect_format_command, _detect_lint_command, scaffold_hooks
-from klausify.settings import _detect_sensitive_paths, _detect_stack, generate_settings
-from klausify.skills import (
+from klaussy.checklist import _parse_claude_md, _parse_rules_dir, generate_checklist
+from klaussy.cli import app
+from klaussy.github import scaffold_github
+from klaussy.gitignore import update_gitignore
+from klaussy.hooks import _detect_format_command, _detect_lint_command, scaffold_hooks
+from klaussy.settings import _detect_sensitive_paths, _detect_stack, generate_settings
+from klaussy.skills import (
     LEGACY_COMMAND_FILENAMES,
     SKILL_NAMES,
     sanitize_skill_namespace,
@@ -80,7 +80,7 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def repo_with_claude_md(repo: Path) -> Path:
-    """Create a repo with ./CLAUDE.md (canonical location for klausify 0.2.0+)."""
+    """Create a repo with ./CLAUDE.md (canonical location for klaussy 0.2.0+)."""
     (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
     return repo
 
@@ -98,7 +98,7 @@ class TestVersion:
     def test_version_flag(self):
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "klausify" in result.stdout
+        assert "klaussy" in result.stdout
 
 
 class TestSettings:
@@ -216,11 +216,11 @@ class TestScaffoldSkills:
 
 
 class TestLegacyCommandsMigration:
-    def test_removes_klausify_generated_files(self, repo: Path):
+    def test_removes_klaussy_generated_files(self, repo: Path):
         commands_dir = repo / ".claude" / "commands"
         commands_dir.mkdir(parents=True)
-        # Mark as klausify-generated and plant the files klausify shipped pre-0.2.0.
-        (commands_dir / ".klausify-version").write_text("0.1.7\n")
+        # Mark as klaussy-generated and plant the files klaussy shipped pre-0.2.0.
+        (commands_dir / ".klaussy-version").write_text("0.1.7\n")
         for filename in LEGACY_COMMAND_FILENAMES:
             (commands_dir / filename).write_text("# legacy\n")
         (commands_dir / f"pr-review-{repo.name}.md").write_text("# legacy review\n")
@@ -232,14 +232,14 @@ class TestLegacyCommandsMigration:
         for filename in LEGACY_COMMAND_FILENAMES:
             assert not (commands_dir / filename).exists()
         assert not (commands_dir / f"pr-review-{repo.name}.md").exists()
-        assert not (commands_dir / ".klausify-version").exists()
+        assert not (commands_dir / ".klaussy-version").exists()
         # User file preserved.
         assert (commands_dir / "user-custom.md").exists()
 
     def test_skips_when_no_marker(self, repo: Path):
         commands_dir = repo / ".claude" / "commands"
         commands_dir.mkdir(parents=True)
-        # No .klausify-version marker -> we don't touch user-authored files.
+        # No .klaussy-version marker -> we don't touch user-authored files.
         (commands_dir / "test.md").write_text("# user-authored\n")
         scaffold_skills(repo=repo)
         assert (commands_dir / "test.md").exists()
@@ -370,8 +370,8 @@ class TestHooks:
 
         # Substitution check: the sentinels in the template should be replaced.
         text = guard.read_text()
-        assert "__KLAUSIFY_FORMAT_CMD__" not in text
-        assert "__KLAUSIFY_LINT_CMD__" not in text
+        assert "__KLAUSSY_FORMAT_CMD__" not in text
+        assert "__KLAUSSY_LINT_CMD__" not in text
         assert "ruff format ." in text, "format command should be baked in"
         assert "ruff check --fix ." in text, "lint command should be baked in"
 
@@ -403,7 +403,7 @@ class TestReadInjectionGuard:
     def scan(self):
         import importlib.util
 
-        from klausify import hooks as hooks_mod
+        from klaussy import hooks as hooks_mod
 
         # Load the template script as a module so we can call scan() directly.
         script_path = (

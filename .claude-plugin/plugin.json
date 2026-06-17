@@ -1,19 +1,19 @@
 {
-  "name": "klausify",
+  "name": "klaussy",
   "version": "0.2.0",
-  "description": "Claude Code boilerplate generator — scaffolds CLAUDE.md (path-scoped), namespaced .claude/skills/<repo>-<skill>/, settings, hooks, and PR template. Includes plugin-level klausify-init and klausify-update skills plus an MCP server.",
+  "description": "Claude Code boilerplate generator — scaffolds CLAUDE.md (path-scoped), namespaced .claude/skills/<repo>-<skill>/, settings, hooks, and PR template. Includes plugin-level klaussy-init and klaussy-update skills plus an MCP server.",
   "author": {
     "name": "Stephanie Dover",
     "url": "https://github.com/steph-dove"
   },
-  "homepage": "https://github.com/steph-dove/klausify",
-  "repository": "https://github.com/steph-dove/klausify",
+  "homepage": "https://github.com/steph-dove/klaussy-agents",
+  "repository": "https://github.com/steph-dove/klaussy-agents",
   "license": "MIT",
   "keywords": ["boilerplate", "scaffold", "skills", "conventions", "ai"],
   "mcpServers": {
-    "klausify": {
+    "klaussy": {
       "command": "pipx",
-      "args": ["run", "klausify-mcp"],
+      "args": ["run", "klaussy-mcp"],
       "env": {
         "PYTHONUNBUFFERED": "1"
       }

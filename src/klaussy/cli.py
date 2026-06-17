@@ -1,4 +1,4 @@
-"""CLI entry point for klausify."""
+"""CLI entry point for klaussy."""
 
 import subprocess
 from pathlib import Path
@@ -6,22 +6,22 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from klausify import __version__
-from klausify.checklist import generate_checklist
-from klausify.claude_md import run_init
-from klausify.github import scaffold_github
-from klausify.gitignore import update_gitignore
-from klausify.hooks import scaffold_hooks
-from klausify.settings import generate_settings
-from klausify.skills import scaffold_skills
+from klaussy import __version__
+from klaussy.checklist import generate_checklist
+from klaussy.claude_md import run_init
+from klaussy.github import scaffold_github
+from klaussy.gitignore import update_gitignore
+from klaussy.hooks import scaffold_hooks
+from klaussy.settings import generate_settings
+from klaussy.skills import scaffold_skills
 
-app = typer.Typer(name="klausify", help="Claude Code boilerplate generator.")
+app = typer.Typer(name="klaussy", help="Claude Code boilerplate generator.")
 console = Console()
 
 
 def version_callback(value: bool) -> None:
     if value:
-        console.print(f"klausify {__version__}")
+        console.print(f"klaussy {__version__}")
         raise typer.Exit()
 
 
@@ -137,7 +137,7 @@ def skills(
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
 ) -> None:
-    """Scaffold .claude/skills/<repo>-<skill>/ for every bundled klausify skill."""
+    """Scaffold .claude/skills/<repo>-<skill>/ for every bundled klaussy skill."""
     repo = repo.resolve()
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)

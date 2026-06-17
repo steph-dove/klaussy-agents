@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Scan tool input/output for prompt-injection markers before Claude consumes it.
 
-Installed by klausify into .claude/hooks/ and wired into .claude/settings.json
+Installed by klaussy into .claude/hooks/ and wired into .claude/settings.json
 as a PreToolUse hook for `Read` and a PostToolUse hook for `WebFetch`.
 
 Reads the Claude Code hook payload from stdin. For `Read` (PreToolUse) it exits
@@ -9,7 +9,7 @@ Reads the Claude Code hook payload from stdin. For `Read` (PreToolUse) it exits
 (PostToolUse) the fetch has already happened, so it exits 2 with a stderr
 warning that Claude Code surfaces back to the model as untrusted-content notice.
 
-Pure-stdlib so the repo stays portable across machines that don't have klausify
+Pure-stdlib so the repo stays portable across machines that don't have klaussy
 installed.
 """
 
@@ -68,7 +68,7 @@ def scan(text: str) -> list[tuple[int, str, str]]:
 
 
 def _report(source: str, findings: list[tuple[int, str, str]]) -> None:
-    print(f"klausify read-injection guard flagged {source}:", file=sys.stderr)
+    print(f"klaussy read-injection guard flagged {source}:", file=sys.stderr)
     for lineno, label, snippet in findings[:5]:
         print(f"  line {lineno}: {label} — {snippet!r}", file=sys.stderr)
     if len(findings) > 5:

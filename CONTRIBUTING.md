@@ -1,4 +1,4 @@
-# Contributing to klausify
+# Contributing to klaussy
 
 ## Contributor Agreement
 

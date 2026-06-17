@@ -1,14 +1,14 @@
 {
-  "name": "klausify",
+  "name": "klaussy",
   "owner": {
     "name": "Stephanie Dover",
     "url": "https://github.com/steph-dove"
   },
   "plugins": [
     {
-      "name": "klausify",
+      "name": "klaussy",
       "source": "./",
-      "description": "Claude Code boilerplate generator — scaffolds CLAUDE.md (path-scoped), namespaced .claude/skills/<repo>-<skill>/, settings, hooks, and PR template. Includes plugin-level klausify-init and klausify-update skills plus an MCP server."
+      "description": "Claude Code boilerplate generator — scaffolds CLAUDE.md (path-scoped), namespaced .claude/skills/<repo>-<skill>/, settings, hooks, and PR template. Includes plugin-level klaussy-init and klaussy-update skills plus an MCP server."
     }
   ]
 }

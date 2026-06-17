@@ -1,4 +1,4 @@
-"""Wraps conventions-cli to generate and enrich CLAUDE.md."""
+"""Wraps klaussy-repo-conventions to generate and enrich CLAUDE.md."""
 
 import subprocess
 import sys
@@ -10,9 +10,9 @@ console = Console()
 
 
 def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> Path:
-    """Run conventions-cli discover --claude [--init] to produce ./CLAUDE.md.
+    """Run klaussy-repo-conventions discover --claude [--init] to produce ./CLAUDE.md.
 
-    As of conventions-cli 1.4.0 the canonical location for the generated file
+    As of klaussy-repo-conventions 1.4.0 the canonical location for the generated file
     is the repo root (./CLAUDE.md), with path-scoped rules emitted as
     `.claude/rules/<name>.md` files alongside.
     """
@@ -25,25 +25,25 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
         )
         raise SystemExit(1)
 
-    # Install/upgrade conventions-cli to latest
-    console.print("[dim]Ensuring latest conventions-cli...[/dim]")
+    # Install/upgrade klaussy-repo-conventions to latest
+    console.print("[dim]Ensuring latest klaussy-repo-conventions...[/dim]")
     upgrade_result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "conventions-cli"],
+        [sys.executable, "-m", "pip", "install", "--upgrade", "klaussy-repo-conventions"],
         capture_output=True,
     )
     if upgrade_result.returncode != 0:
         # Fall back to pipx/uvx if pip fails
         for runner in ["uvx", "pipx"]:
             fallback = subprocess.run(
-                [runner, "install", "conventions-cli", "--force"],
+                [runner, "install", "klaussy-repo-conventions", "--force"],
                 capture_output=True,
             )
             if fallback.returncode == 0:
                 break
         else:
             console.print(
-                "[red]✗ Could not install conventions-cli. "
-                "Install it manually: pip install conventions-cli[/red]"
+                "[red]✗ Could not install klaussy-repo-conventions. "
+                "Install it manually: pip install klaussy-repo-conventions[/red]"
             )
             raise SystemExit(1)
 
@@ -56,23 +56,23 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
     result = subprocess.run(cmd, cwd=str(repo))
 
     if result.returncode != 0:
-        console.print("[red]✗ conventions-cli failed.[/red]")
+        console.print("[red]✗ klaussy-repo-conventions failed.[/red]")
         raise SystemExit(result.returncode)
 
     if claude_md.exists():
         console.print(f"[green]✔ Created {claude_md.relative_to(repo)}[/green]")
     else:
-        # Older conventions-cli (<1.4.0) wrote to .claude/CLAUDE.md when --claude
+        # Older klaussy-repo-conventions (<1.4.0) wrote to .claude/CLAUDE.md when --claude
         # was passed. Fall back to that location if the root file is missing.
         legacy_path = repo / ".claude" / "CLAUDE.md"
         if legacy_path.exists():
             console.print(
                 f"[yellow]⚠ CLAUDE.md found at legacy path {legacy_path.relative_to(repo)}; "
-                "upgrade conventions-cli >= 1.4.0 for repo-root output.[/yellow]"
+                "upgrade klaussy-repo-conventions >= 1.4.0 for repo-root output.[/yellow]"
             )
             return legacy_path
         console.print(
-            "[yellow]⚠ CLAUDE.md was not created — check conventions-cli output.[/yellow]"
+            "[yellow]⚠ CLAUDE.md was not created — check klaussy-repo-conventions output.[/yellow]"
         )
         raise SystemExit(1)
 

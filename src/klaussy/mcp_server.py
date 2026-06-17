@@ -1,4 +1,4 @@
-"""MCP server for klausify — exposes klausify subcommands as tools."""
+"""MCP server for klaussy — exposes klaussy subcommands as tools."""
 
 import json
 import subprocess
@@ -6,13 +6,13 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("klausify")
+mcp = FastMCP("klaussy")
 
 
-def _run_klausify(*args: str, cwd: str = ".") -> str:
-    """Run a klausify CLI command and return output."""
+def _run_klaussy(*args: str, cwd: str = ".") -> str:
+    """Run a klaussy CLI command and return output."""
     result = subprocess.run(
-        ["klausify", *args],
+        ["klaussy", *args],
         capture_output=True,
         text=True,
         cwd=cwd,
@@ -26,7 +26,7 @@ def _run_klausify(*args: str, cwd: str = ".") -> str:
 
 
 @mcp.tool()
-def klausify_init(
+def klaussy_init(
     repo: str = ".",
     base_branch: str = "main",
     force: bool = False,
@@ -43,11 +43,11 @@ def klausify_init(
         args.append("--force")
     if skip_enrich:
         args.append("--skip-enrich")
-    return _run_klausify(*args, cwd=repo)
+    return _run_klaussy(*args, cwd=repo)
 
 
 @mcp.tool()
-def klausify_checklist(
+def klaussy_checklist(
     repo: str = ".",
     base_branch: str = "main",
     force: bool = False,
@@ -56,16 +56,16 @@ def klausify_checklist(
     args = ["checklist", "--repo", repo, "--base-branch", base_branch]
     if force:
         args.append("--force")
-    return _run_klausify(*args, cwd=repo)
+    return _run_klaussy(*args, cwd=repo)
 
 
 @mcp.tool()
-def klausify_settings(repo: str = ".", force: bool = False) -> str:
+def klaussy_settings(repo: str = ".", force: bool = False) -> str:
     """Generate .claude/settings.json with auto-detected stack permissions."""
     args = ["settings", "--repo", repo]
     if force:
         args.append("--force")
-    return _run_klausify(*args, cwd=repo)
+    return _run_klaussy(*args, cwd=repo)
 
 
 SKILL_NAMES = [
@@ -75,29 +75,29 @@ SKILL_NAMES = [
 
 
 @mcp.tool()
-def klausify_skills(
+def klaussy_skills(
     repo: str = ".",
     base_branch: str = "main",
     force: bool = False,
 ) -> str:
-    """Scaffold the bundled klausify skills as .claude/skills/<repo>-<skill>/SKILL.md.
+    """Scaffold the bundled klaussy skills as .claude/skills/<repo>-<skill>/SKILL.md.
 
     Writes one skill directory per entry in SKILL_NAMES. See
-    src/klausify/skills.py for the current set.
+    src/klaussy/skills.py for the current set.
     """
     args = ["skills", "--repo", repo, "--base-branch", base_branch]
     if force:
         args.append("--force")
-    return _run_klausify(*args, cwd=repo)
+    return _run_klaussy(*args, cwd=repo)
 
 
 @mcp.tool()
-def klausify_status(repo: str = ".") -> str:
-    """Check which klausify boilerplate files exist in a repository."""
+def klaussy_status(repo: str = ".") -> str:
+    """Check which klaussy boilerplate files exist in a repository."""
     repo_path = Path(repo).resolve()
     # CLAUDE.md is canonically at the repo root (per Claude Code memory
     # docs); fall back to .claude/CLAUDE.md for repos still on the legacy
-    # layout from older klausify versions.
+    # layout from older klaussy versions.
     claude_md_root = repo_path / "CLAUDE.md"
     claude_md_legacy = repo_path / ".claude" / "CLAUDE.md"
     files = {
