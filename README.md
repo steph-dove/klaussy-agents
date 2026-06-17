@@ -1,4 +1,4 @@
-# klausify
+# klaussy
 
 Multi-agent repo boilerplate generator. One command to make any repo ready for
 **Claude Code, Gemini CLI, Cursor, Codex, and GitHub Copilot** — each gets the
@@ -7,26 +7,26 @@ same conventions and the same workflow skills in its own native format.
 ## Install
 
 ```bash
-pip install klausify
+pip install klaussy
 ```
 
-Requires [conventions-cli](https://pypi.org/project/conventions-cli/) (installed automatically).
+Requires [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) (installed automatically).
 
 ## Quick Start
 
 ```bash
 cd your-repo
-klausify init
+klaussy init
 ```
 
-That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, etc.), then klausify generates everything.
+That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, etc.), then klaussy generates everything.
 
-By default klausify bootstraps **all** supported agents from the same conventions. To narrow to a subset, pass `--agents`:
+By default klaussy bootstraps **all** supported agents from the same conventions. To narrow to a subset, pass `--agents`:
 
 ```bash
-klausify init                                   # all agents (default)
-klausify init --agents claude                   # Claude Code only
-klausify init --agents claude,gemini,cursor     # a subset
+klaussy init                                   # all agents (default)
+klaussy init --agents claude                   # Claude Code only
+klaussy init --agents claude,gemini,cursor     # a subset
 ```
 
 See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
@@ -34,7 +34,7 @@ See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
 ## What Gets Generated
 
 ```
-CLAUDE.md                                      # Repo conventions, project-wide section (via conventions-cli)
+CLAUDE.md                                      # Repo conventions, project-wide section (via klaussy-repo-conventions)
 
 .claude/
 ├── settings.json                              # Tool permissions + deny rules + PreToolUse/PostToolUse hooks
@@ -42,9 +42,9 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 │   ├── read_injection_guard.py                # Scans Read/WebFetch content for prompt-injection markers
 │   └── git_commit_guard.py                    # Runs format + lint when Claude tries to `git commit`
 ├── rules/
-│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by conventions-cli 1.4+)
+│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by klaussy-repo-conventions 1.4+)
 └── skills/
-    ├── .klausify-version                      # Marker tracking which klausify version generated the skills
+    ├── .klaussy-version                      # Marker tracking which klaussy version generated the skills
     ├── <repo>-review/SKILL.md                 # PR review with parallel sub-agents and repo-specific checks
     ├── <repo>-plan/SKILL.md                   # Multi-phase plan + implement (discovery, parallel architects, review)
     ├── <repo>-debug/SKILL.md                  # Debug an error with root-cause analysis and a failing test
@@ -60,7 +60,7 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 .github/
 └── PULL_REQUEST_TEMPLATE.md                   # Only if repo doesn't have one
 
-.gitignore                                     # Appends klausify output exclusions
+.gitignore                                     # Appends klaussy output exclusions
 ```
 
 ### What each piece does
@@ -69,7 +69,7 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 **settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so Claude can't read them.
 
-**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klausify/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klausify also ships a **deterministic, code-preserving scrubber**: the `klausify.humanize` module and a `klausify humanize` CLI (pipe a comment with `printf '%s' "$c" | klausify humanize`, or scrub files with `klausify humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
+**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klaussy/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klaussy also ships a **deterministic, code-preserving scrubber**: the `klaussy.humanize` module and a `klaussy humanize` CLI (pipe a comment with `printf '%s' "$c" | klaussy humanize`, or scrub files with `klaussy humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
@@ -95,13 +95,13 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 ### Migrating from 0.1.x
 
-If you ran an earlier version of klausify, you have `.claude/commands/*.md` files. On the next `klausify init` (with 0.2.0+) those files — and only the ones klausify itself created (tracked via `.claude/commands/.klausify-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
+If you ran an earlier version of klaussy, you have `.claude/commands/*.md` files. On the next `klaussy init` (with 0.2.0+) those files — and only the ones klaussy itself created (tracked via `.claude/commands/.klaussy-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
 
-If you've already klausified at 0.2.0+ and want to refresh after upgrading klausify itself, use `klausify init --force` (or the `klausify-update` skill if you have the plugin installed).
+If you've already klaussified at 0.2.0+ and want to refresh after upgrading klaussy itself, use `klaussy init --force` (or the `klaussy-update` skill if you have the plugin installed).
 
 ## Multi-agent targets
 
-klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conventions-cli), then translates that plus the bundled workflow skills into each agent's native format. All five agents now read the open [Agent Skills](https://agentskills.io/specification) `SKILL.md` spec, so the skills are portable; klausify places them in each agent's dedicated directory and adapts the bodies to that agent's capabilities.
+klaussy discovers your repo's conventions **once** (into `CLAUDE.md` via klaussy-repo-conventions), then translates that plus the bundled workflow skills into each agent's native format. All five agents now read the open [Agent Skills](https://agentskills.io/specification) `SKILL.md` spec, so the skills are portable; klaussy places them in each agent's dedicated directory and adapts the bodies to that agent's capabilities.
 
 | Agent | Conventions file | Skills directory | Permissions |
 |-------|------------------|------------------|-------------|
@@ -111,11 +111,11 @@ klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conven
 | `codex` | `AGENTS.md` | `.agents/skills/<repo>-<skill>/` | `.codex/config.toml` |
 | `copilot` | `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md` | `.github/skills/<repo>-<skill>/` | — (no per-repo model) |
 
-**Skill adaptation.** The bundled skills are authored in Claude Code's syntax — `​```!` dynamic-shell blocks, parallel sub-agents via the `Agent`/`subagent_type` tool, and `ExitPlanMode`. klausify rewrites the bodies to capture the same intent for each target: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note. That note does **not** assume the other agents are single-threaded — as of 2026 Cursor (`Task`), Codex (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a model-invocable parallel sub-agent tool, so the note tells the agent to map Claude's wording to its own equivalent (falling back to sequential only if it has none) and to use its own plan/approval mode. Simple skills (`commit`, `pr`, `explain`, …) reference none of this and are unchanged apart from path references.
+**Skill adaptation.** The bundled skills are authored in Claude Code's syntax — `​```!` dynamic-shell blocks, parallel sub-agents via the `Agent`/`subagent_type` tool, and `ExitPlanMode`. klaussy rewrites the bodies to capture the same intent for each target: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note. That note does **not** assume the other agents are single-threaded — as of 2026 Cursor (`Task`), Codex (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a model-invocable parallel sub-agent tool, so the note tells the agent to map Claude's wording to its own equivalent (falling back to sequential only if it has none) and to use its own plan/approval mode. Simple skills (`commit`, `pr`, `explain`, …) reference none of this and are unchanged apart from path references.
 
 **Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and inlined `### Applies to:` sections for `GEMINI.md` / `AGENTS.md`.
 
-**Permissions & secrets.** Each agent gets a stack-appropriate command allow-list in its native format (`.claude/settings.json`, `.gemini/settings.json` `tools.allowed`, `.cursor/permissions.json` `terminalAllowlist`, `.codex/config.toml` approval/sandbox). For keeping secrets (`.env`, `*.pem`, `credentials*`, …) out of the agent's reach, klausify uses each agent's native exclusion mechanism:
+**Permissions & secrets.** Each agent gets a stack-appropriate command allow-list in its native format (`.claude/settings.json`, `.gemini/settings.json` `tools.allowed`, `.cursor/permissions.json` `terminalAllowlist`, `.codex/config.toml` approval/sandbox). For keeping secrets (`.env`, `*.pem`, `credentials*`, …) out of the agent's reach, klaussy uses each agent's native exclusion mechanism:
 
 | Agent | Secret exclusion |
 |-------|------------------|
@@ -127,7 +127,7 @@ klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conven
 
 Note: even where supported, ignore-file exclusion is best-effort and (on Gemini/Cursor) does **not** stop a *terminal* tool from `cat`-ing a secret — pair it with the command allow-list for real protection.
 
-**Hooks.** klausify ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klausify wires each guard to whatever events the agent's protocol exposes:
+**Hooks.** klaussy ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klaussy wires each guard to whatever events the agent's protocol exposes:
 
 | Guard | Claude | Gemini | Cursor | Codex | Copilot |
 |-------|--------|--------|--------|-------|---------|
@@ -135,16 +135,16 @@ Note: even where supported, ignore-file exclusion is best-effort and (on Gemini/
 | read-injection (local read) | ✅ | ✅ | ✅ | — | — |
 | read-injection (web fetch) | ✅ | ✅ | — | — | — |
 
-Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klausify wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klausify-guards.json`.
+Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klaussy wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klaussy-guards.json`.
 
-**Cross-platform.** The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klausify writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
+**Cross-platform.** The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klaussy writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
 
-**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`).
+**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klaussy emits Codex *Skills* (at `.agents/skills/`).
 
 ## Options
 
 ```bash
-klausify init [OPTIONS]
+klaussy init [OPTIONS]
 
 Options:
   -r, --repo PATH             Target repository (default: current directory)
@@ -161,7 +161,7 @@ Options:
 If your team has a specific review checklist (e.g. domain-specific checks, security requirements), pass it in:
 
 ```bash
-klausify init --review-template path/to/your-review.md
+klaussy init --review-template path/to/your-review.md
 ```
 
 The template will be used as the body of the `<repo>-review` skill instead of the default. Custom templates are responsible for supplying their own SKILL.md frontmatter.
@@ -171,12 +171,12 @@ The template will be used as the body of the `<repo>-review` skill instead of th
 You can run each step individually:
 
 ```bash
-klausify checklist              # Regenerate the review skill from CLAUDE.md
-klausify skills                 # Regenerate all skills
-klausify settings               # Regenerate settings.json
-klausify hooks                  # Regenerate hook configs
-klausify github                 # Regenerate PR template
-klausify humanize [FILE...]     # Deterministically scrub AI tells from prose (stdin if no files)
+klaussy checklist              # Regenerate the review skill from CLAUDE.md
+klaussy skills                 # Regenerate all skills
+klaussy settings               # Regenerate settings.json
+klaussy hooks                  # Regenerate hook configs
+klaussy github                 # Regenerate PR template
+klaussy humanize [FILE...]     # Deterministically scrub AI tells from prose (stdin if no files)
 ```
 
 All subcommands support `--repo`, `--force`, and `--base-branch` where applicable. `skills`, `settings`, and `init` also accept `--agents`/`--all` to target agents beyond Claude.
@@ -192,33 +192,33 @@ All subcommands support `--repo`, `--force`, and `--base-branch` where applicabl
 
 ## Claude Code Integration
 
-klausify can be used three ways with Claude Code:
+klaussy can be used three ways with Claude Code:
 
 ### As a CLI (simplest)
 
 ```bash
-pip install klausify
-klausify init
+pip install klaussy
+klaussy init
 ```
 
 ### As a Claude Code Plugin
 
-Add the klausify marketplace, then install the plugin:
+Add the klaussy marketplace, then install the plugin:
 
 ```
-/plugin marketplace add steph-dove/klausify
-/plugin install klausify@klausify
+/plugin marketplace add steph-dove/klaussy
+/plugin install klaussy@klaussy
 ```
 
-This gives you two plugin-level skills — `klausify-init` (scaffold a fresh repo) and `klausify-update` (refresh generated boilerplate after upgrading klausify) — plus the MCP server. The plugin manifest lives in `.claude-plugin/plugin.json` and the marketplace entry in `.claude-plugin/marketplace.json`.
+This gives you two plugin-level skills — `klaussy-init` (scaffold a fresh repo) and `klaussy-update` (refresh generated boilerplate after upgrading klaussy) — plus the MCP server. The plugin manifest lives in `.claude-plugin/plugin.json` and the marketplace entry in `.claude-plugin/marketplace.json`.
 
 ### As an MCP Server
 
-Add klausify as an MCP server so Claude can invoke it directly:
+Add klaussy as an MCP server so Claude can invoke it directly:
 
 ```bash
-pip install klausify[mcp]
-claude mcp add --transport stdio klausify -- klausify-mcp
+pip install klaussy[mcp]
+claude mcp add --transport stdio klaussy -- klaussy-mcp
 ```
 
 Or add to your project's `.mcp.json`:
@@ -226,22 +226,22 @@ Or add to your project's `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "klausify": {
-      "command": "klausify-mcp",
+    "klaussy": {
+      "command": "klaussy-mcp",
       "env": { "PYTHONUNBUFFERED": "1" }
     }
   }
 }
 ```
 
-The MCP server exposes these tools: `klausify_init`, `klausify_checklist`, `klausify_skills`, `klausify_settings`, `klausify_status`.
+The MCP server exposes these tools: `klaussy_init`, `klaussy_checklist`, `klaussy_skills`, `klaussy_settings`, `klaussy_status`.
 
 ## Requirements
 
 - Python 3.10+
-- [conventions-cli](https://pypi.org/project/conventions-cli/) >= 1.4.0
+- [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) >= 1.4.0
 - [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) (optional, for `--init` enrichment)
-- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klausify[mcp]`)
+- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klaussy[mcp]`)
 
 ## Contributing
 
@@ -253,6 +253,6 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## Ownership and Governance
 
-klausify is an open-source project owned and maintained by Dovatech LLC.
+klaussy is an open-source project owned and maintained by Dovatech LLC.
 
 Dovatech LLC is a privately held company founded and wholly owned by Stephanie Dover, who is also the original author and lead maintainer of this project.

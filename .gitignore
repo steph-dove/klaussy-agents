@@ -38,9 +38,9 @@ Thumbs.db
 # Claude Code plan files
 .claude/plans/
 
-# klausify outputs
+# klaussy outputs
 pr-description.md
 REVIEW_OUTPUT.md
 
-# Companion desktop app lives in its own private repo (steph-dove/klausify-desktop)
+# Companion desktop app lives in its own private repo (steph-dove/klaussy-desktop)
 desktop/

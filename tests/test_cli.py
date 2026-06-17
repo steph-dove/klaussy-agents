@@ -1,4 +1,4 @@
-"""Tests for klausify CLI and modules."""
+"""Tests for klaussy CLI and modules."""
 
 import json
 from pathlib import Path
@@ -6,18 +6,18 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from klausify.checklist import _parse_claude_md, _parse_rules_dir, generate_checklist
-from klausify.cli import app
-from klausify.github import scaffold_github
-from klausify.gitignore import update_gitignore
-from klausify.hooks import (
+from klaussy.checklist import _parse_claude_md, _parse_rules_dir, generate_checklist
+from klaussy.cli import app
+from klaussy.github import scaffold_github
+from klaussy.gitignore import update_gitignore
+from klaussy.hooks import (
     _detect_comment_check_command,
     _detect_format_command,
     _detect_lint_command,
     scaffold_hooks,
 )
-from klausify.settings import _detect_sensitive_paths, _detect_stack, generate_settings
-from klausify.skills import (
+from klaussy.settings import _detect_sensitive_paths, _detect_stack, generate_settings
+from klaussy.skills import (
     LEGACY_COMMAND_FILENAMES,
     SKILL_NAMES,
     sanitize_skill_namespace,
@@ -85,7 +85,7 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def repo_with_claude_md(repo: Path) -> Path:
-    """Create a repo with ./CLAUDE.md (canonical location for klausify 0.2.0+)."""
+    """Create a repo with ./CLAUDE.md (canonical location for klaussy 0.2.0+)."""
     (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
     return repo
 
@@ -103,7 +103,7 @@ class TestVersion:
     def test_version_flag(self):
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "klausify" in result.stdout
+        assert "klaussy" in result.stdout
 
 
 class TestSettings:
@@ -221,11 +221,11 @@ class TestScaffoldSkills:
 
 
 class TestLegacyCommandsMigration:
-    def test_removes_klausify_generated_files(self, repo: Path):
+    def test_removes_klaussy_generated_files(self, repo: Path):
         commands_dir = repo / ".claude" / "commands"
         commands_dir.mkdir(parents=True)
-        # Mark as klausify-generated and plant the files klausify shipped pre-0.2.0.
-        (commands_dir / ".klausify-version").write_text("0.1.7\n")
+        # Mark as klaussy-generated and plant the files klaussy shipped pre-0.2.0.
+        (commands_dir / ".klaussy-version").write_text("0.1.7\n")
         for filename in LEGACY_COMMAND_FILENAMES:
             (commands_dir / filename).write_text("# legacy\n")
         (commands_dir / f"pr-review-{repo.name}.md").write_text("# legacy review\n")
@@ -237,14 +237,14 @@ class TestLegacyCommandsMigration:
         for filename in LEGACY_COMMAND_FILENAMES:
             assert not (commands_dir / filename).exists()
         assert not (commands_dir / f"pr-review-{repo.name}.md").exists()
-        assert not (commands_dir / ".klausify-version").exists()
+        assert not (commands_dir / ".klaussy-version").exists()
         # User file preserved.
         assert (commands_dir / "user-custom.md").exists()
 
     def test_skips_when_no_marker(self, repo: Path):
         commands_dir = repo / ".claude" / "commands"
         commands_dir.mkdir(parents=True)
-        # No .klausify-version marker -> we don't touch user-authored files.
+        # No .klaussy-version marker -> we don't touch user-authored files.
         (commands_dir / "test.md").write_text("# user-authored\n")
         scaffold_skills(repo=repo)
         assert (commands_dir / "test.md").exists()
@@ -375,9 +375,9 @@ class TestHooks:
 
         # Substitution check: the sentinels in the template should be replaced.
         text = guard.read_text()
-        assert "__KLAUSIFY_FORMAT_CMD__" not in text
-        assert "__KLAUSIFY_LINT_CMD__" not in text
-        assert "__KLAUSIFY_COMMENT_CHECK_CMD__" not in text
+        assert "__KLAUSSY_FORMAT_CMD__" not in text
+        assert "__KLAUSSY_LINT_CMD__" not in text
+        assert "__KLAUSSY_COMMENT_CHECK_CMD__" not in text
         assert "ruff format ." in text, "format command should be baked in"
         assert "ruff check --fix ." in text, "lint command should be baked in"
         assert "ruff check --select ERA ." in text, "commented-out-code check baked in"
@@ -418,7 +418,7 @@ class TestReadInjectionGuard:
     def scan(self):
         import importlib.util
 
-        from klausify import hooks as hooks_mod
+        from klaussy import hooks as hooks_mod
 
         # Load the template script as a module so we can call scan() directly.
         script_path = (
@@ -527,33 +527,33 @@ class TestGitHub:
 
 class TestResolveAgents:
     def test_default_is_all(self):
-        from klausify.agents import ALL_AGENTS, resolve_agents
+        from klaussy.agents import ALL_AGENTS, resolve_agents
 
         assert resolve_agents(None) == ALL_AGENTS
 
     def test_explicit_subset_narrows(self):
-        from klausify.agents import resolve_agents
+        from klaussy.agents import resolve_agents
 
         assert resolve_agents("claude") == ["claude"]
 
     def test_comma_list_in_registry_order(self):
-        from klausify.agents import resolve_agents
+        from klaussy.agents import resolve_agents
 
         # Requested out of order; result follows registry order.
         assert resolve_agents("cursor,gemini") == ["gemini", "cursor"]
 
     def test_dedup_and_case_insensitive(self):
-        from klausify.agents import resolve_agents
+        from klaussy.agents import resolve_agents
 
         assert resolve_agents("Gemini,gemini") == ["gemini"]
 
     def test_all_flag(self):
-        from klausify.agents import ALL_AGENTS, resolve_agents
+        from klaussy.agents import ALL_AGENTS, resolve_agents
 
         assert resolve_agents(None, all_agents=True) == ALL_AGENTS
 
     def test_unknown_raises(self):
-        from klausify.agents import resolve_agents
+        from klaussy.agents import resolve_agents
 
         with pytest.raises(ValueError, match="Unknown agent"):
             resolve_agents("gemini,bogus")
@@ -561,13 +561,13 @@ class TestResolveAgents:
 
 class TestSkillPayloads:
     def test_builds_one_payload_per_skill(self, repo_with_claude_md: Path):
-        from klausify.agents.base import build_skill_payloads
+        from klaussy.agents.base import build_skill_payloads
 
         payloads = build_skill_payloads(repo=repo_with_claude_md)
         assert len(payloads) == len(SKILL_NAMES)
 
     def test_namespace_and_token_substitution(self, repo_with_claude_md: Path):
-        from klausify.agents.base import build_skill_payloads
+        from klaussy.agents.base import build_skill_payloads
 
         ns = sanitize_skill_namespace(repo_with_claude_md.name)
         payloads = {p.skill: p for p in build_skill_payloads(repo=repo_with_claude_md)}
@@ -576,7 +576,7 @@ class TestSkillPayloads:
         assert "{{BASE_BRANCH}}" not in payloads["review"].body
 
     def test_review_payload_is_enriched(self, repo_with_claude_md: Path):
-        from klausify.agents.base import build_skill_payloads
+        from klaussy.agents.base import build_skill_payloads
 
         review = next(
             p for p in build_skill_payloads(repo=repo_with_claude_md) if p.skill == "review"
@@ -586,7 +586,7 @@ class TestSkillPayloads:
         assert "{{REPO_SPECIFIC_CHECKS}}" not in review.body
 
     def test_review_carries_sub_agents_aux_file(self, repo_with_claude_md: Path):
-        from klausify.agents.base import build_skill_payloads
+        from klaussy.agents.base import build_skill_payloads
 
         review = next(
             p for p in build_skill_payloads(repo=repo_with_claude_md) if p.skill == "review"
@@ -597,19 +597,19 @@ class TestSkillPayloads:
 class TestRenderAdapt:
     @pytest.fixture()
     def gemini_profile(self):
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         return GeminiBackend().profile
 
     def test_dynamic_block_becomes_run_instruction(self, gemini_profile):
-        from klausify.agents.render import adapt_body
+        from klaussy.agents.render import adapt_body
 
         out = adapt_body("intro\n```!\ngit status\n```\nafter", gemini_profile)
         assert "```!" not in out
         assert "Run `git status` and use its output." in out
 
     def test_banner_only_when_referenced(self, gemini_profile):
-        from klausify.agents.render import adapt_body
+        from klaussy.agents.render import adapt_body
 
         plain = adapt_body("Write a commit message.", gemini_profile)
         assert "Adapted for" not in plain
@@ -619,15 +619,15 @@ class TestRenderAdapt:
         assert "Adapted for" in orchestrated
 
     def test_path_prefix_rewritten(self, gemini_profile):
-        from klausify.agents.render import adapt_body
+        from klaussy.agents.render import adapt_body
 
         out = adapt_body("Read `.claude/skills/x-review/sub-agents.md`.", gemini_profile)
         assert ".gemini/skills/x-review/sub-agents.md" in out
         assert ".claude/skills/" not in out
 
     def test_frontmatter_drops_claude_only_keys(self, gemini_profile):
-        from klausify.agents.base import SkillPayload
-        from klausify.agents.render import render_skill_md
+        from klaussy.agents.base import SkillPayload
+        from klaussy.agents.render import render_skill_md
 
         payload = SkillPayload(
             skill="commit",
@@ -643,9 +643,9 @@ class TestRenderAdapt:
         assert "disable-model-invocation:" not in out
 
     def test_copilot_keeps_disable_invocation(self):
-        from klausify.agents.backends import CopilotBackend
-        from klausify.agents.base import SkillPayload
-        from klausify.agents.render import render_skill_md
+        from klaussy.agents.backends import CopilotBackend
+        from klaussy.agents.base import SkillPayload
+        from klaussy.agents.render import render_skill_md
 
         payload = SkillPayload(
             skill="commit",
@@ -661,7 +661,7 @@ class TestRenderAdapt:
 
 class TestMultiAgentBackends:
     def test_gemini_writes_skills_and_conventions(self, repo_with_claude_md: Path):
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         ns = sanitize_skill_namespace(repo_with_claude_md.name)
         backend = GeminiBackend()
@@ -675,7 +675,7 @@ class TestMultiAgentBackends:
         assert (repo_with_claude_md / "GEMINI.md").exists()
 
     def test_codex_uses_neutral_agents_skills_path(self, repo_with_claude_md: Path):
-        from klausify.agents.backends import CodexBackend
+        from klaussy.agents.backends import CodexBackend
 
         ns = sanitize_skill_namespace(repo_with_claude_md.name)
         CodexBackend().run_skills(
@@ -686,7 +686,7 @@ class TestMultiAgentBackends:
         ).exists()
 
     def test_cursor_path_scoped_rule_has_globs(self, repo: Path):
-        from klausify.agents.backends import CursorBackend
+        from klaussy.agents.backends import CursorBackend
 
         (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
         rules_dir = repo / ".claude" / "rules"
@@ -699,7 +699,7 @@ class TestMultiAgentBackends:
         assert "alwaysApply: false" in api_mdc
 
     def test_copilot_instructions_apply_to(self, repo: Path):
-        from klausify.agents.backends import CopilotBackend
+        from klaussy.agents.backends import CopilotBackend
 
         (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
         rules_dir = repo / ".claude" / "rules"
@@ -714,7 +714,7 @@ class TestMultiAgentBackends:
         assert 'applyTo: "src/api/**/*.py"' in instr
 
     def test_codex_conventions_inline_rules(self, repo: Path):
-        from klausify.agents.backends import CodexBackend
+        from klaussy.agents.backends import CodexBackend
 
         (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
         rules_dir = repo / ".claude" / "rules"
@@ -727,7 +727,7 @@ class TestMultiAgentBackends:
         assert "src/api/**/*.py" in agents_md
 
     def test_gemini_settings_maps_stack(self, repo: Path):
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         GeminiBackend().emit_settings(repo, force=True)
         settings = json.loads((repo / ".gemini" / "settings.json").read_text())
@@ -787,7 +787,7 @@ class TestMultiAgentHooks:
     def _load_guard(self, name: str):
         import importlib.util
 
-        from klausify import hooks as hooks_mod
+        from klaussy import hooks as hooks_mod
 
         script = (
             Path(hooks_mod.__file__).parent
@@ -802,7 +802,7 @@ class TestMultiAgentHooks:
     # --- config emission ----------------------------------------------------
 
     def test_gemini_emits_config_and_executable_guards(self, repo: Path):
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         GeminiBackend().emit_hooks(repo, force=True)
         settings = json.loads((repo / ".gemini" / "settings.json").read_text())
@@ -811,12 +811,12 @@ class TestMultiAgentHooks:
         matchers = {e["matcher"] for e in events["BeforeTool"]}
         assert {"run_shell_command", "read_file"} <= matchers
         assert events["AfterTool"][0]["matcher"] == "web_fetch"
-        guard = repo / ".gemini" / "hooks" / "klausify_commit_guard.py"
+        guard = repo / ".gemini" / "hooks" / "klaussy_commit_guard.py"
         assert guard.stat().st_mode & 0o100  # executable
         assert "ruff format ." in guard.read_text()  # baked in
 
     def test_cursor_emits_before_read_and_shell(self, repo: Path):
-        from klausify.agents.backends import CursorBackend
+        from klaussy.agents.backends import CursorBackend
 
         CursorBackend().emit_hooks(repo, force=True)
         cfg = json.loads((repo / ".cursor" / "hooks.json").read_text())
@@ -825,26 +825,26 @@ class TestMultiAgentHooks:
         assert "beforeReadFile" in cfg["hooks"]
 
     def test_codex_commit_only(self, repo: Path):
-        from klausify.agents.backends import CodexBackend
+        from klaussy.agents.backends import CodexBackend
 
         CodexBackend().emit_hooks(repo, force=True)
         cfg = json.loads((repo / ".codex" / "hooks.json").read_text())
         assert cfg["hooks"]["PreToolUse"][0]["matcher"] == "^Bash$"
         # No read guard (Codex has no pre-read hook surface).
-        assert not (repo / ".codex" / "hooks" / "klausify_read_guard.py").exists()
+        assert not (repo / ".codex" / "hooks" / "klaussy_read_guard.py").exists()
 
     def test_copilot_commit_guard_fail_closed_safe(self, repo: Path):
-        from klausify.agents.backends import CopilotBackend
+        from klaussy.agents.backends import CopilotBackend
 
         CopilotBackend().emit_hooks(repo, force=True)
         cfg = json.loads(
-            (repo / ".github" / "hooks" / "klausify-guards.json").read_text()
+            (repo / ".github" / "hooks" / "klaussy-guards.json").read_text()
         )
         assert "preToolUse" in cfg["hooks"]
 
     def test_no_lint_format_skips_commit_guard(self, tmp_path: Path):
         # A bare repo (no pyproject/package.json) → no commit guard for codex.
-        from klausify.agents.backends import CodexBackend
+        from klaussy.agents.backends import CodexBackend
 
         CodexBackend().emit_hooks(tmp_path, force=True)
         assert not (tmp_path / ".codex" / "hooks.json").exists()
@@ -934,7 +934,7 @@ class TestAdrSubReview:
 
     def test_adr_lens_reaches_other_agents(self, repo: Path):
         # The ADR lens ships via sub-agents.md, so non-Claude agents get it too.
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         ns = sanitize_skill_namespace(repo.name)
         GeminiBackend().run_skills(
@@ -996,8 +996,8 @@ class TestHumanize:
     def test_humanize_reaches_other_agents_and_survives_enrichment(
         self, repo_with_claude_md: Path
     ):
-        from klausify.agents.backends import GeminiBackend
-        from klausify.checklist import generate_checklist
+        from klaussy.agents.backends import GeminiBackend
+        from klaussy.checklist import generate_checklist
 
         ns = sanitize_skill_namespace(repo_with_claude_md.name)
         # Multi-agent path.
@@ -1019,7 +1019,7 @@ class TestHumanize:
 
 class TestSecretExclusions:
     def test_gemini_writes_geminiignore_and_filtering(self, repo: Path):
-        from klausify.agents.backends import GeminiBackend
+        from klaussy.agents.backends import GeminiBackend
 
         GeminiBackend().emit_settings(repo, force=True)
         ignore = (repo / ".geminiignore").read_text()
@@ -1029,7 +1029,7 @@ class TestSecretExclusions:
         assert settings["context"]["fileFiltering"]["respectGeminiIgnore"] is True
 
     def test_cursor_writes_cursorignore(self, repo: Path):
-        from klausify.agents.backends import CursorBackend
+        from klaussy.agents.backends import CursorBackend
 
         CursorBackend().emit_settings(repo, force=True)
         ignore = (repo / ".cursorignore").read_text()
@@ -1037,7 +1037,7 @@ class TestSecretExclusions:
         assert "credentials*" in ignore
 
     def test_secret_ignore_idempotent_preserves_user_entries(self, repo: Path):
-        from klausify.agents.backends import _write_secret_ignore
+        from klaussy.agents.backends import _write_secret_ignore
 
         target = repo / ".cursorignore"
         target.write_text("node_modules/\n")
@@ -1050,17 +1050,17 @@ class TestSecretExclusions:
 
 class TestCrossPlatformHooks:
     def test_copilot_uses_bash_powershell_split(self, repo: Path):
-        from klausify.agents.backends import CopilotBackend
+        from klaussy.agents.backends import CopilotBackend
 
         CopilotBackend().emit_hooks(repo, force=True)
         entry = json.loads(
-            (repo / ".github" / "hooks" / "klausify-guards.json").read_text()
+            (repo / ".github" / "hooks" / "klaussy-guards.json").read_text()
         )["hooks"]["preToolUse"][0]
         assert entry["bash"].startswith("python3 ")
         assert entry["powershell"].startswith("python ")
 
     def test_hook_python_per_platform(self, monkeypatch):
-        from klausify.agents import hooks as hooks_mod
+        from klaussy.agents import hooks as hooks_mod
 
         monkeypatch.setattr(hooks_mod.sys, "platform", "win32")
         assert hooks_mod._hook_python() == "python"
@@ -1094,25 +1094,25 @@ class TestCommentHygiene:
         assert "(FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD)" in guard
 
     def test_multi_agent_commit_guard_bakes_comment_check(self, repo: Path):
-        from klausify.agents.backends import CursorBackend
+        from klaussy.agents.backends import CursorBackend
 
         CursorBackend().emit_hooks(repo, force=True)
-        guard = (repo / ".cursor" / "hooks" / "klausify_commit_guard.py").read_text()
+        guard = (repo / ".cursor" / "hooks" / "klaussy_commit_guard.py").read_text()
         assert "ruff check --select ERA ." in guard
-        assert "__KLAUSIFY_COMMENT_CHECK_CMD__" not in guard
+        assert "__KLAUSSY_COMMENT_CHECK_CMD__" not in guard
 
 
 class TestHumanizeScrubber:
     """Deterministic humanizer — ported from klaussy-desktop humanize-comment.test.js."""
 
     def test_normalizes_em_and_en_dashes_in_prose(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert humanize("Leaks a connection — wrap it.") == "Leaks a connection, wrap it."
         assert humanize("range 1–5 here") == "range 1 - 5 here"
 
     def test_strips_leading_filler_opener_and_recapitalizes(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert (
             humanize("It's worth noting that the handler swallows the error.")
@@ -1120,7 +1120,7 @@ class TestHumanizeScrubber:
         )
 
     def test_drops_trailing_chatbot_scaffolding(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert (
             humanize("This races on startup.\nLet me know if you have questions!")
@@ -1128,13 +1128,13 @@ class TestHumanizeScrubber:
         )
 
     def test_tightens_verbose_phrasings(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert humanize("Refactor in order to avoid the N+1.") == "Refactor to avoid the N+1."
         assert humanize("This could potentially deadlock.") == "This could deadlock."
 
     def test_never_touches_code(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         out = humanize("Use `a — b` then:\n```\nx — y\n```\nbut this — changes.")
         assert "`a — b`" in out  # inline code dash preserved
@@ -1142,12 +1142,12 @@ class TestHumanizeScrubber:
         assert "but this, changes." in out  # prose dash normalized
 
     def test_leaves_clean_comment_unchanged(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert humanize("Nit: rename foo to bar.") == "Nit: rename foo to bar."
 
     def test_passes_non_strings_through(self):
-        from klausify.humanize import humanize
+        from klaussy.humanize import humanize
 
         assert humanize(None) is None
         assert humanize("") == ""
