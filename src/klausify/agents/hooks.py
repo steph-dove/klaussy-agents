@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import stat
+import sys
 from importlib import resources
 from pathlib import Path
 
@@ -24,6 +25,18 @@ console = Console()
 
 COMMIT_GUARD = "klausify_commit_guard.py"
 READ_GUARD = "klausify_read_guard.py"
+
+
+def _hook_python() -> str:
+    """Python interpreter token for hook commands on the scaffolding OS.
+
+    python.org Windows installs expose `python`, not `python3`; macOS/Linux
+    reliably have `python3`. Agents that run a shell-string hook command (Gemini,
+    Codex) get the right token for the OS klausify runs on. Mixed-OS teams: see
+    the README cross-platform note. Copilot uses an explicit bash/powershell
+    split, and Cursor execs the script via its shebang, so neither needs this.
+    """
+    return "python" if sys.platform == "win32" else "python3"
 
 
 def _python_literal(value: str | None) -> str:
@@ -74,6 +87,7 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     fmt, lint = _commit_cmds(repo)
     hooks_dir = ".gemini/hooks"
 
+    py = _hook_python()
     before: list[dict] = []
     if fmt or lint:
         _install_script(
@@ -83,11 +97,11 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
         before.append({
             "matcher": "run_shell_command",
             "hooks": [{"type": "command",
-                       "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
                        "timeout": 60000}],
         })
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
-    read_cmd = {"type": "command", "command": f"python3 {hooks_dir}/{READ_GUARD}",
+    read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}",
                 "timeout": 60000}
     before.append({"matcher": "read_file", "hooks": [read_cmd]})
 
@@ -149,7 +163,7 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
             "PreToolUse": [{
                 "matcher": "^Bash$",
                 "hooks": [{"type": "command",
-                           "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                           "command": f"{_hook_python()} {hooks_dir}/{COMMIT_GUARD}",
                            "timeout": 60}],
             }]
         }
@@ -174,12 +188,15 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
         repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
         format_cmd=fmt, lint_cmd=lint,
     )
+    # Copilot command hooks support an OS split: `bash` (Linux/macOS) and
+    # `powershell` (Windows). Use both so the guard runs regardless of platform.
     config = {
         "version": 1,
         "hooks": {
             "preToolUse": [{
                 "type": "command",
-                "command": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
                 "timeoutSec": 60,
             }]
         },

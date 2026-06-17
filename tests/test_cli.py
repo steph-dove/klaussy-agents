@@ -897,6 +897,57 @@ class TestMultiAgentHooks:
         assert rg._extract_path({}) == ""
 
 
+class TestSecretExclusions:
+    def test_gemini_writes_geminiignore_and_filtering(self, repo: Path):
+        from klausify.agents.backends import GeminiBackend
+
+        GeminiBackend().emit_settings(repo, force=True)
+        ignore = (repo / ".geminiignore").read_text()
+        assert ".env" in ignore
+        assert "*.pem" in ignore
+        settings = json.loads((repo / ".gemini" / "settings.json").read_text())
+        assert settings["context"]["fileFiltering"]["respectGeminiIgnore"] is True
+
+    def test_cursor_writes_cursorignore(self, repo: Path):
+        from klausify.agents.backends import CursorBackend
+
+        CursorBackend().emit_settings(repo, force=True)
+        ignore = (repo / ".cursorignore").read_text()
+        assert ".env" in ignore
+        assert "credentials*" in ignore
+
+    def test_secret_ignore_idempotent_preserves_user_entries(self, repo: Path):
+        from klausify.agents.backends import _write_secret_ignore
+
+        target = repo / ".cursorignore"
+        target.write_text("node_modules/\n")
+        _write_secret_ignore(repo, ".cursorignore", "Cursor")
+        _write_secret_ignore(repo, ".cursorignore", "Cursor")  # second call no-op
+        content = target.read_text()
+        assert "node_modules/" in content  # user entry preserved
+        assert content.count(".env\n") == 1  # not duplicated
+
+
+class TestCrossPlatformHooks:
+    def test_copilot_uses_bash_powershell_split(self, repo: Path):
+        from klausify.agents.backends import CopilotBackend
+
+        CopilotBackend().emit_hooks(repo, force=True)
+        entry = json.loads(
+            (repo / ".github" / "hooks" / "klausify-guards.json").read_text()
+        )["hooks"]["preToolUse"][0]
+        assert entry["bash"].startswith("python3 ")
+        assert entry["powershell"].startswith("python ")
+
+    def test_hook_python_per_platform(self, monkeypatch):
+        from klausify.agents import hooks as hooks_mod
+
+        monkeypatch.setattr(hooks_mod.sys, "platform", "win32")
+        assert hooks_mod._hook_python() == "python"
+        monkeypatch.setattr(hooks_mod.sys, "platform", "darwin")
+        assert hooks_mod._hook_python() == "python3"
+
+
 class TestGitignore:
     def test_update_gitignore_new(self, repo: Path):
         update_gitignore(repo=repo)

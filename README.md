@@ -115,6 +115,18 @@ klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conven
 
 **Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and inlined `### Applies to:` sections for `GEMINI.md` / `AGENTS.md`.
 
+**Permissions & secrets.** Each agent gets a stack-appropriate command allow-list in its native format (`.claude/settings.json`, `.gemini/settings.json` `tools.allowed`, `.cursor/permissions.json` `terminalAllowlist`, `.codex/config.toml` approval/sandbox). For keeping secrets (`.env`, `*.pem`, `credentials*`, …) out of the agent's reach, klausify uses each agent's native exclusion mechanism:
+
+| Agent | Secret exclusion |
+|-------|------------------|
+| Claude | `deny` rules in `.claude/settings.json` |
+| Gemini | `.geminiignore` (+ `respectGeminiIgnore` enabled in settings) |
+| Cursor | `.cursorignore` (the read-blocking one, not `.cursorindexingignore`) |
+| Codex | **none possible** — Codex has no read-exclusion; `sandbox_mode` governs writes/network, not reads. Keep secrets outside the workspace. |
+| Copilot | **not a committed file** — content exclusion is GitHub repo/org settings only, and doesn't cover the CLI/coding agent. |
+
+Note: even where supported, ignore-file exclusion is best-effort and (on Gemini/Cursor) does **not** stop a *terminal* tool from `cat`-ing a secret — pair it with the command allow-list for real protection.
+
 **Hooks.** klausify ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klausify wires each guard to whatever events the agent's protocol exposes:
 
 | Guard | Claude | Gemini | Cursor | Codex | Copilot |
@@ -125,7 +137,9 @@ klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conven
 
 Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klausify wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klausify-guards.json`.
 
-**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`). Copilot has no per-repo permission model, so its settings step is skipped.
+**Cross-platform.** The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klausify writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
+
+**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`).
 
 ## Options
 

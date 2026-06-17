@@ -31,11 +31,34 @@ from klausify.agents.hooks import (
 )
 from klausify.checklist import generate_checklist
 from klausify.hooks import scaffold_hooks
-from klausify.settings import _detect_stack, generate_settings
+from klausify.settings import SENSITIVE_PATTERNS, _detect_stack, generate_settings
 
 console = Console()
 
 Step = tuple[str, Callable[[], object]]
+
+SECRET_IGNORE_MARKER = "# klausify: keep secrets out of the agent's reach"
+
+
+def _write_secret_ignore(repo: Path, relpath: str, label: str) -> None:
+    """Write/append klausify's sensitive-file patterns to an agent ignore file.
+
+    Both `.geminiignore` and `.cursorignore` use `.gitignore` syntax and are the
+    native way to keep secrets out of those agents' reach — the equivalent of
+    Claude's settings deny rules. Idempotent: appends a marked block only if it
+    isn't already present, preserving any user-authored entries.
+    """
+    path = repo / relpath
+    block = "\n".join([SECRET_IGNORE_MARKER, *SENSITIVE_PATTERNS]) + "\n"
+    if path.exists():
+        existing = path.read_text()
+        if SECRET_IGNORE_MARKER in existing:
+            return
+        sep = "" if existing.endswith("\n") else "\n"
+        path.write_text(existing + sep + "\n" + block)
+    else:
+        path.write_text(block)
+    console.print(f"[green]✔ [{label}] wrote {relpath} (secret exclusions)[/green]")
 
 
 def _shell_prefixes(stack: dict[str, bool]) -> list[str]:
@@ -250,6 +273,14 @@ class GeminiBackend(GenericBackend):
                 {
                     "tools": {"allowed": allowed},
                     "general": {"defaultApprovalMode": "default"},
+                    # Ensure .geminiignore (and .gitignore) are honored so the
+                    # secret patterns below actually exclude those files.
+                    "context": {
+                        "fileFiltering": {
+                            "respectGitIgnore": True,
+                            "respectGeminiIgnore": True,
+                        }
+                    },
                 },
                 indent=2,
             )
@@ -261,6 +292,7 @@ class GeminiBackend(GenericBackend):
             force=force,
             what=".gemini/settings.json",
         )
+        _write_secret_ignore(repo, ".geminiignore", self.label)
 
     def emit_hooks(self, repo, *, force):
         gemini_hooks(repo, force=force)
@@ -320,6 +352,8 @@ class CursorBackend(GenericBackend):
             force=force,
             what=".cursor/permissions.json",
         )
+        # .cursorignore (not .cursorindexingignore) blocks agent reads of secrets.
+        _write_secret_ignore(repo, ".cursorignore", self.label)
 
     def emit_hooks(self, repo, *, force):
         cursor_hooks(repo, force=force)
@@ -369,8 +403,9 @@ class CodexBackend(GenericBackend):
             what=".codex/config.toml",
         )
         console.print(
-            "[dim][Codex CLI] note: per-file deny rules aren't supported; "
-            "sandbox_mode governs file access instead.[/dim]"
+            "[dim][Codex CLI] note: Codex has no secret-read exclusion "
+            "(no .codexignore); sandbox_mode governs writes/network, not reads. "
+            "Keep secrets outside the workspace to hide them.[/dim]"
         )
 
     def emit_hooks(self, repo, *, force):
@@ -416,8 +451,9 @@ class CopilotBackend(GenericBackend):
 
     def emit_settings(self, repo, *, force):
         console.print(
-            "[dim][GitHub Copilot] no per-repo permission model — skipping "
-            "settings (instructions + skills cover behavior).[/dim]"
+            "[dim][GitHub Copilot] no per-repo permission file, and secret "
+            "content-exclusion is GitHub repo/org settings only (not a committed "
+            "file) — and doesn't cover the CLI/coding agent. Skipping.[/dim]"
         )
 
     def emit_hooks(self, repo, *, force):
