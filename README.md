@@ -7,7 +7,7 @@ same conventions and the same workflow skills in its own native format.
 ## Install
 
 ```bash
-pip install klaussy
+pip install klaussy-agents
 ```
 
 Requires [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) (installed automatically).
@@ -197,7 +197,7 @@ klaussy can be used three ways with Claude Code:
 ### As a CLI (simplest)
 
 ```bash
-pip install klaussy
+pip install klaussy-agents
 klaussy init
 ```
 
@@ -206,7 +206,7 @@ klaussy init
 Add the klaussy marketplace, then install the plugin:
 
 ```
-/plugin marketplace add steph-dove/klaussy
+/plugin marketplace add steph-dove/klaussy-agents
 /plugin install klaussy@klaussy
 ```
 
@@ -217,7 +217,7 @@ This gives you two plugin-level skills — `klaussy-init` (scaffold a fresh repo
 Add klaussy as an MCP server so Claude can invoke it directly:
 
 ```bash
-pip install klaussy[mcp]
+pip install klaussy-agents[mcp]
 claude mcp add --transport stdio klaussy -- klaussy-mcp
 ```
 
@@ -241,7 +241,7 @@ The MCP server exposes these tools: `klaussy_init`, `klaussy_checklist`, `klauss
 - Python 3.10+
 - [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) >= 1.4.0
 - [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) (optional, for `--init` enrichment)
-- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klaussy[mcp]`)
+- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klaussy-agents[mcp]`)
 
 ## Contributing
 
