@@ -38,10 +38,11 @@ Read every changed file in full for surrounding context.
 
 ## Ground rules (always)
 
-- Be skeptical and precise.
+- Be skeptical and precise in analysis; collaborative in delivery.
 - Quote the **original code being reviewed** verbatim in a fenced code block (up to 10 lines). This is what the comment IS ABOUT — not your fix. Do NOT include a suggested change in that same block; if you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
 - If something relies on an unstated assumption, call it out.
 - Prefer concrete fixes over vague advice.
+- **Phrase findings as a constructive collaborator, not a critic:** assume the author had a reason, critique the code (not the author), and prefer "Consider …" / "What happens if …" over "this is wrong." Skip harsh intensifiers and ALL-CAPS scolding. Keep the tone agreeable but never drop the detail — severity, file:line, the trigger, and the concrete fix all stay. Gentle phrasing, full substance.
 - Return ONLY your findings. Do not write any files.
 ```
 

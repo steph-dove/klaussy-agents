@@ -939,6 +939,18 @@ class TestReviewPrecisionUpgrades:
         assert "Removed-behavior audit" in review
         assert "Argue the author's side" in review  # self-refutation in validation
 
+    def test_review_comments_are_agreeable_but_detailed(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        # Collaborative delivery...
+        assert "constructive" in review.lower()
+        assert "critique the code" in review and "not the author" in review
+        assert "constructive collaborator" in sub
+        # ...without dropping substance.
+        assert "must not dilute substance" in review
+
 
 class TestSecretExclusions:
     def test_gemini_writes_geminiignore_and_filtering(self, repo: Path):
