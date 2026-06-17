@@ -1,28 +1,28 @@
-# klausify
+# klaussy
 
 Claude Code boilerplate generator. One command to make any repo Claude Code-ready.
 
 ## Install
 
 ```bash
-pip install klausify
+pip install klaussy
 ```
 
-Requires [conventions-cli](https://pypi.org/project/conventions-cli/) (installed automatically).
+Requires [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) (installed automatically).
 
 ## Quick Start
 
 ```bash
 cd your-repo
-klausify init
+klaussy init
 ```
 
-That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, etc.), then klausify generates everything.
+That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, etc.), then klaussy generates everything.
 
 ## What Gets Generated
 
 ```
-CLAUDE.md                                      # Repo conventions, project-wide section (via conventions-cli)
+CLAUDE.md                                      # Repo conventions, project-wide section (via klaussy-repo-conventions)
 
 .claude/
 ├── settings.json                              # Tool permissions + deny rules + PreToolUse/PostToolUse hooks
@@ -30,9 +30,9 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 │   ├── read_injection_guard.py                # Scans Read/WebFetch content for prompt-injection markers
 │   └── git_commit_guard.py                    # Runs format + lint when Claude tries to `git commit`
 ├── rules/
-│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by conventions-cli 1.4+)
+│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by klaussy-repo-conventions 1.4+)
 └── skills/
-    ├── .klausify-version                      # Marker tracking which klausify version generated the skills
+    ├── .klaussy-version                      # Marker tracking which klaussy version generated the skills
     ├── <repo>-review/SKILL.md                 # PR review with parallel sub-agents and repo-specific checks
     ├── <repo>-plan/SKILL.md                   # Multi-phase plan + implement (discovery, parallel architects, review)
     ├── <repo>-debug/SKILL.md                  # Debug an error with root-cause analysis and a failing test
@@ -48,7 +48,7 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 .github/
 └── PULL_REQUEST_TEMPLATE.md                   # Only if repo doesn't have one
 
-.gitignore                                     # Appends klausify output exclusions
+.gitignore                                     # Appends klaussy output exclusions
 ```
 
 ### What each piece does
@@ -57,7 +57,7 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 **settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so Claude can't read them.
 
-**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klausify/skills.py`.
+**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so Claude Code auto-triggers them by description and they don't collide across repos. The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klaussy/skills.py`.
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
@@ -83,14 +83,14 @@ CLAUDE.md                                      # Repo conventions, project-wide 
 
 ### Migrating from 0.1.x
 
-If you ran an earlier version of klausify, you have `.claude/commands/*.md` files. On the next `klausify init` (with 0.2.0+) those files — and only the ones klausify itself created (tracked via `.claude/commands/.klausify-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
+If you ran an earlier version of klaussy, you have `.claude/commands/*.md` files. On the next `klaussy init` (with 0.2.0+) those files — and only the ones klaussy itself created (tracked via `.claude/commands/.klaussy-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
 
-If you've already klausified at 0.2.0+ and want to refresh after upgrading klausify itself, use `klausify init --force` (or the `klausify-update` skill if you have the plugin installed).
+If you've already klaussified at 0.2.0+ and want to refresh after upgrading klaussy itself, use `klaussy init --force` (or the `klaussy-update` skill if you have the plugin installed).
 
 ## Options
 
 ```bash
-klausify init [OPTIONS]
+klaussy init [OPTIONS]
 
 Options:
   -r, --repo PATH             Target repository (default: current directory)
@@ -105,7 +105,7 @@ Options:
 If your team has a specific review checklist (e.g. domain-specific checks, security requirements), pass it in:
 
 ```bash
-klausify init --review-template path/to/your-review.md
+klaussy init --review-template path/to/your-review.md
 ```
 
 The template will be used as the body of the `<repo>-review` skill instead of the default. Custom templates are responsible for supplying their own SKILL.md frontmatter.
@@ -115,11 +115,11 @@ The template will be used as the body of the `<repo>-review` skill instead of th
 You can run each step individually:
 
 ```bash
-klausify checklist              # Regenerate the review skill from CLAUDE.md
-klausify skills                 # Regenerate all skills
-klausify settings               # Regenerate settings.json
-klausify hooks                  # Regenerate hook configs
-klausify github                 # Regenerate PR template
+klaussy checklist              # Regenerate the review skill from CLAUDE.md
+klaussy skills                 # Regenerate all skills
+klaussy settings               # Regenerate settings.json
+klaussy hooks                  # Regenerate hook configs
+klaussy github                 # Regenerate PR template
 ```
 
 All subcommands support `--repo`, `--force`, and `--base-branch` where applicable.
@@ -135,33 +135,33 @@ All subcommands support `--repo`, `--force`, and `--base-branch` where applicabl
 
 ## Claude Code Integration
 
-klausify can be used three ways with Claude Code:
+klaussy can be used three ways with Claude Code:
 
 ### As a CLI (simplest)
 
 ```bash
-pip install klausify
-klausify init
+pip install klaussy
+klaussy init
 ```
 
 ### As a Claude Code Plugin
 
-Add the klausify marketplace, then install the plugin:
+Add the klaussy marketplace, then install the plugin:
 
 ```
-/plugin marketplace add steph-dove/klausify
-/plugin install klausify@klausify
+/plugin marketplace add steph-dove/klaussy
+/plugin install klaussy@klaussy
 ```
 
-This gives you two plugin-level skills — `klausify-init` (scaffold a fresh repo) and `klausify-update` (refresh generated boilerplate after upgrading klausify) — plus the MCP server. The plugin manifest lives in `.claude-plugin/plugin.json` and the marketplace entry in `.claude-plugin/marketplace.json`.
+This gives you two plugin-level skills — `klaussy-init` (scaffold a fresh repo) and `klaussy-update` (refresh generated boilerplate after upgrading klaussy) — plus the MCP server. The plugin manifest lives in `.claude-plugin/plugin.json` and the marketplace entry in `.claude-plugin/marketplace.json`.
 
 ### As an MCP Server
 
-Add klausify as an MCP server so Claude can invoke it directly:
+Add klaussy as an MCP server so Claude can invoke it directly:
 
 ```bash
-pip install klausify[mcp]
-claude mcp add --transport stdio klausify -- klausify-mcp
+pip install klaussy[mcp]
+claude mcp add --transport stdio klaussy -- klaussy-mcp
 ```
 
 Or add to your project's `.mcp.json`:
@@ -169,22 +169,22 @@ Or add to your project's `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "klausify": {
-      "command": "klausify-mcp",
+    "klaussy": {
+      "command": "klaussy-mcp",
       "env": { "PYTHONUNBUFFERED": "1" }
     }
   }
 }
 ```
 
-The MCP server exposes these tools: `klausify_init`, `klausify_checklist`, `klausify_skills`, `klausify_settings`, `klausify_status`.
+The MCP server exposes these tools: `klaussy_init`, `klaussy_checklist`, `klaussy_skills`, `klaussy_settings`, `klaussy_status`.
 
 ## Requirements
 
 - Python 3.10+
-- [conventions-cli](https://pypi.org/project/conventions-cli/) >= 1.4.0
+- [klaussy-repo-conventions](https://pypi.org/project/klaussy-repo-conventions/) >= 1.4.0
 - [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) (optional, for `--init` enrichment)
-- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klausify[mcp]`)
+- [mcp](https://pypi.org/project/mcp/) (optional, for MCP server: `pip install klaussy[mcp]`)
 
 ## Contributing
 
@@ -196,6 +196,6 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## Ownership and Governance
 
-klausify is an open-source project owned and maintained by Dovatech LLC.
+klaussy is an open-source project owned and maintained by Dovatech LLC.
 
 Dovatech LLC is a privately held company founded and wholly owned by Stephanie Dover, who is also the original author and lead maintainer of this project.

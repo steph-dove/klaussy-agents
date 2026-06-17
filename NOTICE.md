@@ -1,5 +1,5 @@
-klausify
+klaussy
 
 Copyright © 2026 Dovatech LLC
 
-klausify is an open-source project maintained by Dovatech LLC.
+klaussy is an open-source project maintained by Dovatech LLC.

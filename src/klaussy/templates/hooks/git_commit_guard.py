@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """PreToolUse guard: run format + lint before allowing a `git commit`.
 
-Installed by klausify into .claude/hooks/ and registered in .claude/settings.json
+Installed by klaussy into .claude/hooks/ and registered in .claude/settings.json
 as a PreToolUse hook on `Bash`. The guard inspects the Bash command from the
 hook payload; if it's a `git commit` invocation, the guard runs the project's
 format and lint commands. Any non-zero exit blocks the commit and surfaces the
 failing command's stderr back to Claude.
 
-Format/lint commands are baked in at scaffold time from klausify's stack
-detection. Edit this file (or re-run `klausify hooks --force`) to change them.
+Format/lint commands are baked in at scaffold time from klaussy's stack
+detection. Edit this file (or re-run `klaussy hooks --force`) to change them.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ import shlex
 import subprocess
 import sys
 
-# Sentinels replaced by klausify at scaffold time. Either may end up as None
+# Sentinels replaced by klaussy at scaffold time. Either may end up as None
 # (no detected command) or a shell command string.
-FORMAT_CMD: str | None = "__KLAUSIFY_FORMAT_CMD__"
-LINT_CMD: str | None = "__KLAUSIFY_LINT_CMD__"
+FORMAT_CMD: str | None = "__KLAUSSY_FORMAT_CMD__"
+LINT_CMD: str | None = "__KLAUSSY_LINT_CMD__"
 
 # Matches `git commit` and `git -C path commit`, but not `git commitlint`,
 # `git log --grep=commit`, or shell-quoted strings that mention commit.
@@ -34,7 +34,7 @@ def _is_git_commit(command: str) -> bool:
 
 
 def _run(cmd: str) -> int:
-    print(f"klausify pre-commit: running `{cmd}`", file=sys.stderr)
+    print(f"klaussy pre-commit: running `{cmd}`", file=sys.stderr)
     result = subprocess.run(shlex.split(cmd))
     return result.returncode
 
@@ -61,7 +61,7 @@ def main() -> int:
         rc = _run(cmd)
         if rc != 0:
             print(
-                f"klausify pre-commit: `{cmd}` failed (exit {rc}). Commit blocked.",
+                f"klaussy pre-commit: `{cmd}` failed (exit {rc}). Commit blocked.",
                 file=sys.stderr,
             )
             return 2

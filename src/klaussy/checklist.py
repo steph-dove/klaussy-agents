@@ -6,7 +6,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from klausify.skills import sanitize_skill_namespace
+from klaussy.skills import sanitize_skill_namespace
 
 console = Console()
 
@@ -14,7 +14,7 @@ console = Console()
 def _read_review_template() -> str:
     """Read the review skill template."""
     return (
-        resources.files("klausify")
+        resources.files("klaussy")
         .joinpath("templates/skills/review/SKILL.md")
         .read_text()
     )
@@ -24,7 +24,7 @@ def _resolve_claude_md(repo: Path) -> Path | None:
     """Return the canonical CLAUDE.md path, preferring repo root over .claude/.
 
     Both locations are valid per Claude Code docs; root is canonical for
-    Claude Code 2.x and the conventions-cli 1.4.0+ default.
+    Claude Code 2.x and the klaussy-repo-conventions 1.4.0+ default.
     """
     for candidate in (repo / "CLAUDE.md", repo / ".claude" / "CLAUDE.md"):
         if candidate.exists():
@@ -35,7 +35,7 @@ def _resolve_claude_md(repo: Path) -> Path | None:
 def _parse_claude_md(claude_md: Path) -> dict[str, list[str]]:
     """Extract project-wide sections from CLAUDE.md for review enrichment.
 
-    Path-scoped rules live in `.claude/rules/*.md` in conventions-cli 1.4.0+
+    Path-scoped rules live in `.claude/rules/*.md` in klaussy-repo-conventions 1.4.0+
     and are read separately by `_parse_rules_dir`. CLAUDE.md only contains
     project-wide content, so this parser is intentionally simple — collect
     bullets under recognized H2 sections.
@@ -161,7 +161,7 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
     if claude_md is None:
         console.print(
             "[red]✗ CLAUDE.md not found at ./CLAUDE.md or ./.claude/CLAUDE.md. "
-            "Run `klausify init` first.[/red]"
+            "Run `klaussy init` first.[/red]"
         )
         raise SystemExit(1)
 

@@ -58,7 +58,7 @@ def _install_guard_script(repo: Path) -> Path:
     """Copy the read-injection guard into .claude/hooks/ and mark it executable."""
     dest = repo / GUARD_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
-    source = resources.files("klausify").joinpath(f"templates/hooks/{GUARD_SCRIPT_NAME}")
+    source = resources.files("klaussy").joinpath(f"templates/hooks/{GUARD_SCRIPT_NAME}")
     dest.write_text(source.read_text())
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -76,10 +76,10 @@ def _install_commit_guard_script(
     """Render the git-commit guard with project-specific commands baked in."""
     dest = repo / COMMIT_GUARD_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
-    source = resources.files("klausify").joinpath(f"templates/hooks/{COMMIT_GUARD_SCRIPT_NAME}")
+    source = resources.files("klaussy").joinpath(f"templates/hooks/{COMMIT_GUARD_SCRIPT_NAME}")
     content = source.read_text()
-    content = content.replace('"__KLAUSIFY_FORMAT_CMD__"', _python_literal(format_cmd))
-    content = content.replace('"__KLAUSIFY_LINT_CMD__"', _python_literal(lint_cmd))
+    content = content.replace('"__KLAUSSY_FORMAT_CMD__"', _python_literal(format_cmd))
+    content = content.replace('"__KLAUSSY_LINT_CMD__"', _python_literal(lint_cmd))
     dest.write_text(content)
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
