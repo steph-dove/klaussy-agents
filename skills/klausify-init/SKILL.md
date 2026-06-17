@@ -21,6 +21,8 @@ Scaffold Claude Code boilerplate for the user's project by running klausify.
    ```
    If `.claude/skills/` or `./CLAUDE.md` already exists, ask the user whether to pass `--force` rather than assuming. The migration in `klausify init` removes legacy `.claude/commands/*.md` files only if it owns them (via the `.klausify-version` marker) — user-authored commands are left alone.
 
+   **Agent targets.** By default klausify scaffolds **all** supported agents — Claude Code, Gemini CLI, Cursor, Codex, and GitHub Copilot — from the same conventions. Each gets the bundled skills in its own native `SKILL.md` directory (`.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, `.agents/skills/` for Codex, `.github/skills/` for Copilot), plus its native conventions file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md` / `.cursor/rules/`) and permissions. To narrow to specific agents, pass `--agents claude,gemini` (any subset). If the user only uses Claude, suggest `--agents claude`.
+
 4. **Verify output.** Confirm these landed:
    - `./CLAUDE.md` at the repo root (with project-wide content)
    - `.claude/rules/<glob-stem>.md` for each path-scoped rule bucket conventions-cli detected (zero or more files; some repos won't have any)

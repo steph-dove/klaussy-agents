@@ -510,6 +510,264 @@ class TestGitHub:
         assert result is None
 
 
+class TestResolveAgents:
+    def test_default_is_all(self):
+        from klausify.agents import ALL_AGENTS, resolve_agents
+
+        assert resolve_agents(None) == ALL_AGENTS
+
+    def test_explicit_subset_narrows(self):
+        from klausify.agents import resolve_agents
+
+        assert resolve_agents("claude") == ["claude"]
+
+    def test_comma_list_in_registry_order(self):
+        from klausify.agents import resolve_agents
+
+        # Requested out of order; result follows registry order.
+        assert resolve_agents("cursor,gemini") == ["gemini", "cursor"]
+
+    def test_dedup_and_case_insensitive(self):
+        from klausify.agents import resolve_agents
+
+        assert resolve_agents("Gemini,gemini") == ["gemini"]
+
+    def test_all_flag(self):
+        from klausify.agents import ALL_AGENTS, resolve_agents
+
+        assert resolve_agents(None, all_agents=True) == ALL_AGENTS
+
+    def test_unknown_raises(self):
+        from klausify.agents import resolve_agents
+
+        with pytest.raises(ValueError, match="Unknown agent"):
+            resolve_agents("gemini,bogus")
+
+
+class TestSkillPayloads:
+    def test_builds_one_payload_per_skill(self, repo_with_claude_md: Path):
+        from klausify.agents.base import build_skill_payloads
+
+        payloads = build_skill_payloads(repo=repo_with_claude_md)
+        assert len(payloads) == len(SKILL_NAMES)
+
+    def test_namespace_and_token_substitution(self, repo_with_claude_md: Path):
+        from klausify.agents.base import build_skill_payloads
+
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        payloads = {p.skill: p for p in build_skill_payloads(repo=repo_with_claude_md)}
+        assert payloads["plan"].name == f"{ns}-plan"
+        assert "{{REPO}}" not in payloads["plan"].body
+        assert "{{BASE_BRANCH}}" not in payloads["review"].body
+
+    def test_review_payload_is_enriched(self, repo_with_claude_md: Path):
+        from klausify.agents.base import build_skill_payloads
+
+        review = next(
+            p for p in build_skill_payloads(repo=repo_with_claude_md) if p.skill == "review"
+        )
+        # Enrichment derived from CLAUDE.md conventions reaches the body.
+        assert "snake_case" in review.body
+        assert "{{REPO_SPECIFIC_CHECKS}}" not in review.body
+
+    def test_review_carries_sub_agents_aux_file(self, repo_with_claude_md: Path):
+        from klausify.agents.base import build_skill_payloads
+
+        review = next(
+            p for p in build_skill_payloads(repo=repo_with_claude_md) if p.skill == "review"
+        )
+        assert "sub-agents.md" in review.aux_files
+
+
+class TestRenderAdapt:
+    @pytest.fixture()
+    def gemini_profile(self):
+        from klausify.agents.backends import GeminiBackend
+
+        return GeminiBackend().profile
+
+    def test_dynamic_block_becomes_run_instruction(self, gemini_profile):
+        from klausify.agents.render import adapt_body
+
+        out = adapt_body("intro\n```!\ngit status\n```\nafter", gemini_profile)
+        assert "```!" not in out
+        assert "Run `git status` and use its output." in out
+
+    def test_banner_only_when_referenced(self, gemini_profile):
+        from klausify.agents.render import adapt_body
+
+        plain = adapt_body("Write a commit message.", gemini_profile)
+        assert "Adapted for" not in plain
+        orchestrated = adapt_body(
+            "Launch sub-agents in parallel via the Agent tool.", gemini_profile
+        )
+        assert "Adapted for" in orchestrated
+
+    def test_path_prefix_rewritten(self, gemini_profile):
+        from klausify.agents.render import adapt_body
+
+        out = adapt_body("Read `.claude/skills/x-review/sub-agents.md`.", gemini_profile)
+        assert ".gemini/skills/x-review/sub-agents.md" in out
+        assert ".claude/skills/" not in out
+
+    def test_frontmatter_drops_claude_only_keys(self, gemini_profile):
+        from klausify.agents.base import SkillPayload
+        from klausify.agents.render import render_skill_md
+
+        payload = SkillPayload(
+            skill="commit",
+            name="x-commit",
+            description="Use when committing.",
+            allowed_tools="Read Bash(git diff *)",
+            disable_invocation=True,
+            body="body",
+        )
+        out = render_skill_md(payload, gemini_profile)
+        assert "name: x-commit" in out
+        assert "allowed-tools:" not in out  # gemini drops Claude tool syntax
+        assert "disable-model-invocation:" not in out
+
+    def test_copilot_keeps_disable_invocation(self):
+        from klausify.agents.backends import CopilotBackend
+        from klausify.agents.base import SkillPayload
+        from klausify.agents.render import render_skill_md
+
+        payload = SkillPayload(
+            skill="commit",
+            name="x-commit",
+            description="d",
+            allowed_tools="Read",
+            disable_invocation=True,
+            body="body",
+        )
+        out = render_skill_md(payload, CopilotBackend().profile)
+        assert "disable-model-invocation: true" in out
+
+
+class TestMultiAgentBackends:
+    def test_gemini_writes_skills_and_conventions(self, repo_with_claude_md: Path):
+        from klausify.agents.backends import GeminiBackend
+
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        backend = GeminiBackend()
+        backend.run_skills(
+            repo_with_claude_md, force=True, base_branch="main", review_template=None
+        )
+        backend.emit_conventions(repo_with_claude_md, force=True)
+        assert (
+            repo_with_claude_md / ".gemini" / "skills" / f"{ns}-commit" / "SKILL.md"
+        ).exists()
+        assert (repo_with_claude_md / "GEMINI.md").exists()
+
+    def test_codex_uses_neutral_agents_skills_path(self, repo_with_claude_md: Path):
+        from klausify.agents.backends import CodexBackend
+
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        CodexBackend().run_skills(
+            repo_with_claude_md, force=True, base_branch="main", review_template=None
+        )
+        assert (
+            repo_with_claude_md / ".agents" / "skills" / f"{ns}-plan" / "SKILL.md"
+        ).exists()
+
+    def test_cursor_path_scoped_rule_has_globs(self, repo: Path):
+        from klausify.agents.backends import CursorBackend
+
+        (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
+        rules_dir = repo / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "api.md").write_text(SAMPLE_RULE_FILE)
+
+        CursorBackend().emit_conventions(repo, force=True)
+        api_mdc = (repo / ".cursor" / "rules" / "api.mdc").read_text()
+        assert "globs: src/api/**/*.py" in api_mdc
+        assert "alwaysApply: false" in api_mdc
+
+    def test_copilot_instructions_apply_to(self, repo: Path):
+        from klausify.agents.backends import CopilotBackend
+
+        (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
+        rules_dir = repo / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "api.md").write_text(SAMPLE_RULE_FILE)
+
+        CopilotBackend().emit_conventions(repo, force=True)
+        assert (repo / ".github" / "copilot-instructions.md").exists()
+        instr = (
+            repo / ".github" / "instructions" / "api.instructions.md"
+        ).read_text()
+        assert 'applyTo: "src/api/**/*.py"' in instr
+
+    def test_codex_conventions_inline_rules(self, repo: Path):
+        from klausify.agents.backends import CodexBackend
+
+        (repo / "CLAUDE.md").write_text(SAMPLE_CLAUDE_MD)
+        rules_dir = repo / ".claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "api.md").write_text(SAMPLE_RULE_FILE)
+
+        CodexBackend().emit_conventions(repo, force=True)
+        agents_md = (repo / "AGENTS.md").read_text()
+        assert "Path-scoped rules" in agents_md
+        assert "src/api/**/*.py" in agents_md
+
+    def test_gemini_settings_maps_stack(self, repo: Path):
+        from klausify.agents.backends import GeminiBackend
+
+        GeminiBackend().emit_settings(repo, force=True)
+        settings = json.loads((repo / ".gemini" / "settings.json").read_text())
+        allowed = settings["tools"]["allowed"]
+        assert "run_shell_command(git)" in allowed
+        assert "run_shell_command(pytest)" in allowed
+
+
+class TestMultiAgentCli:
+    def test_skills_command_other_agent(self, repo_with_claude_md: Path):
+        result = runner.invoke(
+            app,
+            ["skills", "--repo", str(repo_with_claude_md), "--agents", "cursor",
+             "-b", "main"],
+        )
+        assert result.exit_code == 0
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        assert (
+            repo_with_claude_md / ".cursor" / "skills" / f"{ns}-review" / "SKILL.md"
+        ).exists()
+
+    def test_skills_command_unknown_agent_exits(self, repo: Path):
+        result = runner.invoke(
+            app, ["skills", "--repo", str(repo), "--agents", "bogus", "-b", "main"]
+        )
+        assert result.exit_code == 1
+
+    def test_claude_skills_unchanged_via_command(self, repo: Path):
+        # Regression: the claude path still writes .claude/skills exactly.
+        result = runner.invoke(
+            app, ["skills", "--repo", str(repo), "--agents", "claude", "-b", "main"]
+        )
+        assert result.exit_code == 0
+        ns = sanitize_skill_namespace(repo.name)
+        assert (repo / ".claude" / "skills" / f"{ns}-plan" / "SKILL.md").exists()
+
+    def test_default_targets_all_agents(self, repo_with_claude_md: Path):
+        # No --agents → every agent's skills dir is populated.
+        result = runner.invoke(
+            app, ["skills", "--repo", str(repo_with_claude_md), "-b", "main"]
+        )
+        assert result.exit_code == 0
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        for sub in (".claude", ".gemini", ".cursor"):
+            assert (
+                repo_with_claude_md / sub / "skills" / f"{ns}-plan" / "SKILL.md"
+            ).exists()
+        assert (
+            repo_with_claude_md / ".agents" / "skills" / f"{ns}-plan" / "SKILL.md"
+        ).exists()  # codex
+        assert (
+            repo_with_claude_md / ".github" / "skills" / f"{ns}-plan" / "SKILL.md"
+        ).exists()  # copilot
+
+
 class TestGitignore:
     def test_update_gitignore_new(self, repo: Path):
         update_gitignore(repo=repo)

@@ -1,6 +1,8 @@
 # klausify
 
-Claude Code boilerplate generator. One command to make any repo Claude Code-ready.
+Multi-agent repo boilerplate generator. One command to make any repo ready for
+**Claude Code, Gemini CLI, Cursor, Codex, and GitHub Copilot** — each gets the
+same conventions and the same workflow skills in its own native format.
 
 ## Install
 
@@ -18,6 +20,16 @@ klausify init
 ```
 
 That's it. You'll be prompted for your base branch (auto-detects `dev`, `main`, etc.), then klausify generates everything.
+
+By default klausify bootstraps **all** supported agents from the same conventions. To narrow to a subset, pass `--agents`:
+
+```bash
+klausify init                                   # all agents (default)
+klausify init --agents claude                   # Claude Code only
+klausify init --agents claude,gemini,cursor     # a subset
+```
+
+See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
 
 ## What Gets Generated
 
@@ -87,6 +99,24 @@ If you ran an earlier version of klausify, you have `.claude/commands/*.md` file
 
 If you've already klausified at 0.2.0+ and want to refresh after upgrading klausify itself, use `klausify init --force` (or the `klausify-update` skill if you have the plugin installed).
 
+## Multi-agent targets
+
+klausify discovers your repo's conventions **once** (into `CLAUDE.md` via conventions-cli), then translates that plus the bundled workflow skills into each agent's native format. All five agents now read the open [Agent Skills](https://agentskills.io/specification) `SKILL.md` spec, so the skills are portable; klausify places them in each agent's dedicated directory and adapts the bodies to that agent's capabilities.
+
+| Agent | Conventions file | Skills directory | Permissions |
+|-------|------------------|------------------|-------------|
+| `claude` | `CLAUDE.md` + `.claude/rules/*.md` | `.claude/skills/<repo>-<skill>/` | `.claude/settings.json` (+ hooks) |
+| `gemini` | `GEMINI.md` | `.gemini/skills/<repo>-<skill>/` | `.gemini/settings.json` |
+| `cursor` | `.cursor/rules/*.mdc` | `.cursor/skills/<repo>-<skill>/` | `.cursor/permissions.json` |
+| `codex` | `AGENTS.md` | `.agents/skills/<repo>-<skill>/` | `.codex/config.toml` |
+| `copilot` | `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md` | `.github/skills/<repo>-<skill>/` | — (no per-repo model) |
+
+**Skill adaptation.** The bundled skills are authored for Claude Code, which has `​```!` dynamic-shell blocks, parallel sub-agents, and a plan mode. For agents that lack those, klausify rewrites the bodies to capture the same request: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note telling the agent to do that work sequentially / to seek approval before editing. Simple skills (`commit`, `pr`, `explain`, …) are unchanged apart from path references.
+
+**Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and inlined `### Applies to:` sections for `GEMINI.md` / `AGENTS.md`.
+
+**Caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klausify emits Codex *Skills* (at `.agents/skills/`). Hooks (the read-injection and git-commit guards) are currently Claude-only — every other agent uses a different hook I/O protocol, so klausify prints a note instead of emitting a guard that wouldn't fire. Copilot has no per-repo permission model, so its settings step is skipped.
+
 ## Options
 
 ```bash
@@ -98,6 +128,8 @@ Options:
   -b, --base-branch TEXT      Base branch for diffs (default: auto-detect, prompts)
   --skip-enrich               Skip Claude CLI enrichment (faster, no API call)
   --review-template PATH      Use a custom review prompt instead of the default
+  --agents TEXT               Comma list of target agents to narrow to (default: all)
+  --all                       Scaffold every supported agent (the default)
 ```
 
 ### Custom review template
@@ -122,7 +154,7 @@ klausify hooks                  # Regenerate hook configs
 klausify github                 # Regenerate PR template
 ```
 
-All subcommands support `--repo`, `--force`, and `--base-branch` where applicable.
+All subcommands support `--repo`, `--force`, and `--base-branch` where applicable. `skills`, `settings`, and `init` also accept `--agents`/`--all` to target agents beyond Claude.
 
 ## How It Works
 

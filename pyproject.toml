@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "klausify"
 version = "0.2.1"
-description = "Claude Code boilerplate generator — scaffolds CLAUDE.md, repo-namespaced skills, settings, hooks, and CI workflows"
+description = "Multi-agent repo boilerplate generator — scaffolds conventions, repo-namespaced skills, settings, and hooks for Claude Code, Gemini CLI, Cursor, Codex, and Copilot"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Stephanie Dover" }]
-keywords = ["claude", "claude-code", "boilerplate", "conventions", "ai"]
+keywords = ["claude", "claude-code", "gemini", "cursor", "codex", "copilot", "agent-skills", "boilerplate", "conventions", "ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

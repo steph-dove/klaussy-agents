@@ -1,22 +1,35 @@
 """CLI entry point for klausify."""
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
 from klausify import __version__
+from klausify.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klausify.checklist import generate_checklist
 from klausify.claude_md import run_init
 from klausify.github import scaffold_github
 from klausify.gitignore import update_gitignore
-from klausify.hooks import scaffold_hooks
-from klausify.settings import generate_settings
-from klausify.skills import scaffold_skills
 
-app = typer.Typer(name="klausify", help="Claude Code boilerplate generator.")
+app = typer.Typer(name="klausify", help="Multi-agent repo boilerplate generator.")
 console = Console()
+
+_AGENTS_HELP = (
+    "Comma-separated target agents to scaffold "
+    f"({', '.join(ALL_AGENTS)}). Defaults to all; pass a subset to narrow."
+)
+
+
+def _select_agents(agents: str | None, all_agents: bool) -> list[str]:
+    """Resolve --agents/--all into a validated list, exiting cleanly on error."""
+    try:
+        return resolve_agents(agents, all_agents=all_agents)
+    except ValueError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 def version_callback(value: bool) -> None:
@@ -75,29 +88,38 @@ def init(
         None, "--base-branch", "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
+    agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
+    all_agents: bool = typer.Option(
+        False, "--all", help="Scaffold every supported agent."
+    ),
 ) -> None:
-    """Generate all Claude Code boilerplate for a repository."""
+    """Generate repo boilerplate for one or more AI coding agents."""
     repo = repo.resolve()
+    selected = _select_agents(agents, all_agents)
 
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
 
-    steps: list[tuple[str, callable]] = [
-        ("CLAUDE.md", lambda: run_init(repo=repo, force=force, skip_enrich=skip_enrich)),
-        # `skills` writes the default review SKILL.md; `review enrichment` then
-        # overwrites it with the same template plus per-repo {{REPO_SPECIFIC_CHECKS}}.
-        # Reverse the order and the enrichment is silently overwritten.
-        ("skills", lambda: scaffold_skills(
-            repo=repo, force=force, review_template=review_template, base_branch=base_branch,
-        )),
-        ("review enrichment", lambda: generate_checklist(
-            repo=repo, force=True, base_branch=base_branch,
-        )),
-        ("settings", lambda: generate_settings(repo=repo, force=force)),
-        ("hooks", lambda: scaffold_hooks(repo=repo, force=force)),
-        ("PR template", lambda: scaffold_github(repo=repo, force=force)),
-        (".gitignore", lambda: update_gitignore(repo=repo)),
+    console.print(f"[bold]Target agents:[/bold] {', '.join(selected)}")
+
+    # CLAUDE.md is the shared conventions source: conventions-cli discovers the
+    # repo's rules once, then each non-Claude backend converts them into its own
+    # native conventions file. Always generated, even if claude isn't selected.
+    steps: list[tuple[str, Callable[[], object]]] = [
+        ("CLAUDE.md (conventions source)",
+         lambda: run_init(repo=repo, force=force, skip_enrich=skip_enrich)),
     ]
+    for key in selected:
+        steps.extend(
+            BACKENDS[key].steps(
+                repo,
+                force=force,
+                base_branch=base_branch,
+                review_template=review_template,
+            )
+        )
+    steps.append(("PR template", lambda: scaffold_github(repo=repo, force=force)))
+    steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
 
     for name, step in steps:
         try:
@@ -136,32 +158,64 @@ def skills(
         None, "--base-branch", "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
+    agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
+    all_agents: bool = typer.Option(
+        False, "--all", help="Scaffold skills for every supported agent."
+    ),
 ) -> None:
-    """Scaffold .claude/skills/<repo>-<skill>/ for every bundled klausify skill."""
+    """Scaffold each bundled skill into every selected agent's skills directory."""
     repo = repo.resolve()
+    selected = _select_agents(agents, all_agents)
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
-    scaffold_skills(
-        repo=repo, force=force, review_template=review_template, base_branch=base_branch,
-    )
+    for key in selected:
+        try:
+            BACKENDS[key].run_skills(
+                repo,
+                force=force,
+                base_branch=base_branch,
+                review_template=review_template,
+            )
+        except SystemExit:
+            console.print(f"[yellow]⚠ Skipped {key} skills[/yellow]")
 
 
 @app.command()
 def settings(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+    agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
+    all_agents: bool = typer.Option(
+        False, "--all", help="Generate settings for every supported agent."
+    ),
 ) -> None:
-    """Generate .claude/settings.json with stack-appropriate defaults."""
-    generate_settings(repo=repo, force=force)
+    """Generate stack-appropriate permissions for every selected agent."""
+    repo = repo.resolve()
+    selected = _select_agents(agents, all_agents)
+    for key in selected:
+        try:
+            BACKENDS[key].run_settings(repo, force=force)
+        except SystemExit:
+            console.print(f"[yellow]⚠ Skipped {key} settings[/yellow]")
 
 
 @app.command()
 def hooks(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+    agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
+    all_agents: bool = typer.Option(
+        False, "--all", help="Scaffold hooks for every supported agent."
+    ),
 ) -> None:
-    """Scaffold Claude Code hook configurations."""
-    scaffold_hooks(repo=repo, force=force)
+    """Scaffold hook configurations (Claude Code; other agents print a note)."""
+    repo = repo.resolve()
+    selected = _select_agents(agents, all_agents)
+    for key in selected:
+        try:
+            BACKENDS[key].run_hooks(repo, force=force)
+        except SystemExit:
+            console.print(f"[yellow]⚠ Skipped {key} hooks[/yellow]")
 
 
 @app.command()
