@@ -33,37 +33,26 @@ See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
 
 ## What Gets Generated
 
-For **each selected agent** (all five by default), klaussy generates a native conventions file, the bundled workflow skills, and stack-appropriate permissions — see [Multi-agent targets](#multi-agent-targets) for the per-agent paths. The Claude Code layout below is one concrete example; the other agents get the equivalent under `.gemini/`, `.cursor/`, `.agents/`, and `.github/`.
+klaussy discovers your repo's conventions once, then writes — **for every selected agent (all five by default)** — that agent's native conventions file, the workflow skills, stack-appropriate permissions, and hooks where the agent supports them. Narrow with `--agents` to emit only the agents you want.
 
 ```
-CLAUDE.md                                      # Shared conventions source (also emitted as GEMINI.md / AGENTS.md / copilot-instructions.md / .cursor/rules per agent)
+# Per agent (each gets the workflow skills + a conventions file + permissions + hooks):
 
-.claude/                                       # Claude Code layout (example — see Multi-agent targets for the others)
-├── settings.json                              # Tool permissions + deny rules + PreToolUse/PostToolUse hooks
-├── hooks/
-│   ├── read_injection_guard.py                # Scans Read/WebFetch content for prompt-injection markers
-│   └── git_commit_guard.py                    # Runs format + lint when Claude tries to `git commit`
-├── rules/
-│   └── <glob-stem>.md                         # Path-scoped rule buckets (zero or more, emitted by klaussy-repo-conventions 1.4+)
-└── skills/
-    ├── .klaussy-version                      # Marker tracking which klaussy version generated the skills
-    ├── <repo>-review/SKILL.md                 # PR review with parallel sub-agents and repo-specific checks
-    ├── <repo>-plan/SKILL.md                   # Multi-phase plan + implement (discovery, parallel architects, review)
-    ├── <repo>-debug/SKILL.md                  # Debug an error with root-cause analysis and a failing test
-    ├── <repo>-implement/SKILL.md              # Implement a pasted ticket/design with plan-mode investigation
-    ├── <repo>-refactor/SKILL.md               # Refactor code while preserving behavior, test-backed
-    ├── <repo>-test/SKILL.md                   # Write tests for current changes
-    ├── <repo>-fix/SKILL.md                    # Fix lint/format/type errors
-    ├── <repo>-pr/SKILL.md                     # Generate a PR description
-    ├── <repo>-commit/SKILL.md                 # Generate a commit message
-    ├── <repo>-explain/SKILL.md                # Explain code or current diff
-    └── <repo>-new-worktree/SKILL.md           # Create a git worktree for a task
+Claude Code   CLAUDE.md  .claude/rules/  .claude/skills/<repo>-<skill>/  .claude/settings.json  .claude/hooks/
+Gemini CLI    GEMINI.md  .gemini/skills/<repo>-<skill>/  .gemini/settings.json  .gemini/hooks/  .geminiignore
+Cursor        .cursor/rules/*.mdc  .cursor/skills/<repo>-<skill>/  .cursor/permissions.json  .cursor/hooks.json  .cursorignore
+Codex         AGENTS.md  .agents/skills/<repo>-<skill>/  .codex/config.toml  .codex/hooks.json
+Copilot       .github/copilot-instructions.md  .github/instructions/  .github/skills/<repo>-<skill>/  .github/hooks/
 
-.github/
-└── PULL_REQUEST_TEMPLATE.md                   # Only if repo doesn't have one
+# Every skills/ directory holds the same namespaced set:
+#   <repo>-{review, plan, debug, implement, refactor, test, fix, pr, commit, explain, new-worktree}
 
-.gitignore                                     # Appends klaussy output exclusions
+# Shared, once:
+.github/PULL_REQUEST_TEMPLATE.md   # only if the repo doesn't already have one
+.gitignore                         # appends klaussy output exclusions (pr-description.md, REVIEW_OUTPUT.md, plan.md)
 ```
+
+See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping (conventions, skill adaptation, secret exclusion, hook coverage), and the table below for what each skill does.
 
 ### What each piece does
 
