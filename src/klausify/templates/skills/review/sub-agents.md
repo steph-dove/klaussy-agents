@@ -139,7 +139,7 @@ For each finding, be specific about the failure mode (the exact input or state t
 
 ### Readability & Maintainability
 - Ambiguous naming, overly clever code.
-- Comments that explain "what" instead of "why".
+- Comment hygiene: flag comments that restate what the code plainly does, narrate obvious steps, or read as changelog / "AI-tell" notes ("// Now we handle…", "// Added to fix…"); and multi-line blocks where one short line (or none) would do. Fix = delete or condense to a one-line WHY. Do NOT flag docstrings/JSDoc on public APIs, license/file headers, or genuine "why" comments.
 - Functions that are too long or do too many things.
 - Magic numbers or strings without explanation.
 - Dead code or unreachable branches.

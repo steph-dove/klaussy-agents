@@ -25,9 +25,11 @@ import shlex
 import subprocess
 import sys
 
-# Sentinels replaced by klausify at scaffold time. Either may be None.
+# Sentinels replaced by klausify at scaffold time. Any may be None.
 FORMAT_CMD: str | None = "__KLAUSIFY_FORMAT_CMD__"
 LINT_CMD: str | None = "__KLAUSIFY_LINT_CMD__"
+# Deterministic commented-out-code check (block-only; flags, never deletes).
+COMMENT_CHECK_CMD: str | None = "__KLAUSIFY_COMMENT_CHECK_CMD__"
 
 # Matches `git commit` / `git -C path commit`, not `git commitlint` or a quoted
 # string that merely mentions commit.
@@ -81,7 +83,7 @@ def main() -> int:
         command = _extract_command(payload)
         if not _is_git_commit(command):
             return 0
-        for cmd in (FORMAT_CMD, LINT_CMD):
+        for cmd in (FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD):
             if not cmd:
                 continue
             rc = _run(cmd)

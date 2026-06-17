@@ -81,7 +81,8 @@ Now write the code. Follow these rules strictly:
    - Handle the error cases that realistically occur.
    - If the task involves data, verify you're reading from the correct source — re-check the actual query, not your assumption.
    - If the task changes behavior, make sure the change propagates everywhere it needs to (UI, API, tests, types).
-7. **After each file edit,** re-read the file to verify the change looks correct in context.
+7. **Comment only for non-obvious WHY.** When the code you add genuinely needs a comment, keep it to one short line about intent, a gotcha, or an invariant. Don't narrate what the code plainly does, don't echo names, don't leave changelog / "AI-tell" comments ("// Now we…", "// Added to fix…"), and don't leave commented-out code. (Docstrings on public APIs are fine.)
+8. **After each file edit,** re-read the file to verify the change looks correct in context.
 
 ---
 

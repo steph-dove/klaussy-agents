@@ -19,7 +19,11 @@ from pathlib import Path
 
 from rich.console import Console
 
-from klausify.hooks import _detect_format_command, _detect_lint_command
+from klausify.hooks import (
+    _detect_comment_check_command,
+    _detect_format_command,
+    _detect_lint_command,
+)
 
 console = Console()
 
@@ -50,6 +54,7 @@ def _install_script(
     *,
     format_cmd: str | None = None,
     lint_cmd: str | None = None,
+    comment_check_cmd: str | None = None,
 ) -> None:
     """Copy a guard template into the repo, baking in commands, and chmod +x."""
     dest = repo / relpath
@@ -59,15 +64,23 @@ def _install_script(
         .joinpath(f"templates/hooks/multi/{template_name}")
         .read_text()
     )
-    content = content.replace(
-        '"__KLAUSIFY_FORMAT_CMD__"', _python_literal(format_cmd)
-    ).replace('"__KLAUSIFY_LINT_CMD__"', _python_literal(lint_cmd))
+    content = (
+        content.replace('"__KLAUSIFY_FORMAT_CMD__"', _python_literal(format_cmd))
+        .replace('"__KLAUSIFY_LINT_CMD__"', _python_literal(lint_cmd))
+        .replace(
+            '"__KLAUSIFY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd)
+        )
+    )
     dest.write_text(content)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _commit_cmds(repo: Path) -> tuple[str | None, str | None]:
-    return _detect_format_command(repo), _detect_lint_command(repo)
+def _commit_cmds(repo: Path) -> tuple[str | None, str | None, str | None]:
+    return (
+        _detect_format_command(repo),
+        _detect_lint_command(repo),
+        _detect_comment_check_command(repo),
+    )
 
 
 def _write_json(path: Path, data: dict, *, force: bool, label: str) -> bool:
@@ -84,15 +97,15 @@ def _write_json(path: Path, data: dict, *, force: bool, label: str) -> bool:
 def gemini_hooks(repo: Path, *, force: bool) -> None:
     """Gemini: BeforeTool (shell + read) and AfterTool (web_fetch)."""
     label = "Gemini CLI"
-    fmt, lint = _commit_cmds(repo)
+    fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".gemini/hooks"
 
     py = _hook_python()
     before: list[dict] = []
-    if fmt or lint:
+    if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint,
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
         before.append({
             "matcher": "run_shell_command",
@@ -116,20 +129,20 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     }
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    _report(label, bool(fmt or lint), read=True, web=True)
+    _report(label, bool(fmt or lint or com), read=True, web=True)
 
 
 def cursor_hooks(repo: Path, *, force: bool) -> None:
     """Cursor: beforeShellExecution + beforeReadFile (no web-fetch event)."""
     label = "Cursor"
-    fmt, lint = _commit_cmds(repo)
+    fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".cursor/hooks"
 
     hooks: dict[str, list[dict]] = {}
-    if fmt or lint:
+    if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint,
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
         # Cursor execs the command path directly; rely on the script's shebang.
         hooks["beforeShellExecution"] = [
@@ -140,23 +153,23 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
 
     if _write_json(repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks},
                    force=force, label=label):
-        _report(label, bool(fmt or lint), read=True, web=False)
+        _report(label, bool(fmt or lint or com), read=True, web=False)
 
 
 def codex_hooks(repo: Path, *, force: bool) -> None:
     """Codex: PreToolUse on Bash only — no pre-read or web-fetch hook surface."""
     label = "Codex CLI"
-    fmt, lint = _commit_cmds(repo)
+    fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".codex/hooks"
 
-    if not (fmt or lint):
+    if not (fmt or lint or com):
         console.print(
             f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
         )
         return
     _install_script(
         repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-        format_cmd=fmt, lint_cmd=lint,
+        format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
     )
     config = {
         "hooks": {
@@ -176,17 +189,17 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
 def copilot_hooks(repo: Path, *, force: bool) -> None:
     """Copilot: preToolUse (fail-closed) — wire only the defensive commit guard."""
     label = "GitHub Copilot"
-    fmt, lint = _commit_cmds(repo)
+    fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".github/hooks"
 
-    if not (fmt or lint):
+    if not (fmt or lint or com):
         console.print(
             f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
         )
         return
     _install_script(
         repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-        format_cmd=fmt, lint_cmd=lint,
+        format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
     )
     # Copilot command hooks support an OS split: `bash` (Linux/macOS) and
     # `powershell` (Windows). Use both so the guard runs regardless of platform.

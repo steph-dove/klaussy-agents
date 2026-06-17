@@ -36,6 +36,19 @@ def _detect_lint_command(repo: Path) -> str | None:
     return None
 
 
+def _detect_comment_check_command(repo: Path) -> str | None:
+    """Detect a deterministic commented-out-code check (block-only, no auto-fix).
+
+    Only the objective slice of "comment hygiene" is lintable; verbosity and
+    narration are judgment calls handled in the skills, not here. ruff's ERA
+    rule flags commented-out code without `--fix`, so it surfaces the lines for
+    the author instead of silently deleting intentional commented code.
+    """
+    if (repo / "pyproject.toml").exists():
+        return "ruff check --select ERA ."
+    return None
+
+
 def _detect_format_command(repo: Path) -> str | None:
     """Detect the project's format command."""
     if (repo / "pyproject.toml").exists():
@@ -71,7 +84,11 @@ def _python_literal(value: str | None) -> str:
 
 
 def _install_commit_guard_script(
-    repo: Path, *, format_cmd: str | None, lint_cmd: str | None
+    repo: Path,
+    *,
+    format_cmd: str | None,
+    lint_cmd: str | None,
+    comment_check_cmd: str | None,
 ) -> Path:
     """Render the git-commit guard with project-specific commands baked in."""
     dest = repo / COMMIT_GUARD_RELPATH
@@ -80,6 +97,9 @@ def _install_commit_guard_script(
     content = source.read_text()
     content = content.replace('"__KLAUSIFY_FORMAT_CMD__"', _python_literal(format_cmd))
     content = content.replace('"__KLAUSIFY_LINT_CMD__"', _python_literal(lint_cmd))
+    content = content.replace(
+        '"__KLAUSIFY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd)
+    )
     dest.write_text(content)
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -106,6 +126,7 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
 
     lint_cmd = _detect_lint_command(repo)
     format_cmd = _detect_format_command(repo)
+    comment_check_cmd = _detect_comment_check_command(repo)
 
     # Read-injection guard: scan file/URL content for prompt-injection markers
     # before Claude consumes it. PreToolUse blocks malicious local files; the
@@ -129,8 +150,13 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # `git commit` invocations and runs the project's format + lint before
     # letting the commit proceed. Replaces the prior bogus "PreCommit" entry
     # (Claude Code has no PreCommit event; that block never fired).
-    if format_cmd or lint_cmd:
-        _install_commit_guard_script(repo, format_cmd=format_cmd, lint_cmd=lint_cmd)
+    if format_cmd or lint_cmd or comment_check_cmd:
+        _install_commit_guard_script(
+            repo,
+            format_cmd=format_cmd,
+            lint_cmd=lint_cmd,
+            comment_check_cmd=comment_check_cmd,
+        )
         pretooluse.append(
             {
                 "matcher": "Bash",
@@ -145,7 +171,7 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
     console.print(f"[green]✔ Added hooks to {settings_file.relative_to(repo)}[/green]")
     console.print(f"[green]✔ Installed read-injection guard at {GUARD_RELPATH}[/green]")
-    if format_cmd or lint_cmd:
+    if format_cmd or lint_cmd or comment_check_cmd:
         console.print(
             f"[green]✔ Installed git-commit guard at {COMMIT_GUARD_RELPATH}[/green]"
         )

@@ -10,7 +10,12 @@ from klausify.checklist import _parse_claude_md, _parse_rules_dir, generate_chec
 from klausify.cli import app
 from klausify.github import scaffold_github
 from klausify.gitignore import update_gitignore
-from klausify.hooks import _detect_format_command, _detect_lint_command, scaffold_hooks
+from klausify.hooks import (
+    _detect_comment_check_command,
+    _detect_format_command,
+    _detect_lint_command,
+    scaffold_hooks,
+)
 from klausify.settings import _detect_sensitive_paths, _detect_stack, generate_settings
 from klausify.skills import (
     LEGACY_COMMAND_FILENAMES,
@@ -372,8 +377,18 @@ class TestHooks:
         text = guard.read_text()
         assert "__KLAUSIFY_FORMAT_CMD__" not in text
         assert "__KLAUSIFY_LINT_CMD__" not in text
+        assert "__KLAUSIFY_COMMENT_CHECK_CMD__" not in text
         assert "ruff format ." in text, "format command should be baked in"
         assert "ruff check --fix ." in text, "lint command should be baked in"
+        assert "ruff check --select ERA ." in text, "commented-out-code check baked in"
+
+    def test_detect_comment_check_python(self, repo: Path):
+        # Block-only ERA check for Python; nothing for a bare repo.
+        assert _detect_comment_check_command(repo) == "ruff check --select ERA ."
+        assert "--fix" not in _detect_comment_check_command(repo)
+
+    def test_detect_comment_check_none_without_python(self, tmp_path: Path):
+        assert _detect_comment_check_command(tmp_path) is None
 
     def test_scaffold_hooks_registers_commit_guard_on_bash(self, repo: Path):
         path = scaffold_hooks(repo=repo)
@@ -1051,6 +1066,40 @@ class TestCrossPlatformHooks:
         assert hooks_mod._hook_python() == "python"
         monkeypatch.setattr(hooks_mod.sys, "platform", "darwin")
         assert hooks_mod._hook_python() == "python3"
+
+
+class TestCommentHygiene:
+    def test_review_flags_excessive_comments(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        assert "Comment hygiene" in review
+        assert "condense to a one-line WHY" in review
+        assert "comment hygiene" in sub.lower()
+
+    def test_code_writing_skills_keep_comments_minimal(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        impl = (repo / ".claude" / "skills" / f"{ns}-implement" / "SKILL.md").read_text()
+        refac = (repo / ".claude" / "skills" / f"{ns}-refactor" / "SKILL.md").read_text()
+        assert "Comment only for non-obvious WHY" in impl
+        assert "Don't add narrating comments" in refac
+
+    def test_commit_guard_runs_comment_check(self, repo: Path):
+        # The rendered guard must actually invoke COMMENT_CHECK_CMD in its loop.
+        scaffold_hooks(repo=repo)
+        guard = (repo / ".claude" / "hooks" / "git_commit_guard.py").read_text()
+        assert "COMMENT_CHECK_CMD" in guard
+        assert "(FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD)" in guard
+
+    def test_multi_agent_commit_guard_bakes_comment_check(self, repo: Path):
+        from klausify.agents.backends import CursorBackend
+
+        CursorBackend().emit_hooks(repo, force=True)
+        guard = (repo / ".cursor" / "hooks" / "klausify_commit_guard.py").read_text()
+        assert "ruff check --select ERA ." in guard
+        assert "__KLAUSIFY_COMMENT_CHECK_CMD__" not in guard
 
 
 class TestHumanizeScrubber:
