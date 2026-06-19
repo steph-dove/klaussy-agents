@@ -22,11 +22,16 @@ from __future__ import annotations
 import re
 
 # Sentence-initial filler openers, stripped at the start of the text or a line.
+# Two families: chatbot "note that" scaffolding, and editorializing verdict
+# openers ("Personally", "Honestly", ...) that prime a blunt/dismissive read of
+# whatever follows. Both are safe to drop with no loss of meaning.
 _OPENERS = (
     r"(?:It'?s worth noting that|It'?s important to note that"
     r"|It'?s worth mentioning that|I noticed that|I wanted to point out that"
     r"|I want to (?:point out|note|mention|flag) that|Please note that"
-    r"|Just to (?:note|mention)|Worth noting,?|Note that)"
+    r"|Just to (?:note|mention)|Worth noting,?|Note that"
+    r"|Personally|Honestly|Frankly|Quite frankly|To be honest"
+    r"|In my (?:honest )?opinion|IMO|IMHO|If you ask me)"
 )
 
 # Trailing chatbot scaffolding that adds nothing to a comment.

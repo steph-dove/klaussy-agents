@@ -14,7 +14,7 @@ If `$ARGUMENTS` is empty, humanize the prose the user pasted into the conversati
 
 ## Steps
 
-1. **Get the prose.** For file targets, Read each file. For pasted text, work with what's in the conversation.
+1. **Get the prose.** For file targets, Read each file. For pasted text, work with what's in the conversation. If the text is a reply inside a thread (a review comment, a message chain), the surrounding comments are read-only context: take their substance, neutralize their tone in your head, and humanize only your own message. Don't carry the thread's bluntness or rudeness into what you write — see "Don't mirror the thread's tone" above.
 2. **Rewrite by the rules above.** This is the judgment pass: kill filler openers, drop chatbot scaffolding, replace em/en dashes, tighten hedges, vary sentence shape. Only touch prose, never code, identifiers, or anything inside backticks or fences.
 3. **Run the deterministic backstop.** klaussy ships a code-preserving scrubber that guarantees the high-confidence tells are gone regardless of the rewrite. This is the post-processing step, always run it last:
    - **Files:** `klaussy humanize <file>... --write` (rewrites in place; prints which files changed).
@@ -27,7 +27,7 @@ If `$ARGUMENTS` is empty, humanize the prose the user pasted into the conversati
 - The deterministic scrubber is a conservative subset (dashes, a fixed set of openers/scaffolding, a few hedges). Your rewrite does the broader work the scrubber can't; the scrubber then guarantees the conservative tells. Run both, not just one.
 - Preserve meaning exactly. Humanizing is a tone/style edit, not a content edit. Don't add, drop, or reorder facts.
 - Never reword code, identifiers, fenced ```blocks```, or `inline code`. The scrubber already skips them; you must too.
-- Don't "improve" prose beyond removing AI tells unless the user asks. Match the surrounding voice.
+- Don't "improve" prose beyond removing AI tells and keeping it civil (see "Don't let trimming tip into terse" above) unless the user asks. Match the surrounding voice — a slightly blunt author stays slightly blunt, you only stop the trim from making them ruder.
 - Use `klaussy humanize <file> --check` (exit 1 if anything would change, no writes) when the user only wants to know whether a file reads as AI-written.
 
 ## When NOT to use

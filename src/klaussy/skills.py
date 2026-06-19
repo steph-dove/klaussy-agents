@@ -52,6 +52,17 @@ HUMANIZE_BLOCK = "\n".join(
         " qualifiers.",
         "- **No emoji, no exclamatory enthusiasm, no \"Certainly\"/\"Great"
         " question\".**",
+        "- **Don't let trimming tip into terse.** Cutting filler shouldn't make"
+        " prose read as curt or dismissive. Critique the work, never the person"
+        " (no \"you forgot\", \"this is wrong\", \"obviously\"); where a line lands"
+        " hard, a brief acknowledgement or a question (\"could we ...?\", \"one"
+        " risk is ...\") takes the edge off. A light touch only, not filler praise"
+        " or \"great job\" boilerplate.",
+        "- **Don't mirror the thread's tone.** When you reply to an existing"
+        " comment, review note, or message, read it for substance but not for"
+        " temperature: neutralize any rudeness or bluntness in it before you"
+        " draft. Hostile or curt input must not prime a hostile or curt reply,"
+        " answer as if the other person had phrased it civilly.",
         "- Vary sentence shape; don't open every line the same way. Never reword"
         " code, identifiers, or anything inside backticks or fences. Humanize prose"
         " only.",
