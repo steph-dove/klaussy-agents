@@ -21,6 +21,7 @@ SKILL_NAMES = [
     "pr",
     "commit",
     "explain",
+    "humanize",
     "new-worktree",
 ]
 

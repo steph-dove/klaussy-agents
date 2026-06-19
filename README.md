@@ -45,7 +45,7 @@ Codex         AGENTS.md  .agents/skills/<repo>-<skill>/  .codex/config.toml  .co
 Copilot       .github/copilot-instructions.md  .github/instructions/  .github/skills/<repo>-<skill>/  .github/hooks/
 
 # Every skills/ directory holds the same namespaced set:
-#   <repo>-{review, plan, debug, implement, refactor, test, fix, pr, commit, explain, new-worktree}
+#   <repo>-{review, plan, debug, implement, refactor, test, fix, pr, commit, explain, humanize, new-worktree}
 
 # Shared, once:
 .github/PULL_REQUEST_TEMPLATE.md   # only if the repo doesn't already have one
@@ -75,6 +75,7 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 | `<repo>-refactor` | Refactors code while preserving behavior exactly. Requires a passing test baseline, runs tests between every incremental step | — |
 | `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
+| `<repo>-humanize` | Strips AI tells from prose (files or pasted text): rewrites by the humanization spec, then runs the deterministic `klaussy humanize` scrubber as a guaranteed backstop. Never touches code | — |
 
 **Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When the agent is about to commit, the guard runs your auto-detected format + lint commands and blocks the commit on any non-zero exit. The same guard is wired into every selected agent (see **Hooks** under [Multi-agent targets](#multi-agent-targets)). For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
 
