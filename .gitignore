@@ -44,3 +44,24 @@ REVIEW_OUTPUT.md
 
 # Companion desktop app lives in its own private repo (steph-dove/klaussy-desktop)
 desktop/
+plan.md
+
+# klaussy-generated agent scaffolding (this repo dogfoods `klaussy init`;
+# these are regenerated output, not source — the published package ships the
+# templates). Not ignoring all of .github/ — workflows/ is real CI.
+.agents/
+.claude/
+.codex/
+.conventions/
+.cursor/
+.cursorignore
+.gemini/
+.geminiignore
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.github/PULL_REQUEST_TEMPLATE.md
+.github/copilot-instructions.md
+.github/hooks/
+.github/instructions/
+.github/skills/
