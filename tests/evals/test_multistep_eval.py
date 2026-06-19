@@ -1,12 +1,18 @@
-"""Smoke evals for the multi-step skills (debug / refactor / plan / implement).
+"""Smoke evals for the multi-step skills (debug / refactor).
 
 These skills are agentic: they investigate, plan, and edit across many turns and
 tools. A single-shot prompt eval can't exercise that loop, so these are
 deliberately shallow: they only check that each skill's *defining discipline*
 surfaces in its opening response (debug reproduces before fixing, refactor
-guards behavior with a test baseline, plan/implement investigate before editing).
-A pass here means "the spec points the model the right way," not "the skill
-works end to end." Keep the keyword sets loose to avoid flakiness.
+guards behavior with a test baseline). A pass here means "the spec points the
+model the right way," not "the skill works end to end."
+
+`plan` and `implement` are intentionally NOT here: their specs drive a full
+multi-phase loop (enter plan mode, investigate, ExitPlanMode), which a single
+completion can't bound, the model generates the whole plan and runs past any
+timeout. Evaluating them needs the e2e harness (real tools, approval handling),
+not a prompt eval. `debug` also has a real e2e (tests/e2e/test_debug_e2e.py);
+it stays here as a cheap fast check too. Keep the keyword sets loose.
 """
 
 from __future__ import annotations
@@ -34,21 +40,6 @@ CASES = [
         "        return store(x)",
         "Refactor this.",
         ["behavior", "baseline", "tests pass", "preserve", "same behavior"],
-    ),
-    (
-        "plan-investigates-first",
-        "plan",
-        "Add per-user rate limiting to the public API.",
-        "Plan and implement this.",
-        ["phase", "step", "investigat", "discovery", "clarif", "explore"],
-    ),
-    (
-        "implement-scopes-first",
-        "implement",
-        "Ticket FEAT-12: add a --json flag to the `export` command that emits the "
-        "report as JSON instead of the table.",
-        "Implement this ticket.",
-        ["scope", "plan", "investigat", "understand", "clarif", "failing test"],
     ),
 ]
 

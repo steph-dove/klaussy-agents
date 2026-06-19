@@ -6,10 +6,11 @@ model and assert properties of the output (no AI tells, conventional-commit
 shape, a planted bug gets flagged, length budgets, ...).
 
 They are opt-in and never run in normal CI: every eval is gated on
-`requires_eval_env`, which skips unless `KLAUSSY_RUN_EVALS=1` and an Anthropic
-API key are both set. Run them locally with:
+`requires_eval_env`, which skips unless `KLAUSSY_RUN_EVALS=1` is set and the
+`claude` CLI is installed. The model is driven through `claude -p` (headless),
+so it uses Claude Code's own auth, no `ANTHROPIC_API_KEY` is needed. Run with:
 
-    KLAUSSY_RUN_EVALS=1 pytest tests/evals -v
+    KLAUSSY_RUN_EVALS=1 uv run --with pytest python -m pytest tests/evals -v
 
 Override the model with `KLAUSSY_EVAL_MODEL` (default: claude-sonnet-4-6).
 
@@ -25,6 +26,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from importlib import resources
 
 import pytest
@@ -33,11 +37,11 @@ from klaussy.skills import HUMANIZE_BLOCK
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
-# Single gate shared by every eval: opt-in flag AND a key must both be present.
+# Single gate: opt-in flag set AND the claude CLI installed. No API key, the CLI
+# carries Claude Code's auth.
 requires_eval_env = pytest.mark.skipif(
-    os.environ.get("KLAUSSY_RUN_EVALS") != "1"
-    or not os.environ.get("ANTHROPIC_API_KEY"),
-    reason="opt-in eval: set KLAUSSY_RUN_EVALS=1 and ANTHROPIC_API_KEY to run",
+    os.environ.get("KLAUSSY_RUN_EVALS") != "1" or shutil.which("claude") is None,
+    reason="opt-in eval: set KLAUSSY_RUN_EVALS=1 (uses the claude CLI's auth)",
 )
 
 _FRONTMATTER = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
@@ -65,18 +69,45 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
     return text.strip()
 
 
-def complete(system: str, user: str, *, model: str | None = None, max_tokens: int = 1024) -> str:
-    """Low-level single-shot model call. Imports anthropic lazily (kept out of CI)."""
-    import anthropic
+# Disallowing every action tool forces a single-shot text answer: the CLI is
+# agentic, and without this a multi-step skill spec ("enter plan mode", "read
+# CLAUDE.md") sends the model off investigating an empty dir until it times out.
+# A prompt eval wants the completion, not the agent loop.
+_NO_TOOLS = [
+    "Bash", "Edit", "Write", "Read", "Glob", "Grep",
+    "Task", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite",
+]
 
-    client = anthropic.Anthropic()
-    resp = client.messages.create(
-        model=model or os.environ.get("KLAUSSY_EVAL_MODEL", DEFAULT_MODEL),
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+def complete(system: str, user: str, *, model: str | None = None, timeout: int = 240) -> str:
+    """Single-shot completion via the headless `claude` CLI (Claude Code auth).
+
+    `--system-prompt` replaces the agentic default with the eval spec, and every
+    action tool is disallowed, so the model answers in one turn as a plain
+    completion. Runs in an empty temp dir for good measure.
+    """
+    model_ = model or os.environ.get("KLAUSSY_EVAL_MODEL", DEFAULT_MODEL)
+    with tempfile.TemporaryDirectory() as workdir:
+        proc = subprocess.run(
+            [
+                "claude",
+                "-p",
+                user,
+                "--system-prompt",
+                system,
+                "--model",
+                model_,
+                "--disallowed-tools",
+                *_NO_TOOLS,
+            ],
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(f"claude CLI failed ({proc.returncode}): {proc.stderr[-1000:]}")
+    return proc.stdout.strip()
 
 
 def run_skill(
@@ -86,7 +117,12 @@ def run_skill(
     instruction: str | None = None,
     max_tokens: int = 1024,
 ) -> str:
-    """Run `skill`'s spec against `context`, returning the model's final output."""
+    """Run `skill`'s spec against `context`, returning the model's final output.
+
+    `max_tokens` is accepted for call-site compatibility but unused: the headless
+    CLI controls output length.
+    """
+    _ = max_tokens
     system = (
         load_skill_body(skill)
         + "\n\n---\nYou are being run as an eval. The context you would normally"
@@ -94,7 +130,7 @@ def run_skill(
         " output, exactly as the skill specifies, with no preamble."
     )
     user = context if instruction is None else f"{instruction}\n\n{context}"
-    return complete(system, user, max_tokens=max_tokens)
+    return complete(system, user)
 
 
 # --- assertion helpers -------------------------------------------------------
