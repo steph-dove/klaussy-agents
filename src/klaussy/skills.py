@@ -63,6 +63,11 @@ HUMANIZE_BLOCK = "\n".join(
         " temperature: neutralize any rudeness or bluntness in it before you"
         " draft. Hostile or curt input must not prime a hostile or curt reply,"
         " answer as if the other person had phrased it civilly.",
+        "- **Be short, then cut more.** Say it in the fewest words that carry the"
+        " substance, then drop what's left. Lead with the point; don't pad to"
+        " sound thorough or stack throat-clearing ahead of it. A reply in a"
+        " thread is usually one sentence; a single review comment one to five."
+        " If it runs longer, cut it, don't summarize it.",
         "- Vary sentence shape; don't open every line the same way. Never reword"
         " code, identifiers, or anything inside backticks or fences. Humanize prose"
         " only.",

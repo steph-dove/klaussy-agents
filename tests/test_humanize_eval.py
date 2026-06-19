@@ -22,9 +22,10 @@ import pytest
 
 from klaussy.skills import HUMANIZE_BLOCK
 
-# (label, rude input, substrings that must NOT survive, substance that must).
+# (label, rude input, forbidden substrings, required substance, max_sentences).
 # Forbidden checks are case-insensitive; required checks are lowercased contains
-# so the model can paraphrase freely as long as the meaning lands.
+# so the model can paraphrase freely as long as the meaning lands. max_sentences
+# enforces the brevity rule (a single review comment stays within 1-5 sentences).
 FIXTURES = [
     (
         "mocked-unit-tests",
@@ -34,6 +35,7 @@ FIXTURES = [
         "See the tests for the chatbot and the tag groups for example.",
         ["you are mocking", "you forgot", "obviously", "personally"],
         ["mock", "e2e", "ava", "chatbot"],
+        5,
     ),
     (
         "swallowed-exception",
@@ -42,8 +44,16 @@ FIXTURES = [
         "Just rethrow it.",
         ["a mess", "did you even", "obviously", "you're catching"],
         ["exception", "rethrow"],
+        5,
     ),
 ]
+
+
+def _count_sentences(text: str) -> int:
+    """Rough sentence count: terminal . ! ? runs, ignoring abbreviations enough for a bound."""
+    import re
+
+    return len([s for s in re.split(r"[.!?]+(?:\s|$)", text.strip()) if s.strip()])
 
 
 def _run_spec(text: str, model: str) -> str:
@@ -74,9 +84,11 @@ def _run_spec(text: str, model: str) -> str:
     reason="ANTHROPIC_API_KEY not set",
 )
 @pytest.mark.parametrize(
-    "label,rude,forbidden,required", FIXTURES, ids=[f[0] for f in FIXTURES]
+    "label,rude,forbidden,required,max_sentences",
+    FIXTURES,
+    ids=[f[0] for f in FIXTURES],
 )
-def test_rude_input_is_humanized(label, rude, forbidden, required):
+def test_rude_input_is_humanized(label, rude, forbidden, required, max_sentences):
     pytest.importorskip("anthropic")
     model = os.environ.get("KLAUSSY_EVAL_MODEL", "claude-sonnet-4-6")
     out = _run_spec(rude, model)
@@ -86,3 +98,6 @@ def test_rude_input_is_humanized(label, rude, forbidden, required):
         assert bad.lower() not in low, f"[{label}] kept a personal jab {bad!r}: {out!r}"
     for need in required:
         assert need in low, f"[{label}] dropped substance {need!r}: {out!r}"
+
+    n = _count_sentences(out)
+    assert n <= max_sentences, f"[{label}] too long: {n} sentences (>{max_sentences}): {out!r}"
