@@ -77,6 +77,11 @@ def pytest_run(repo: Path) -> subprocess.CompletedProcess:
     return sh(repo, sys.executable, "-m", "pytest", "-q")
 
 
+def python_c(repo: Path, code: str) -> subprocess.CompletedProcess:
+    """Run `python -c code` in the fixture repo. Exit 0 means the asserts held."""
+    return sh(repo, sys.executable, "-c", code)
+
+
 def run_skill_agent(
     repo: Path, skill: str, task: str, *, model: str | None = None, timeout: int = 360
 ) -> subprocess.CompletedProcess:
