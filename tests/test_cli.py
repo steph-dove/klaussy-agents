@@ -829,7 +829,7 @@ class TestMultiAgentHooks:
 
         CodexBackend().emit_hooks(repo, force=True)
         cfg = json.loads((repo / ".codex" / "hooks.json").read_text())
-        assert cfg["hooks"]["PreToolUse"][0]["matcher"] == "^Bash$"
+        assert cfg["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
         # No read guard (Codex has no pre-read hook surface).
         assert not (repo / ".codex" / "hooks" / "klaussy_read_guard.py").exists()
 

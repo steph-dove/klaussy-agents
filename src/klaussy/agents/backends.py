@@ -94,6 +94,41 @@ def _inline_rules_markdown(doc: ConventionsDoc) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
+def _rule_base_dir(globs: list[str]) -> str | None:
+    """Deepest concrete directory a rule's globs share, or None if ambiguous.
+
+    Gemini and Codex scope conventions by *directory placement* — a nested
+    `GEMINI.md` / `AGENTS.md` applies when work touches that subtree. We map a
+    rule's glob(s) to the path segments before the first wildcard: `src/api/**/
+    *.py` → `src/api`. Returns None when the glob resolves to the repo root
+    (`**/*.py`), is a wildcard-free literal (no clear directory), or the rule's
+    globs disagree on a base — those keep the inline-in-root fallback.
+    """
+    bases: set[str] = set()
+    for glob in globs:
+        parts = glob.split("/")
+        kept: list[str] = []
+        saw_wildcard = False
+        for part in parts:
+            if any(ch in part for ch in "*?[]"):
+                saw_wildcard = True
+                break
+            kept.append(part)
+        # No wildcard at all → a literal path, not a directory scope: bail.
+        if not saw_wildcard or not kept:
+            return None
+        bases.add("/".join(kept))
+    if len(bases) != 1:
+        return None
+    return next(iter(bases))
+
+
+def _nested_rule_markdown(rule) -> str:
+    """A nested conventions file body for one path-scoped rule."""
+    globs = ", ".join(f"`{g}`" for g in rule.globs)
+    return f"# Rules for {globs}\n\n{rule.body.rstrip()}\n"
+
+
 class ClaudeBackend:
     """Delegates to the original generators — output is byte-for-byte unchanged."""
 
@@ -239,6 +274,42 @@ class GenericBackend:
             "first.[/yellow]"
         )
 
+    def _emit_markdown_conventions(
+        self, repo: Path, doc: ConventionsDoc, filename: str, *, force: bool
+    ) -> None:
+        """Write a root markdown conventions file + native nested scoped files.
+
+        For agents (Gemini `GEMINI.md`, Codex `AGENTS.md`) that scope conventions
+        by directory placement, a path-scoped rule whose glob resolves to an
+        existing subdirectory is emitted as a nested `<dir>/<filename>` — true
+        path scoping that loads only when that subtree is touched, and keeps the
+        root file small (Codex caps it at 32 KiB). Rules whose globs don't map to
+        a real directory (root-level `**` globs, wildcard-free literals) stay
+        inlined in the root file so their intent isn't lost.
+        """
+        nested: list[tuple[str, object]] = []
+        inline = []
+        for rule in doc.rules:
+            base = _rule_base_dir(rule.globs)
+            if base and (repo / base).is_dir():
+                nested.append((base, rule))
+            else:
+                inline.append(rule)
+        root = ConventionsDoc(project_wide=doc.project_wide, rules=inline)
+        self._write(
+            repo / filename,
+            _inline_rules_markdown(root),
+            force=force,
+            what=filename,
+        )
+        for base, rule in nested:
+            self._write(
+                repo / base / filename,
+                _nested_rule_markdown(rule),
+                force=force,
+                what=f"{base}/{filename}",
+            )
+
 
 class GeminiBackend(GenericBackend):
     key = "gemini"
@@ -259,12 +330,9 @@ class GeminiBackend(GenericBackend):
         if doc is None:
             self._warn_no_conventions()
             return
-        self._write(
-            repo / "GEMINI.md",
-            _inline_rules_markdown(doc),
-            force=force,
-            what="GEMINI.md",
-        )
+        # Gemini loads GEMINI.md hierarchically: a nested file applies when work
+        # touches its directory, so path-scoped rules go to nested GEMINI.md.
+        self._emit_markdown_conventions(repo, doc, "GEMINI.md", force=force)
 
     def emit_settings(self, repo, *, force):
         stack = _detect_stack(repo)
@@ -319,11 +387,12 @@ class CursorBackend(GenericBackend):
             self._warn_no_conventions()
             return
         rules_dir = repo / ".cursor" / "rules"
-        # Project-wide conventions as an always-applied rule.
+        # Project-wide conventions as an always-applied rule. `description` is
+        # only used for agent-decided rules, so it's omitted when alwaysApply.
         body = doc.project_wide.rstrip() + "\n"
         self._write(
             rules_dir / "conventions.mdc",
-            "---\ndescription: Project conventions\nalwaysApply: true\n---\n\n" + body,
+            "---\nalwaysApply: true\n---\n\n" + body,
             force=force,
             what=".cursor/rules/conventions.mdc",
         )
@@ -382,20 +451,26 @@ class CodexBackend(GenericBackend):
         if doc is None:
             self._warn_no_conventions()
             return
-        self._write(
-            repo / "AGENTS.md",
-            _inline_rules_markdown(doc),
-            force=force,
-            what="AGENTS.md",
-        )
+        # Codex merges AGENTS.md root→cwd: a nested AGENTS.md applies in its
+        # subtree, so path-scoped rules go to nested files (also keeps the root
+        # under Codex's 32 KiB project_doc budget).
+        self._emit_markdown_conventions(repo, doc, "AGENTS.md", force=force)
 
     def emit_settings(self, repo, *, force):
-        # Codex has no per-file deny list; sandbox_mode governs file access
-        # broadly instead. Flag that sensitive-path denial isn't expressible.
+        # Codex deliberately IGNORES approval_policy/sandbox_mode in a project-
+        # local .codex/config.toml (safety) — they're honored only in
+        # ~/.codex/config.toml or via CLI flags. So we don't write them as active
+        # keys here (they'd be silent no-ops); we emit a commented guide instead.
+        # Codex also has no per-command allow-list and no secret-read exclusion.
         content = (
             "# Generated by klaussy. Codex project config (loaded when trusted).\n"
-            'approval_policy = "on-request"\n'
-            'sandbox_mode = "workspace-write"\n'
+            "#\n"
+            "# NOTE: Codex ignores approval_policy and sandbox_mode in a\n"
+            "# project-local .codex/config.toml for safety. Set them in your user\n"
+            "# config (~/.codex/config.toml) or via CLI flags. Recommended:\n"
+            "#   approval_policy = \"on-request\"\n"
+            "#   sandbox_mode    = \"workspace-write\"\n"
+            "# Or run: codex -a on-request -s workspace-write\n"
         )
         self._write(
             repo / ".codex" / "config.toml",
@@ -404,9 +479,10 @@ class CodexBackend(GenericBackend):
             what=".codex/config.toml",
         )
         console.print(
-            "[dim][Codex CLI] note: Codex has no secret-read exclusion "
-            "(no .codexignore); sandbox_mode governs writes/network, not reads. "
-            "Keep secrets outside the workspace to hide them.[/dim]"
+            "[dim][Codex CLI] note: approval_policy/sandbox_mode are ignored in a "
+            "project-local config.toml — set them in ~/.codex/config.toml or via "
+            "CLI flags. Codex also has no per-command allow-list and no secret-read "
+            "exclusion (no .codexignore); keep secrets outside the workspace.[/dim]"
         )
 
     def emit_hooks(self, repo, *, force):
@@ -452,9 +528,10 @@ class CopilotBackend(GenericBackend):
 
     def emit_settings(self, repo, *, force):
         console.print(
-            "[dim][GitHub Copilot] no per-repo permission file, and secret "
-            "content-exclusion is GitHub repo/org settings only (not a committed "
-            "file) — and doesn't cover the CLI/coding agent. Skipping.[/dim]"
+            "[dim][GitHub Copilot] no committed allow-list file (the CLI gates "
+            "tools via flags + ~/.copilot/config.json; the cloud agent via repo "
+            "settings). Secret content-exclusion is GitHub repo/org settings only "
+            "and doesn't cover the CLI/coding agent. Skipping.[/dim]"
         )
 
     def emit_hooks(self, repo, *, force):

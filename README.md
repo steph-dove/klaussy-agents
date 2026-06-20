@@ -102,24 +102,24 @@ klaussy discovers your repo's conventions **once** (into `CLAUDE.md` via klaussy
 | `gemini` | `GEMINI.md` | `.gemini/skills/<repo>-<skill>/` | `.gemini/settings.json` |
 | `cursor` | `.cursor/rules/*.mdc` | `.cursor/skills/<repo>-<skill>/` | `.cursor/permissions.json` |
 | `codex` | `AGENTS.md` | `.agents/skills/<repo>-<skill>/` | `.codex/config.toml` |
-| `copilot` | `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md` | `.github/skills/<repo>-<skill>/` | — (no per-repo model) |
+| `copilot` | `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md` | `.github/skills/<repo>-<skill>/` | — (no committed allow-list; CLI gates via flags) |
 | `antigravity` | `AGENTS.md` + plugin `rules/*.md` (`trigger: glob`) | `.gemini/antigravity-cli/plugins/klaussy/skills/<repo>-<skill>/` | `.agents/settings.json` (best-effort) + plugin `hooks.json` |
 
 **Skill adaptation.** The bundled skills are authored in Claude Code's syntax — `​```!` dynamic-shell blocks, parallel sub-agents via the `Agent`/`subagent_type` tool, and `ExitPlanMode`. klaussy rewrites the bodies to capture the same intent for each target: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note. That note does **not** assume the other agents are single-threaded — as of 2026 Cursor (`Task`), Codex (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a model-invocable parallel sub-agent tool, so the note tells the agent to map Claude's wording to its own equivalent (falling back to sequential only if it has none) and to use its own plan/approval mode. Simple skills (`commit`, `pr`, `explain`, …) reference none of this and are unchanged apart from path references.
 
-**Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, Antigravity plugin rules `trigger: glob` + `globs:`, and inlined `### Applies to:` sections for `GEMINI.md` / `AGENTS.md`.
+**Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and Antigravity plugin rules `trigger: glob` + `globs:`. Gemini and Codex scope by *directory placement*, so a rule whose glob resolves to an existing subdirectory is emitted as a nested `GEMINI.md` / `AGENTS.md` in that directory (loaded only when that subtree is touched); rules whose globs don't map to a real directory fall back to inlined `### Applies to:` sections in the root file.
 
 **Permissions & secrets.** Each agent gets a stack-appropriate command allow-list in its native format (`.claude/settings.json`, `.gemini/settings.json` `tools.allowed`, `.cursor/permissions.json` `terminalAllowlist`, `.codex/config.toml` approval/sandbox). For keeping secrets (`.env`, `*.pem`, `credentials*`, …) out of the agent's reach, klaussy uses each agent's native exclusion mechanism:
 
 | Agent | Secret exclusion |
 |-------|------------------|
 | Claude | `deny` rules in `.claude/settings.json` |
-| Gemini | `.geminiignore` (+ `respectGeminiIgnore` enabled in settings) |
+| Gemini | `.geminiignore` (+ `respectGeminiIgnore` enabled in settings) — filters auto-discovery only; an explicit `@.env` still loads |
 | Cursor | `.cursorignore` (the read-blocking one, not `.cursorindexingignore`) |
 | Codex | **none possible** — Codex has no read-exclusion; `sandbox_mode` governs writes/network, not reads. Keep secrets outside the workspace. |
 | Copilot | **not a committed file** — content exclusion is GitHub repo/org settings only, and doesn't cover the CLI/coding agent. |
 
-Note: even where supported, ignore-file exclusion is best-effort and (on Gemini/Cursor) does **not** stop a *terminal* tool from `cat`-ing a secret — pair it with the command allow-list for real protection.
+Note: even where supported, ignore-file exclusion is best-effort. On Gemini it only filters automatic context discovery (an explicit `@.env` is still read); on Cursor the terminal and MCP tools bypass `.cursorignore` entirely. Neither stops a *terminal* tool from `cat`-ing a secret — pair it with the command allow-list (and the read/shell guards) for real protection.
 
 **Hooks.** klaussy ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klaussy wires each guard to whatever events the agent's protocol exposes:
 

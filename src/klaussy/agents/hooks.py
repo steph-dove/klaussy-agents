@@ -145,11 +145,17 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
         # Cursor execs the command path directly; rely on the script's shebang.
+        # failClosed: a crashing/malformed guard blocks the action rather than
+        # silently allowing it (the guards are hardened to exit cleanly anyway).
         hooks["beforeShellExecution"] = [
-            {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command"}
+            {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command",
+             "failClosed": True}
         ]
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
-    hooks["beforeReadFile"] = [{"command": f"{hooks_dir}/{READ_GUARD}", "type": "command"}]
+    hooks["beforeReadFile"] = [
+        {"command": f"{hooks_dir}/{READ_GUARD}", "type": "command",
+         "failClosed": True}
+    ]
 
     if _write_json(repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks},
                    force=force, label=label):
@@ -174,7 +180,7 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     config = {
         "hooks": {
             "PreToolUse": [{
-                "matcher": "^Bash$",
+                "matcher": "Bash",
                 "hooks": [{"type": "command",
                            "command": f"{_hook_python()} {hooks_dir}/{COMMIT_GUARD}",
                            "timeout": 60}],
