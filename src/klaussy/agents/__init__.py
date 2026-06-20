@@ -1,8 +1,9 @@
 """Multi-agent scaffolding: target backends + selection helpers.
 
 klaussy generates Claude Code boilerplate and translates it into the native
-formats of other AI coding agents (Gemini CLI, Cursor, Codex, GitHub Copilot),
-all of which now read the open Agent Skills `SKILL.md` spec.
+formats of other AI coding agents (Gemini CLI, Cursor, Codex, GitHub Copilot,
+Google Antigravity), all of which now read the open Agent Skills `SKILL.md`
+spec.
 """
 
 from __future__ import annotations

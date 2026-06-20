@@ -24,6 +24,7 @@ from klaussy.agents.base import (
 )
 from klaussy.agents.emit import write_skills
 from klaussy.agents.hooks import (
+    antigravity_hooks,
     codex_hooks,
     copilot_hooks,
     cursor_hooks,
@@ -460,6 +461,96 @@ class CopilotBackend(GenericBackend):
         copilot_hooks(repo, force=force)
 
 
+ANTIGRAVITY_PLUGIN = ".gemini/antigravity-cli/plugins/klaussy"
+
+
+class AntigravityBackend(GenericBackend):
+    """Google Antigravity — the Gemini-based agentic IDE + Claude-compatible CLI.
+
+    Antigravity reads the cross-tool `AGENTS.md` standard for project-wide
+    conventions. Its CLI loads plugins (`plugin.json` + `hooks.json` + `skills/`
+    + `rules/`, mirroring Claude's `.claude/` machinery), so klaussy emits a
+    committed `klaussy` plugin under `.gemini/antigravity-cli/plugins/klaussy/`
+    carrying the skills, path-scoped glob rules, and the commit/read-injection
+    guards. Terminal allow/deny lists are primarily IDE settings with no firmly
+    documented committed file, so the permissions output is best-effort.
+    """
+
+    key = "antigravity"
+    label = "Google Antigravity"
+    profile = CapabilityProfile(
+        key="antigravity",
+        label="Google Antigravity",
+        # Skills ship inside the committed Antigravity CLI plugin.
+        skills_root=f"{ANTIGRAVITY_PLUGIN}/skills",
+        dynamic_shell=False,
+        subagents=False,
+        plan_mode=False,
+        # Claude's allowed-tools use Claude tool syntax (Bash(git diff *)); drop
+        # them so Antigravity falls back to its own defaults rather than mis-parse.
+        keep_allowed_tools=False,
+        keep_disable_invocation=False,
+    )
+
+    def emit_conventions(self, repo, *, force):
+        doc = read_canonical_conventions(repo)
+        if doc is None:
+            self._warn_no_conventions()
+            return
+        # Project-wide conventions: the cross-tool AGENTS.md standard (plain md,
+        # read in full). Path-scoped rules go to the plugin's rules/ below, so
+        # keep AGENTS.md to the project-wide content only.
+        self._write(
+            repo / "AGENTS.md",
+            doc.project_wide.rstrip() + "\n",
+            force=force,
+            what="AGENTS.md",
+        )
+        # Path-scoped rules: plugin rules/<stem>.md with glob activation.
+        # Antigravity rule activation (always_on / manual / model_decision / glob)
+        # is declared in frontmatter; path-scoped rules map to `trigger: glob`.
+        rules_dir = repo / ANTIGRAVITY_PLUGIN / "rules"
+        for rule in doc.rules:
+            globs = ", ".join(rule.globs)
+            frontmatter = f"---\ntrigger: glob\nglobs: {globs}\n---\n\n"
+            self._write(
+                rules_dir / f"{rule.stem}.md",
+                frontmatter + rule.body.rstrip() + "\n",
+                force=force,
+                what=f"{ANTIGRAVITY_PLUGIN}/rules/{rule.stem}.md",
+            )
+
+    def emit_settings(self, repo, *, force):
+        # Best-effort: Antigravity's terminal allow/deny lists are primarily IDE
+        # settings; the committed path/format isn't firmly documented. Write a
+        # plausible workspace allowlist under .agents/ and flag it as best-effort.
+        # Real command-gating is enforced by the plugin's hooks.json commit guard.
+        stack = _detect_stack(repo)
+        content = (
+            json.dumps(
+                {"terminal": {"allowList": _shell_prefixes(stack), "denyList": []}},
+                indent=2,
+            )
+            + "\n"
+        )
+        self._write(
+            repo / ".agents" / "settings.json",
+            content,
+            force=force,
+            what=".agents/settings.json",
+        )
+        console.print(
+            "[dim][Google Antigravity] note: the .agents/settings.json allow-list "
+            "is best-effort (terminal allow/deny lists are primarily IDE settings); "
+            "command-gating is really enforced by the plugin's hooks.json commit "
+            "guard. No committed secret-read exclusion is documented — keep secrets "
+            "out of the workspace.[/dim]"
+        )
+
+    def emit_hooks(self, repo, *, force):
+        antigravity_hooks(repo, force=force)
+
+
 BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
     b.key: b
     for b in (
@@ -468,5 +559,6 @@ BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
         CursorBackend(),
         CodexBackend(),
         CopilotBackend(),
+        AntigravityBackend(),
     )
 }

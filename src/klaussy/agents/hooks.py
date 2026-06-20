@@ -221,6 +221,56 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
                           "tool args are unconfirmed, so it's omitted")
 
 
+def antigravity_hooks(repo: Path, *, force: bool) -> None:
+    """Antigravity CLI plugin hooks — mirrors Claude's PreToolUse/PostToolUse.
+
+    The Antigravity CLI loads plugins from `~/.gemini/antigravity-cli/plugins/`;
+    klaussy emits a committed `klaussy` plugin in-repo (import or symlink it into
+    that dir) whose `hooks.json` wires the same guards as the Claude backend. The
+    CLI is documented as Claude-compatible, so the event names/shape mirror
+    Claude's (PreToolUse/PostToolUse, matcher + command hooks) — adjust the
+    matchers if your CLI version names tools differently.
+    """
+    label = "Google Antigravity"
+    fmt, lint, com = _commit_cmds(repo)
+    plugin = ".gemini/antigravity-cli/plugins/klaussy"
+    hooks_dir = f"{plugin}/hooks"
+    py = _hook_python()
+
+    _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
+    read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}"}
+    pre: list[dict] = [{"matcher": "Read", "hooks": [read_cmd]}]
+    if fmt or lint or com:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+        )
+        pre.append({
+            "matcher": "Bash",
+            "hooks": [{"type": "command",
+                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}"}],
+        })
+    config = {
+        "hooks": {
+            "PreToolUse": pre,
+            "PostToolUse": [{"matcher": "WebFetch", "hooks": [read_cmd]}],
+        }
+    }
+    # Required marker file so the Antigravity CLI recognizes the plugin.
+    _write_json(
+        repo / plugin / "plugin.json",
+        {
+            "name": "klaussy",
+            "version": "0.1.0",
+            "description": "klaussy guards, skills, and rules for Antigravity",
+        },
+        force=force,
+        label=label,
+    )
+    if _write_json(repo / plugin / "hooks.json", config, force=force, label=label):
+        _report(label, bool(fmt or lint or com), read=True, web=True)
+
+
 def _report(
     label: str,
     commit: bool,

@@ -38,8 +38,9 @@ def klaussy_init(
     Creates CLAUDE.md (the shared conventions source), then per selected agent:
     skills (review, plan, debug, …) in that agent's native skills directory, a
     native conventions file, and stack-appropriate permissions. `agents` is a
-    comma-separated list from: claude, gemini, cursor, codex, copilot (or "all").
-    Defaults to all agents. Also writes the PR template and .gitignore entries.
+    comma-separated list from: claude, gemini, cursor, codex, copilot,
+    antigravity (or "all"). Defaults to all agents. Also writes the PR template
+    and .gitignore entries.
     """
     args = ["init", "--repo", repo, "--base-branch", base_branch]
     if force:
@@ -73,8 +74,8 @@ def klaussy_settings(
     """Generate stack-appropriate permissions for each selected agent.
 
     `agents` is a comma-separated list from claude, gemini, cursor, codex,
-    copilot (or "all"); defaults to all. Copilot has no per-repo permission
-    model and is skipped.
+    copilot, antigravity (or "all"); defaults to all. Copilot has no per-repo
+    permission model and is skipped; Antigravity's permissions are best-effort.
     """
     args = ["settings", "--repo", repo]
     if force:
@@ -103,7 +104,8 @@ def klaussy_skills(
 
     Writes one SKILL.md folder per entry in SKILL_NAMES, adapted to each agent.
     `agents` is a comma-separated list from claude, gemini, cursor, codex,
-    copilot (or "all"); defaults to all. See src/klaussy/skills.py for the set.
+    copilot, antigravity (or "all"); defaults to all. See src/klaussy/skills.py
+    for the set.
     """
     args = ["skills", "--repo", repo, "--base-branch", base_branch]
     if force:
