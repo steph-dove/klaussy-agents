@@ -228,14 +228,22 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
 
 
 def antigravity_hooks(repo: Path, *, force: bool) -> None:
-    """Antigravity CLI plugin hooks — mirrors Claude's PreToolUse/PostToolUse.
+    """Antigravity CLI plugin hooks.
 
     The Antigravity CLI loads plugins from `~/.gemini/antigravity-cli/plugins/`;
     klaussy emits a committed `klaussy` plugin in-repo (import or symlink it into
-    that dir) whose `hooks.json` wires the same guards as the Claude backend. The
-    CLI is documented as Claude-compatible, so the event names/shape mirror
-    Claude's (PreToolUse/PostToolUse, matcher + command hooks) — adjust the
-    matchers if your CLI version names tools differently.
+    that dir). Antigravity uses Claude-style EVENT names (`PreToolUse`/
+    `PostToolUse`) but Gemini/Antigravity-native TOOL names — the shell tool is
+    `run_command`, file read is `view_file`, web fetch is `read_url_content`
+    (NOT Claude's `Bash`/`Read`/`WebFetch`, which don't exist here, so a
+    Claude-style matcher would silently never fire). Events are grouped under a
+    named key (the plugin name), the form Antigravity merges into
+    `~/.gemini/config/hooks.json` — not Claude's top-level `"hooks"`.
+
+    Caveat: this fixes which tools the guards MATCH. Whether the guard scripts
+    BLOCK correctly under Antigravity's hook I/O (it reads `toolCall.args.*` on
+    stdin and may expect a JSON `{"decision":"deny"}` on stdout rather than the
+    `exit 2` other agents honor) is not yet verified — see the README note.
     """
     label = "Google Antigravity"
     fmt, lint, com = _commit_cmds(repo)
@@ -245,21 +253,21 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
 
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}"}
-    pre: list[dict] = [{"matcher": "Read", "hooks": [read_cmd]}]
+    pre: list[dict] = [{"matcher": "view_file", "hooks": [read_cmd]}]
     if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
         pre.append({
-            "matcher": "Bash",
+            "matcher": "run_command",
             "hooks": [{"type": "command",
                        "command": f"{py} {hooks_dir}/{COMMIT_GUARD}"}],
         })
     config = {
-        "hooks": {
+        "klaussy": {
             "PreToolUse": pre,
-            "PostToolUse": [{"matcher": "WebFetch", "hooks": [read_cmd]}],
+            "PostToolUse": [{"matcher": "read_url_content", "hooks": [read_cmd]}],
         }
     }
     # Required marker file so the Antigravity CLI recognizes the plugin.

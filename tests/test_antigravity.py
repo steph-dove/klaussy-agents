@@ -117,14 +117,15 @@ class TestAntigravityHooks:
         # Required plugin marker.
         marker = json.loads((plugin / "plugin.json").read_text())
         assert marker["name"] == "klaussy"
-        # Claude-shaped hooks: read-injection guard on PreToolUse Read +
-        # PostToolUse WebFetch; commit guard on PreToolUse Bash.
-        hooks = json.loads((plugin / "hooks.json").read_text())["hooks"]
+        # Claude-style EVENTS but Antigravity-native TOOL matchers, grouped under
+        # the plugin name (not a "hooks" key): read guard on PreToolUse view_file
+        # + PostToolUse read_url_content; commit guard on PreToolUse run_command.
+        hooks = json.loads((plugin / "hooks.json").read_text())["klaussy"]
         pre_matchers = {entry["matcher"] for entry in hooks["PreToolUse"]}
         post_matchers = {entry["matcher"] for entry in hooks["PostToolUse"]}
-        assert "Read" in pre_matchers
-        assert "Bash" in pre_matchers  # repo has pyproject.toml → lint/format detected
-        assert "WebFetch" in post_matchers
+        assert "view_file" in pre_matchers
+        assert "run_command" in pre_matchers  # pyproject.toml → lint/format detected
+        assert "read_url_content" in post_matchers
         # Guard scripts installed inside the plugin.
         assert (plugin / "hooks" / "klaussy_read_guard.py").exists()
         assert (plugin / "hooks" / "klaussy_commit_guard.py").exists()
