@@ -17,6 +17,22 @@ COMMIT_GUARD_SCRIPT_NAME = "git_commit_guard.py"
 COMMIT_GUARD_RELPATH = f".claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}"
 COMMIT_GUARD_COMMAND = f"python3 {COMMIT_GUARD_RELPATH}"
 
+PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
+PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
+PLAN_GUIDANCE_COMMAND = f"python3 {PLAN_GUIDANCE_RELPATH}"
+
+
+def read_pre_plan_guidance() -> str:
+    """The canonical pre-plan guardrails text.
+
+    Single source of truth shared by every agent's plan-guidance hook (baked
+    into the installed script) and Antigravity's always-on developer-rules file
+    (which has no hook injection surface). Edit `templates/pre_plan_guidance.md`
+    to change the guidance everywhere at once.
+    """
+    source = resources.files("klaussy").joinpath("templates/pre_plan_guidance.md")
+    return source.read_text().rstrip() + "\n"
+
 
 def _detect_lint_command(repo: Path) -> str | None:
     """Detect the project's lint command."""
@@ -106,6 +122,24 @@ def _install_commit_guard_script(
     return dest
 
 
+def _install_plan_guidance_script(repo: Path, dialect: str) -> Path:
+    """Render the pre-plan guidance injector with text + dialect baked in."""
+    dest = repo / PLAN_GUIDANCE_RELPATH
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    source = resources.files("klaussy").joinpath(
+        "templates/hooks/multi/plan_guidance.py"
+    )
+    content = source.read_text()
+    content = content.replace(
+        '"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance())
+    )
+    content = content.replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
+    dest.write_text(content)
+    mode = dest.stat().st_mode
+    dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return dest
+
+
 def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     """Add hook configurations to .claude/settings.json."""
     repo = repo.resolve()
@@ -139,6 +173,18 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
             "hooks": [{"type": "command", "command": GUARD_COMMAND}],
         },
     ]
+
+    # Pre-plan guidance: PreToolUse on EnterPlanMode fires the instant plan mode
+    # opens, before Claude drafts the plan. The hook injects klaussy's guardrails
+    # (smallest change, only what's asked, suggest-then-wait) via additionalContext
+    # so they shape the plan itself.
+    _install_plan_guidance_script(repo, "claude")
+    pretooluse.append(
+        {
+            "matcher": "EnterPlanMode",
+            "hooks": [{"type": "command", "command": PLAN_GUIDANCE_COMMAND}],
+        }
+    )
     posttooluse: list[dict] = [
         {
             "matcher": "WebFetch",
@@ -171,6 +217,9 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
     console.print(f"[green]✔ Added hooks to {settings_file.relative_to(repo)}[/green]")
     console.print(f"[green]✔ Installed read-injection guard at {GUARD_RELPATH}[/green]")
+    console.print(
+        f"[green]✔ Installed pre-plan guidance hook at {PLAN_GUIDANCE_RELPATH}[/green]"
+    )
     if format_cmd or lint_cmd or comment_check_cmd:
         console.print(
             f"[green]✔ Installed git-commit guard at {COMMIT_GUARD_RELPATH}[/green]"

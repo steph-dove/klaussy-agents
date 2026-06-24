@@ -23,12 +23,14 @@ from klaussy.hooks import (
     _detect_comment_check_command,
     _detect_format_command,
     _detect_lint_command,
+    read_pre_plan_guidance,
 )
 
 console = Console()
 
 COMMIT_GUARD = "klaussy_commit_guard.py"
 READ_GUARD = "klaussy_read_guard.py"
+GUIDANCE_GUARD = "klaussy_plan_guidance.py"
 
 
 def _hook_python() -> str:
@@ -71,6 +73,22 @@ def _install_script(
             '"__KLAUSSY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd)
         )
     )
+    dest.write_text(content)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _install_guidance_script(repo: Path, relpath: str, dialect: str) -> None:
+    """Copy the pre-plan guidance injector, baking in the text + dialect."""
+    dest = repo / relpath
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        resources.files("klaussy")
+        .joinpath("templates/hooks/multi/plan_guidance.py")
+        .read_text()
+    )
+    content = content.replace(
+        '"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance())
+    ).replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
     dest.write_text(content)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
@@ -123,13 +141,21 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     if "hooks" in settings and not force:
         console.print(f"[yellow]⚠ [{label}] hooks already configured; use --force.[/yellow]")
         return
+    # BeforeAgent fires after the prompt, before planning — the earliest point
+    # Gemini can inject context (BeforeTool can't). Gemini has no plan tool, so
+    # the guidance lands each turn rather than only on plan entry.
+    _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "gemini")
+    guidance_cmd = {"type": "command",
+                    "command": f"{py} {hooks_dir}/{GUIDANCE_GUARD}",
+                    "timeout": 60000}
     settings["hooks"] = {
+        "BeforeAgent": [{"hooks": [guidance_cmd]}],
         "BeforeTool": before,
         "AfterTool": [{"matcher": "web_fetch", "hooks": [read_cmd]}],
     }
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    _report(label, bool(fmt or lint or com), read=True, web=True)
+    _report(label, bool(fmt or lint or com), read=True, web=True, plan=True)
 
 
 def cursor_hooks(repo: Path, *, force: bool) -> None:
@@ -156,73 +182,91 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
         {"command": f"{hooks_dir}/{READ_GUARD}", "type": "command",
          "failClosed": True}
     ]
+    # Cursor's beforeSubmitPrompt is block-only; sessionStart is its sole
+    # context-injection event, so the guidance lands once per session. Not
+    # failClosed — a guidance hiccup must never wedge the session.
+    _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "cursor")
+    hooks["sessionStart"] = [
+        {"command": f"{hooks_dir}/{GUIDANCE_GUARD}", "type": "command"}
+    ]
 
     if _write_json(repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks},
                    force=force, label=label):
-        _report(label, bool(fmt or lint or com), read=True, web=False)
+        _report(label, bool(fmt or lint or com), read=True, web=False, plan=True)
 
 
 def codex_hooks(repo: Path, *, force: bool) -> None:
-    """Codex: PreToolUse on Bash only — no pre-read or web-fetch hook surface."""
+    """Codex: UserPromptSubmit plan-guidance + PreToolUse commit guard on Bash."""
     label = "Codex CLI"
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".codex/hooks"
+    py = _hook_python()
 
-    if not (fmt or lint or com):
-        console.print(
-            f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
-        )
-        return
-    _install_script(
-        repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-        format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
-    )
-    config = {
-        "hooks": {
-            "PreToolUse": [{
-                "matcher": "Bash",
-                "hooks": [{"type": "command",
-                           "command": f"{_hook_python()} {hooks_dir}/{COMMIT_GUARD}",
-                           "timeout": 60}],
-            }]
-        }
+    # Codex has no plan tool, but reports permission_mode ("plan") on stdin and
+    # can inject additionalContext from UserPromptSubmit — so the guidance script
+    # self-gates to plan mode. Wired unconditionally (independent of lint/format).
+    _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "codex")
+    hooks_cfg: dict = {
+        "UserPromptSubmit": [{
+            "hooks": [{"type": "command",
+                       "command": f"{py} {hooks_dir}/{GUIDANCE_GUARD}",
+                       "timeout": 60}],
+        }]
     }
-    if _write_json(repo / ".codex" / "hooks.json", config, force=force, label=label):
-        _report(label, True, read=False, web=False,
+    if fmt or lint or com:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+        )
+        hooks_cfg["PreToolUse"] = [{
+            "matcher": "Bash",
+            "hooks": [{"type": "command",
+                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
+                       "timeout": 60}],
+        }]
+
+    if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg},
+                   force=force, label=label):
+        _report(label, bool(fmt or lint or com), read=False, web=False, plan=True,
                 read_note="Codex has no pre-file-read hook event")
 
 
 def copilot_hooks(repo: Path, *, force: bool) -> None:
-    """Copilot: preToolUse (fail-closed) — wire only the defensive commit guard."""
+    """Copilot: sessionStart plan-guidance + preToolUse (fail-closed) commit guard."""
     label = "GitHub Copilot"
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".github/hooks"
 
-    if not (fmt or lint or com):
-        console.print(
-            f"[dim][{label}] no lint/format command detected — no hooks to wire.[/dim]"
-        )
-        return
-    _install_script(
-        repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-        format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
-    )
     # Copilot command hooks support an OS split: `bash` (Linux/macOS) and
-    # `powershell` (Windows). Use both so the guard runs regardless of platform.
-    config = {
-        "version": 1,
-        "hooks": {
-            "preToolUse": [{
-                "type": "command",
-                "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
-                "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
-                "timeoutSec": 60,
-            }]
-        },
+    # `powershell` (Windows). Use both so hooks run regardless of platform.
+    # sessionStart is Copilot's only context-injection event (preToolUse and
+    # userPromptSubmitted can't inject), so the guidance lands once per session.
+    # Wired unconditionally (independent of lint/format).
+    _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "copilot")
+    hooks_cfg: dict = {
+        "sessionStart": [{
+            "type": "command",
+            "bash": f"python3 {hooks_dir}/{GUIDANCE_GUARD}",
+            "powershell": f"python {hooks_dir}/{GUIDANCE_GUARD}",
+            "timeoutSec": 60,
+        }]
     }
+    if fmt or lint or com:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+        )
+        hooks_cfg["preToolUse"] = [{
+            "type": "command",
+            "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+            "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
+            "timeoutSec": 60,
+        }]
+
+    config = {"version": 1, "hooks": hooks_cfg}
     if _write_json(repo / ".github" / "hooks" / "klaussy-guards.json", config,
                    force=force, label=label):
-        _report(label, True, read=False, web=False,
+        _report(label, bool(fmt or lint or com), read=False, web=False, plan=True,
                 read_note="Copilot preToolUse is fail-closed; read-injection "
                           "tool args are unconfirmed, so it's omitted")
 
@@ -291,6 +335,7 @@ def _report(
     *,
     read: bool,
     web: bool,
+    plan: bool = False,
     read_note: str | None = None,
 ) -> None:
     parts = []
@@ -300,6 +345,8 @@ def _report(
         parts.append("read-injection")
     if web:
         parts.append("web-fetch")
+    if plan:
+        parts.append("plan-guidance")
     wired = ", ".join(parts) if parts else "none"
     console.print(f"[green]✔ [{label}] hooks wired: {wired}[/green]")
     if not commit:
