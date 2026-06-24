@@ -31,7 +31,7 @@ from klaussy.agents.hooks import (
     gemini_hooks,
 )
 from klaussy.checklist import generate_checklist
-from klaussy.hooks import scaffold_hooks
+from klaussy.hooks import read_pre_plan_guidance, scaffold_hooks
 from klaussy.settings import SENSITIVE_PATTERNS, _detect_stack, generate_settings
 
 console = Console()
@@ -596,6 +596,16 @@ class AntigravityBackend(GenericBackend):
                 force=force,
                 what=f"{ANTIGRAVITY_PLUGIN}/rules/{rule.stem}.md",
             )
+        # Pre-plan guardrails: Antigravity hooks return only allow/deny (no
+        # context injection), so unlike the other agents the guidance can't ride
+        # a hook. It lands instead as an always-applied developer-rules file that
+        # Antigravity auto-indexes from the workspace root.
+        self._write(
+            repo / ".antigravityrules",
+            read_pre_plan_guidance(),
+            force=force,
+            what=".antigravityrules",
+        )
 
     def emit_settings(self, repo, *, force):
         # Best-effort: Antigravity's terminal allow/deny lists are primarily IDE

@@ -831,6 +831,8 @@ class TestMultiAgentHooks:
         CodexBackend().emit_hooks(repo, force=True)
         cfg = json.loads((repo / ".codex" / "hooks.json").read_text())
         assert cfg["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+        # Plan guidance rides UserPromptSubmit (Codex's injecting event).
+        assert "UserPromptSubmit" in cfg["hooks"]
         # No read guard (Codex has no pre-read hook surface).
         assert not (repo / ".codex" / "hooks" / "klaussy_read_guard.py").exists()
 
@@ -844,11 +846,15 @@ class TestMultiAgentHooks:
         assert "preToolUse" in cfg["hooks"]
 
     def test_no_lint_format_skips_commit_guard(self, tmp_path: Path):
-        # A bare repo (no pyproject/package.json) → no commit guard for codex.
+        # A bare repo (no pyproject/package.json) → no commit guard for codex,
+        # but the plan-guidance hook (UserPromptSubmit) still wires.
         from klaussy.agents.backends import CodexBackend
 
         CodexBackend().emit_hooks(tmp_path, force=True)
-        assert not (tmp_path / ".codex" / "hooks.json").exists()
+        cfg = json.loads((tmp_path / ".codex" / "hooks.json").read_text())
+        assert "UserPromptSubmit" in cfg["hooks"]
+        assert "PreToolUse" not in cfg["hooks"]
+        assert not (tmp_path / ".codex" / "hooks" / "klaussy_commit_guard.py").exists()
 
     # --- guard behavior (dialect-tolerant + never-crash) --------------------
 
@@ -911,6 +917,88 @@ class TestMultiAgentHooks:
         assert rg._extract_path({"file_path": "/b"}) == "/b"  # cursor top level
         assert rg._extract_path({"toolArgs": {"path": "/c"}}) == "/c"
         assert rg._extract_path({}) == ""
+
+    # --- pre-plan guidance hook ---------------------------------------------
+
+    def _emit_for(self, dialect: str, payload: dict):
+        """Drive the guidance injector's _emit for one dialect + payload."""
+        guard = self._load_guard("plan_guidance.py")
+        guard.GUIDANCE = "GUIDANCE-TEXT"
+        return guard._emit(dialect, payload)
+
+    def test_guidance_claude_injects_additional_context(self):
+        out = self._emit_for("claude", {})
+        assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+        assert out["hookSpecificOutput"]["additionalContext"] == "GUIDANCE-TEXT"
+
+    def test_guidance_codex_gates_on_plan_mode(self):
+        # Inject only when the user is in plan mode; stay silent otherwise.
+        assert self._emit_for("codex", {"permission_mode": "plan"}) is not None
+        assert self._emit_for("codex", {"permission_mode": "default"}) is None
+        assert self._emit_for("codex", {}) is None
+
+    def test_guidance_dialect_output_shapes(self):
+        # Cursor uses snake_case at top level; the rest use camelCase nested.
+        assert self._emit_for("cursor", {})["additional_context"] == "GUIDANCE-TEXT"
+        for d in ("gemini", "copilot"):
+            out = self._emit_for(d, {})
+            ctx = out.get("additionalContext") or out["hookSpecificOutput"][
+                "additionalContext"
+            ]
+            assert ctx == "GUIDANCE-TEXT"
+        assert self._emit_for("unknown", {}) is None
+
+    def test_guidance_never_crashes_on_bad_stdin(self, monkeypatch):
+        import io
+
+        guard = self._load_guard("plan_guidance.py")
+        guard.GUIDANCE, guard.DIALECT = "G", "claude"
+        monkeypatch.setattr(guard.sys, "stdin", io.StringIO("not json"))
+        assert guard.main() == 0  # malformed payload → still allow, no crash
+
+    def test_claude_scaffolds_enter_plan_mode_hook(self, repo: Path):
+        from klaussy.hooks import scaffold_hooks
+
+        scaffold_hooks(repo=repo, force=True)
+        settings = json.loads((repo / ".claude" / "settings.json").read_text())
+        matchers = {e["matcher"] for e in settings["hooks"]["PreToolUse"]}
+        assert "EnterPlanMode" in matchers
+        script = repo / ".claude" / "hooks" / "plan_guidance.py"
+        assert script.stat().st_mode & 0o100  # executable
+        body = script.read_text()
+        assert "Pre-Plan Guardrails" in body  # guidance baked in
+        assert "'claude'" in body  # dialect baked in
+
+    def test_gemini_wires_before_agent_guidance(self, repo: Path):
+        from klaussy.agents.backends import GeminiBackend
+
+        GeminiBackend().emit_hooks(repo, force=True)
+        settings = json.loads((repo / ".gemini" / "settings.json").read_text())
+        assert "BeforeAgent" in settings["hooks"]
+        assert (repo / ".gemini" / "hooks" / "klaussy_plan_guidance.py").exists()
+
+    def test_cursor_and_copilot_wire_session_start_guidance(self, repo: Path):
+        from klaussy.agents.backends import CopilotBackend, CursorBackend
+
+        CursorBackend().emit_hooks(repo, force=True)
+        cur = json.loads((repo / ".cursor" / "hooks.json").read_text())
+        assert "sessionStart" in cur["hooks"]
+
+        CopilotBackend().emit_hooks(repo, force=True)
+        cop = json.loads(
+            (repo / ".github" / "hooks" / "klaussy-guards.json").read_text()
+        )
+        assert "sessionStart" in cop["hooks"]
+
+    def test_antigravity_writes_developer_rules(self, repo_with_claude_md: Path):
+        # Antigravity hooks can't inject context, so guidance lands as an
+        # always-applied developer-rules file at the workspace root.
+        from klaussy.agents.backends import AntigravityBackend
+
+        AntigravityBackend().emit_conventions(repo_with_claude_md, force=True)
+        rules = repo_with_claude_md / ".antigravityrules"
+        assert rules.exists()
+        assert "Pre-Plan Guardrails" in rules.read_text()
 
 
 class TestAdrSubReview:
