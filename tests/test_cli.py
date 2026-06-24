@@ -368,6 +368,76 @@ class TestHooks:
             for entry in post
         ), "PostToolUse should match WebFetch and run the guard"
 
+    def test_scaffold_hooks_merges_into_existing_without_force(self, repo: Path):
+        """A repo with an older hooks block gains a missing managed hook, no --force."""
+        settings_file = repo / ".claude" / "settings.json"
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        # Pre-existing hooks block WITHOUT the plan-guidance hook, plus a custom
+        # user entry that must survive the merge.
+        settings_file.write_text(
+            json.dumps(
+                {
+                    "permissions": {"allow": ["Bash(ls *)"]},
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Edit",
+                                "hooks": [{"type": "command", "command": "echo mine"}],
+                            }
+                        ]
+                    },
+                }
+            )
+        )
+        scaffold_hooks(repo=repo)  # no force
+        settings = json.loads(settings_file.read_text())
+        pre = settings["hooks"]["PreToolUse"]
+        matchers = {e["matcher"] for e in pre}
+        assert "EnterPlanMode" in matchers, "missing plan hook should be merged in"
+        assert "Edit" in matchers, "user's own hook entry must be preserved"
+        assert settings["permissions"]["allow"] == ["Bash(ls *)"], "other settings untouched"
+        assert (repo / ".claude" / "hooks" / "plan_guidance.py").is_file()
+
+    def test_scaffold_hooks_idempotent_no_duplicates(self, repo: Path):
+        """Running twice doesn't duplicate the managed entries."""
+        scaffold_hooks(repo=repo)
+        first = json.loads((repo / ".claude" / "settings.json").read_text())
+        scaffold_hooks(repo=repo)  # no force, second run
+        second = json.loads((repo / ".claude" / "settings.json").read_text())
+        assert first["hooks"] == second["hooks"], "re-run must not change the hooks block"
+
+    def test_scaffold_hooks_writes_version_marker(self, repo: Path):
+        scaffold_hooks(repo=repo)
+        marker = repo / ".claude" / "hooks" / ".klaussy-version"
+        assert marker.is_file(), "a version marker should be stamped in the hooks dir"
+
+    def test_scaffold_hooks_version_gate_skips_when_current(self, repo: Path):
+        """At the current version, a re-run leaves settings.json untouched."""
+        scaffold_hooks(repo=repo)
+        settings_file = repo / ".claude" / "settings.json"
+        data = json.loads(settings_file.read_text())
+        data["_sentinel"] = "keep-me"  # a marker a rewrite would drop
+        settings_file.write_text(json.dumps(data))
+        scaffold_hooks(repo=repo)  # same version -> skip, no rewrite
+        after = json.loads(settings_file.read_text())
+        assert after.get("_sentinel") == "keep-me"
+
+    def test_scaffold_hooks_version_bump_merges_new_hook(self, repo: Path):
+        """A version bump re-runs the install and merges in a now-missing hook."""
+        scaffold_hooks(repo=repo)
+        settings_file = repo / ".claude" / "settings.json"
+        data = json.loads(settings_file.read_text())
+        # Simulate an older install: drop the plan hook, roll the marker back.
+        data["hooks"]["PreToolUse"] = [
+            e for e in data["hooks"]["PreToolUse"] if e["matcher"] != "EnterPlanMode"
+        ]
+        settings_file.write_text(json.dumps(data))
+        (repo / ".claude" / "hooks" / ".klaussy-version").write_text("0.0.1\n")
+        scaffold_hooks(repo=repo)  # version differs -> re-run, merge plan hook back
+        after = json.loads(settings_file.read_text())
+        matchers = {e["matcher"] for e in after["hooks"]["PreToolUse"]}
+        assert "EnterPlanMode" in matchers
+
     def test_scaffold_hooks_installs_git_commit_guard(self, repo: Path):
         scaffold_hooks(repo=repo)
         guard = repo / ".claude" / "hooks" / "git_commit_guard.py"
