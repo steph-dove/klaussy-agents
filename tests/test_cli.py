@@ -169,8 +169,9 @@ class TestSanitizeSkillNamespace:
 class TestScaffoldSkills:
     def test_creates_all_skills(self, repo: Path):
         created = scaffold_skills(repo=repo)
-        # SKILL_NAMES has 11 entries; review additionally ships sub-agents.md.
-        assert len(created) == len(SKILL_NAMES) + 1
+        # One SKILL.md per skill, plus two aux files: review's sub-agents.md and
+        # precommit's comment-cleanup.md.
+        assert len(created) == len(SKILL_NAMES) + 2
         for path in created:
             assert path.exists()
 

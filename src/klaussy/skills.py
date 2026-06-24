@@ -12,6 +12,7 @@ console = Console()
 
 SKILL_NAMES = [
     "review",
+    "precommit",
     "plan",
     "debug",
     "implement",
