@@ -1,0 +1,30 @@
+name: Secret scan (gitleaks)
+
+# Guardrail: fail the build if a secret is ever committed. Scans the full
+# history on each push/PR. Uses the pinned gitleaks binary directly to avoid
+# the gitleaks-action's org-license requirement.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history, not just the tip
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks version
+
+      - name: Scan history
+        run: ./gitleaks detect --source . --redact --no-banner --verbose
