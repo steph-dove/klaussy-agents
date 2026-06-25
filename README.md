@@ -75,11 +75,12 @@ The same skill is re-emitted in each target agent's native directory and syntax 
 
 See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping (conventions, skill adaptation, secret exclusion, hook coverage), and the table below for what each skill does.
 
-### The bundled skills
+### Bundled skills and hooks
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
 | `<repo>-precommit` | Last-mile review of a staged / about-to-commit diff across five lenses — silent failures, leaked secrets, debug leftovers, blatant correctness landmines, and excessive/narrating comments. Reports findings on the changed lines only; never refactors. Also the canonical source for klaussy-desktop's pre-commit gate (it's user-invoked, not auto-triggered) | — |
+| comment guard | Humanizes the agent's outgoing `gh` comment before it posts — a hook (not a `<repo>-` skill) that scrubs AI tells via the same humanizer. On Claude it rewrites in place; other agents block and re-issue the cleaned command. Wired into every agent | — |
 | `<repo>-humanize` | Strips AI tells from prose (files or pasted text): rewrites by the humanization spec, then runs the deterministic `klaussy humanize` scrubber as a guaranteed backstop. Never touches code | — |
 | `<repo>-review` | Senior-level PR review against your base branch. Small PRs get a single-pass review; larger PRs fan out to parallel sub-agents (correctness, architecture, security, scope, plus an Agentic & Evals lens when the diff touches AI/agent/eval code, and an **Architecture Decision & Design-Doc lens when the PR contains an ADR/RFC/design doc**). Precision-biased (empty review is a valid outcome), every finding must name a concrete trigger, and a validation phase self-refutes and removes false positives. Comments default to a collaborative tone (say `blunt` for a terse review) and are humanized (no AI tells), keeping full detail either way | `REVIEW_OUTPUT.md` |
 | `<repo>-commit` | Generates a commit message from staged changes | — |
@@ -137,7 +138,7 @@ Note: even where supported, ignore-file exclusion is best-effort. On Gemini it o
 | Guard | Claude | Gemini | Cursor | Codex | Copilot | Antigravity |
 |-------|--------|--------|--------|-------|---------|-------------|
 | git-commit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| comment-humanize | ✅ rewrite | ✅ block | ✅ block | ✅ block | ✅ block | ✅ block |
+| comment-humanize | ✅ rewrite | ✅ | ✅ | ✅ | ✅ | ✅ |
 | read-injection (local read) | ✅ | ✅ | ✅ | — | — | ✅ |
 | read-injection (web fetch) | ✅ | ✅ | — | — | — | ✅ |
 
