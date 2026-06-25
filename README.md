@@ -73,11 +73,20 @@ Antigravity   AGENTS.md  .gemini/antigravity-cli/plugins/klaussy/{skills,rules}/
 
 - **Pre-commit guard** — a `git commit` hook that runs your format + lint on the files being committed (plus a commented-out-code check on Python) and blocks the commit on failure. Wired into every agent.
 - **Humanize** — strips AI tells (em-dashes, filler openers, chatbot scaffolding) from prose. The `<repo>-humanize` skill rewrites by spec; the deterministic `klaussy humanize` scrubber is a code-preserving backstop shared with klaussy-desktop.
+- **Comment guard** — a hook that catches the agent's outgoing `gh` comment and humanizes it through that same scrubber before it posts. Wired into every agent.
 - **Skills** — namespaced `<repo>-<skill>` workflow skills, auto-triggered by description, written into each agent's skills directory (detailed below).
 - **CLAUDE.md** — auto-detected conventions, architecture, commands, and pitfalls; path-scoped rules split into `.claude/rules/*.md` and emitted in each agent's native file.
 - **settings.json** — stack-detected tool permissions, plus deny rules that keep secrets (`.env`, `*.pem`, `credentials*`) out of the agent's reach.
 - **Read-injection guard** — scans file reads and web fetches for prompt-injection markers before the agent consumes them.
 - **PR template & .gitignore** — a PR template if your repo lacks one, and `.gitignore` entries for generated outputs.
+
+### Comment guard
+
+Before the agent posts a comment via `gh` (`gh pr comment`, `gh issue comment`, `gh pr review`), this hook runs the comment body through klaussy's deterministic humanize scrubber, so what actually lands has no AI tells.
+
+On **Claude** it's transparent: a `PreToolUse` hook rewrites the command in place (via `updatedInput`) with the cleaned body, so the comment posts humanized with no extra round trip. On the **other agents** — whose hook protocols can't rewrite tool input — it blocks the post (`exit 2`) and hands back the humanized command for the agent to re-issue. Either way, the posted comment is scrubbed.
+
+It only touches literal bodies (`-b` / `--body` / `--body=`); a shell-expanded body (`$(…)`) or one that's already clean passes through untouched, and a missing `klaussy` on `PATH` never blocks a post. The scrubbing is the same canonical implementation as the `<repo>-humanize` skill and the `klaussy humanize` CLI. Lives at `.claude/hooks/comment_guard.py` (and each agent's `klaussy_comment_guard.py`).
 
 <details>
 <summary><b>Example: what a generated skill looks like</b></summary>
@@ -166,11 +175,12 @@ Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each a
 
 Note: even where supported, ignore-file exclusion is best-effort. On Gemini it only filters automatic context discovery (an explicit `@.env` is still read); on Cursor the terminal and MCP tools bypass `.cursorignore` entirely. Neither stops a *terminal* tool from `cat`-ing a secret — pair it with the command allow-list (and the read/shell guards) for real protection.
 
-**Hooks.** klaussy ships two guards — a **git-commit guard** (runs format + lint before a commit) and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klaussy wires each guard to whatever events the agent's protocol exposes:
+**Hooks.** klaussy ships three guards — a **git-commit guard** (runs format + lint before a commit), a **comment guard** (humanizes an outgoing `gh` comment), and a **read-injection guard** (scans file/fetch content for prompt-injection markers). The guard scripts are cross-agent and dialect-tolerant: they extract the command/path from any agent's hook payload and block via `exit 2` + stderr, which every supported agent honors. klaussy wires each guard to whatever events the agent's protocol exposes:
 
 | Guard | Claude | Gemini | Cursor | Codex | Copilot | Antigravity |
 |-------|--------|--------|--------|-------|---------|-------------|
 | git-commit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| comment-humanize | ✅ rewrite | ✅ block | ✅ block | ✅ block | ✅ block | ✅ block |
 | read-injection (local read) | ✅ | ✅ | ✅ | — | — | ✅ |
 | read-injection (web fetch) | ✅ | ✅ | — | — | — | ✅ |
 

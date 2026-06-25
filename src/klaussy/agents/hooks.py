@@ -29,6 +29,7 @@ from klaussy.hooks import (
 console = Console()
 
 COMMIT_GUARD = "klaussy_commit_guard.py"
+COMMENT_GUARD = "klaussy_comment_guard.py"
 READ_GUARD = "klaussy_read_guard.py"
 GUIDANCE_GUARD = "klaussy_plan_guidance.py"
 
@@ -131,6 +132,13 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
                        "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
                        "timeout": 60000}],
         })
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    before.append({
+        "matcher": "run_shell_command",
+        "hooks": [{"type": "command",
+                   "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
+                   "timeout": 60000}],
+    })
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}",
                 "timeout": 60000}
@@ -165,18 +173,25 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".cursor/hooks"
 
     hooks: dict[str, list[dict]] = {}
+    # Cursor execs the command path directly; rely on the script's shebang.
+    # failClosed: a crashing/malformed guard blocks the action rather than
+    # silently allowing it (the guards are hardened to exit cleanly anyway).
+    before_shell: list[dict] = []
     if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
-        # Cursor execs the command path directly; rely on the script's shebang.
-        # failClosed: a crashing/malformed guard blocks the action rather than
-        # silently allowing it (the guards are hardened to exit cleanly anyway).
-        hooks["beforeShellExecution"] = [
+        before_shell.append(
             {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command",
              "failClosed": True}
-        ]
+        )
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    before_shell.append(
+        {"command": f"{hooks_dir}/{COMMENT_GUARD}", "type": "command",
+         "failClosed": True}
+    )
+    hooks["beforeShellExecution"] = before_shell
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     hooks["beforeReadFile"] = [
         {"command": f"{hooks_dir}/{READ_GUARD}", "type": "command",
@@ -213,17 +228,20 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
                        "timeout": 60}],
         }]
     }
+    bash_hooks: list[dict] = []
     if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
-        hooks_cfg["PreToolUse"] = [{
-            "matcher": "Bash",
-            "hooks": [{"type": "command",
-                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
-                       "timeout": 60}],
-        }]
+        bash_hooks.append({"type": "command",
+                           "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
+                           "timeout": 60})
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    bash_hooks.append({"type": "command",
+                       "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
+                       "timeout": 60})
+    hooks_cfg["PreToolUse"] = [{"matcher": "Bash", "hooks": bash_hooks}]
 
     if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg},
                    force=force, label=label):
@@ -251,17 +269,26 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
             "timeoutSec": 60,
         }]
     }
+    pre_tool: list[dict] = []
     if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
-        hooks_cfg["preToolUse"] = [{
+        pre_tool.append({
             "type": "command",
             "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
             "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
             "timeoutSec": 60,
-        }]
+        })
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    pre_tool.append({
+        "type": "command",
+        "bash": f"python3 {hooks_dir}/{COMMENT_GUARD}",
+        "powershell": f"python {hooks_dir}/{COMMENT_GUARD}",
+        "timeoutSec": 60,
+    })
+    hooks_cfg["preToolUse"] = pre_tool
 
     config = {"version": 1, "hooks": hooks_cfg}
     if _write_json(repo / ".github" / "hooks" / "klaussy-guards.json", config,
@@ -298,16 +325,18 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}"}
     pre: list[dict] = [{"matcher": "view_file", "hooks": [read_cmd]}]
+    run_command_hooks: list[dict] = []
     if fmt or lint or com:
         _install_script(
             repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
-        pre.append({
-            "matcher": "run_command",
-            "hooks": [{"type": "command",
-                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}"}],
-        })
+        run_command_hooks.append({"type": "command",
+                                  "command": f"{py} {hooks_dir}/{COMMIT_GUARD}"})
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    run_command_hooks.append({"type": "command",
+                              "command": f"{py} {hooks_dir}/{COMMENT_GUARD}"})
+    pre.append({"matcher": "run_command", "hooks": run_command_hooks})
     config = {
         "klaussy": {
             "PreToolUse": pre,
@@ -341,6 +370,7 @@ def _report(
     parts = []
     if commit:
         parts.append("git-commit")
+    parts.append("comment-humanize")
     if read:
         parts.append("read-injection")
     if web:

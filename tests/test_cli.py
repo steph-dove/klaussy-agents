@@ -481,7 +481,12 @@ class TestHooks:
         assert not guard.exists()
         settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
         pre = settings["hooks"]["PreToolUse"]
-        assert not any(entry["matcher"] == "Bash" for entry in pre)
+        bash_cmds = [
+            h["command"] for e in pre if e["matcher"] == "Bash" for h in e["hooks"]
+        ]
+        # The comment guard is always wired on Bash; only the commit guard is gated.
+        assert any("comment_guard" in c for c in bash_cmds)
+        assert not any("git_commit_guard" in c for c in bash_cmds)
 
 
 class TestReadInjectionGuard:
@@ -608,6 +613,29 @@ class TestGitCommitGuard:
     def test_run_allows_when_command_missing(self, guard):
         # A missing linter must not block the commit on the guard's own failure.
         assert guard._run("klaussy-no-such-tool-xyz --check") == 0
+
+    def test_changed_paths_scopes_to_staged_files(self, guard, tmp_path, monkeypatch):
+        # End-to-end: the git integration that scopes the gate to the commit.
+        import subprocess
+
+        def git(*args):
+            subprocess.run(["git", *args], cwd=tmp_path, check=True,
+                           capture_output=True)
+
+        git("init")
+        git("config", "user.email", "t@t.co")
+        git("config", "user.name", "t")
+        (tmp_path / "a.py").write_text("x = 1\n")
+        git("add", "a.py")
+        git("commit", "-qm", "base")
+        (tmp_path / "b.py").write_text("y = 2\n")   # new, staged
+        git("add", "b.py")
+        (tmp_path / "a.py").write_text("x = 1\nz = 3\n")  # modified, unstaged
+        monkeypatch.chdir(tmp_path)
+        # Plain commit sees only the staged file...
+        assert guard._changed_paths(include_unstaged=False) == ["b.py"]
+        # ...`git commit -a` also folds in the modified tracked file.
+        assert guard._changed_paths(include_unstaged=True) == ["a.py", "b.py"]
 
     @pytest.mark.parametrize(
         "command,expected",
@@ -972,8 +1000,11 @@ class TestMultiAgentHooks:
         CodexBackend().emit_hooks(tmp_path, force=True)
         cfg = json.loads((tmp_path / ".codex" / "hooks.json").read_text())
         assert "UserPromptSubmit" in cfg["hooks"]
-        assert "PreToolUse" not in cfg["hooks"]
         assert not (tmp_path / ".codex" / "hooks" / "klaussy_commit_guard.py").exists()
+        # PreToolUse now carries the always-on comment guard, not the commit guard.
+        cmds = [h["command"] for e in cfg["hooks"]["PreToolUse"] for h in e["hooks"]]
+        assert any("comment_guard" in c for c in cmds)
+        assert not any("commit_guard" in c for c in cmds)
 
     # --- guard behavior (dialect-tolerant + never-crash) --------------------
 

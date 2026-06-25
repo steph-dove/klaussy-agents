@@ -20,6 +20,10 @@ COMMIT_GUARD_SCRIPT_NAME = "git_commit_guard.py"
 COMMIT_GUARD_RELPATH = f".claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}"
 COMMIT_GUARD_COMMAND = f"python3 {COMMIT_GUARD_RELPATH}"
 
+COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
+COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
+COMMENT_GUARD_COMMAND = f"python3 {COMMENT_GUARD_RELPATH}"
+
 PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
 PLAN_GUIDANCE_COMMAND = f"python3 {PLAN_GUIDANCE_RELPATH}"
@@ -104,6 +108,22 @@ def _install_guard_script(repo: Path) -> Path:
     dest = repo / GUARD_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
     source = resources.files("klaussy").joinpath(f"templates/hooks/{GUARD_SCRIPT_NAME}")
+    dest.write_text(source.read_text())
+    mode = dest.stat().st_mode
+    dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return dest
+
+
+def _install_comment_guard_script(repo: Path) -> Path:
+    """Copy the comment-humanizing guard into .claude/hooks/ and mark executable.
+
+    No commands are baked in: it shells out to `klaussy humanize` at run time, so
+    a plain copy is enough (unlike the commit guard's format/lint sentinels)."""
+    dest = repo / COMMENT_GUARD_RELPATH
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    source = resources.files("klaussy").joinpath(
+        f"templates/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
+    )
     dest.write_text(source.read_text())
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -231,12 +251,16 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # plan itself.
     _install_guard_script(repo)
     _install_plan_guidance_script(repo, "claude")
+    # Comment guard rewrites an outgoing `gh` comment through `klaussy humanize`
+    # (PreToolUse updatedInput). No project-specific command, so always installed.
+    _install_comment_guard_script(repo)
     def _entry(matcher: str, command: str) -> dict:
         return {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
 
     desired_pre: list[dict] = [
         _entry("Read", GUARD_COMMAND),
         _entry("EnterPlanMode", PLAN_GUIDANCE_COMMAND),
+        _entry("Bash", COMMENT_GUARD_COMMAND),
     ]
     desired_post: list[dict] = [_entry("WebFetch", GUARD_COMMAND)]
 
