@@ -51,24 +51,6 @@ See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
 
 klaussy discovers your repo's conventions once, then writes — **for every selected agent (all six by default)** — that agent's native conventions file, the workflow skills, stack-appropriate permissions, and hooks where the agent supports them. Narrow with `--agents` to emit only the agents you want.
 
-```
-# Per agent (each gets the workflow skills + a conventions file + permissions + hooks):
-
-Claude Code   CLAUDE.md  .claude/rules/  .claude/skills/<repo>-<skill>/  .claude/settings.json  .claude/hooks/
-Gemini CLI    GEMINI.md  .gemini/skills/<repo>-<skill>/  .gemini/settings.json  .gemini/hooks/  .geminiignore
-Cursor        .cursor/rules/*.mdc  .cursor/skills/<repo>-<skill>/  .cursor/permissions.json  .cursor/hooks.json  .cursorignore
-Codex         AGENTS.md  .agents/skills/<repo>-<skill>/  .codex/config.toml  .codex/hooks.json
-Copilot       .github/copilot-instructions.md  .github/instructions/  .github/skills/<repo>-<skill>/  .github/hooks/
-Antigravity   AGENTS.md  .gemini/antigravity-cli/plugins/klaussy/{skills,rules}/  .gemini/antigravity-cli/plugins/klaussy/hooks.json  .agents/settings.json
-
-# Every skills/ directory holds the same namespaced set:
-#   <repo>-{review, precommit, plan, debug, implement, refactor, test, fix, pr, commit, explain, humanize, new-worktree}
-
-# Shared, once:
-.github/PULL_REQUEST_TEMPLATE.md   # only if the repo doesn't already have one
-.gitignore                         # appends klaussy output exclusions (pr-description.md, REVIEW_OUTPUT.md, plan.md)
-```
-
 <details>
 <summary><b>Example: what a generated skill looks like</b></summary>
 
@@ -110,12 +92,6 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 | `<repo>-refactor` | Refactors code while preserving behavior exactly. Requires a passing test baseline, runs tests between every incremental step | — |
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 | `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
-
-### Migrating from 0.1.x
-
-If you ran an earlier version of klaussy, you have `.claude/commands/*.md` files. On the next `klaussy init` (with 0.2.0+) those files — and only the ones klaussy itself created (tracked via `.claude/commands/.klaussy-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
-
-If you've already klaussified at 0.2.0+ and want to refresh after upgrading klaussy itself, use `klaussy init --force` (or the `klaussy-update` skill if you have the plugin installed).
 
 ## Multi-agent targets
 
@@ -309,3 +285,9 @@ MIT — see [LICENSE](LICENSE) for details.
 klaussy is an open-source project owned and maintained by Dovatech LLC.
 
 Dovatech LLC is a privately held company founded and wholly owned by Stephanie Dover, who is also the original author and lead maintainer of this project.
+
+## Migrating from 0.1.x
+
+If you ran an earlier version of klaussy, you have `.claude/commands/*.md` files. On the next `klaussy init` (with 0.2.0+) those files — and only the ones klaussy itself created (tracked via `.claude/commands/.klaussy-version`) — are removed and replaced with `.claude/skills/<repo>-<skill>/SKILL.md`. Any commands you wrote yourself are left alone.
+
+If you've already klaussified at 0.2.0+ and want to refresh after upgrading klaussy itself, use `klaussy init --force` (or the `klaussy-update` skill if you have the plugin installed).
