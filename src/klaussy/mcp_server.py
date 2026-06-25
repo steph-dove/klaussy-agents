@@ -2,9 +2,11 @@
 
 import json
 import subprocess
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+
+from klaussy.toolkit import humanize as humanize_text
+from klaussy.toolkit import status as klaussy_status_map
 
 mcp = FastMCP("klaussy")
 
@@ -87,12 +89,6 @@ def klaussy_settings(
     return _run_klaussy(*args, cwd=repo)
 
 
-SKILL_NAMES = [
-    "review", "plan", "debug", "implement", "refactor",
-    "test", "fix", "pr", "commit", "explain", "new-worktree",
-]
-
-
 @mcp.tool()
 def klaussy_skills(
     repo: str = ".",
@@ -120,28 +116,70 @@ def klaussy_skills(
 @mcp.tool()
 def klaussy_status(repo: str = ".") -> str:
     """Check which klaussy boilerplate files exist in a repository."""
-    repo_path = Path(repo).resolve()
-    # CLAUDE.md is canonically at the repo root (per Claude Code memory
-    # docs); fall back to .claude/CLAUDE.md for repos still on the legacy
-    # layout from older klaussy versions.
-    claude_md_root = repo_path / "CLAUDE.md"
-    claude_md_legacy = repo_path / ".claude" / "CLAUDE.md"
-    files = {
-        "CLAUDE.md": (
-            claude_md_root if claude_md_root.exists() else claude_md_legacy
-        ),
-        ".claude/settings.json": repo_path / ".claude" / "settings.json",
-    }
-    for skill in SKILL_NAMES:
-        skill_dir = f"{repo_path.name}-{skill}"
-        rel_path = f".claude/skills/{skill_dir}/SKILL.md"
-        files[rel_path] = repo_path / ".claude" / "skills" / skill_dir / "SKILL.md"
+    return json.dumps(klaussy_status_map(repo), indent=2)
 
-    status = {}
-    for name, path in files.items():
-        status[name] = "exists" if path.exists() else "missing"
 
-    return json.dumps(status, indent=2)
+@mcp.tool()
+def klaussy_hooks(
+    repo: str = ".", force: bool = False, agents: str = "all"
+) -> str:
+    """Scaffold hook configurations for each selected agent.
+
+    Installs the git-commit guard (format + lint scoped to the files being
+    committed) and the read-injection guard, wired to whatever events each
+    agent's protocol exposes. `agents` is a comma-separated list from claude,
+    gemini, cursor, codex, copilot, antigravity (or "all"); defaults to all.
+    """
+    args = ["hooks", "--repo", repo]
+    if force:
+        args.append("--force")
+    if agents.strip().lower() == "all":
+        args.append("--all")
+    else:
+        args.extend(["--agents", agents])
+    return _run_klaussy(*args, cwd=repo)
+
+
+@mcp.tool()
+def klaussy_github(repo: str = ".", force: bool = False) -> str:
+    """Generate a PR template for the repository.
+
+    Created only if the repo doesn't already have one (checks the root,
+    `.github/`, and `docs/`) unless `force` is set.
+    """
+    args = ["github", "--repo", repo]
+    if force:
+        args.append("--force")
+    return _run_klaussy(*args, cwd=repo)
+
+
+@mcp.tool()
+def klaussy_humanize(
+    text: str | None = None,
+    files: str = "",
+    repo: str = ".",
+    write: bool = False,
+    check: bool = False,
+) -> str:
+    """Deterministically strip AI tells from prose, preserving all code.
+
+    Pass `text` to scrub a string and get the cleaned result back (the common
+    case). Or pass `files` (a comma-separated list of paths) to scrub them on
+    disk: `write=True` rewrites in place, `check=True` reports whether any file
+    would change without modifying it. This is the canonical scrubber shared
+    with klaussy-desktop.
+    """
+    if text is not None:
+        return humanize_text(text)
+    paths = [f.strip() for f in files.split(",") if f.strip()]
+    if not paths:
+        return "Provide `text` to scrub a string, or `files` to process on disk."
+    args = ["humanize", *paths]
+    if write:
+        args.append("--write")
+    if check:
+        args.append("--check")
+    return _run_klaussy(*args, cwd=repo)
 
 
 def main() -> None:

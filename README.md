@@ -284,7 +284,7 @@ Or add to your project's `.mcp.json`:
 }
 ```
 
-The MCP server exposes these tools: `klaussy_init`, `klaussy_checklist`, `klaussy_skills`, `klaussy_settings`, `klaussy_status`.
+The MCP server exposes one tool per CLI command: `klaussy_init`, `klaussy_checklist`, `klaussy_skills`, `klaussy_settings`, `klaussy_hooks`, `klaussy_github`, `klaussy_humanize`, plus `klaussy_status`.
 
 ### As a Python library
 
