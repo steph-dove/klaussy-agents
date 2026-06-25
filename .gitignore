@@ -57,6 +57,7 @@ plan.md
 .cursorignore
 .gemini/
 .geminiignore
+.antigravityrules
 AGENTS.md
 CLAUDE.md
 GEMINI.md
