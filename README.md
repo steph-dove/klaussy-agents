@@ -1,8 +1,24 @@
 # klaussy
 
+[![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
+[![Python versions](https://img.shields.io/pypi/pyversions/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Multi-agent repo boilerplate generator. One command to make any repo ready for
 **Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, and Google Antigravity** — each gets the
 same conventions and the same workflow skills in its own native format.
+
+## Contents
+
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [What Gets Generated](#what-gets-generated)
+- [Multi-agent targets](#multi-agent-targets)
+- [Options](#options)
+- [Individual Commands](#individual-commands)
+- [How It Works](#how-it-works)
+- [Running klaussy](#running-klaussy)
+- [Requirements](#requirements)
 
 ## Install
 
@@ -46,12 +62,34 @@ Copilot       .github/copilot-instructions.md  .github/instructions/  .github/sk
 Antigravity   AGENTS.md  .gemini/antigravity-cli/plugins/klaussy/{skills,rules}/  .gemini/antigravity-cli/plugins/klaussy/hooks.json  .agents/settings.json
 
 # Every skills/ directory holds the same namespaced set:
-#   <repo>-{review, plan, debug, implement, refactor, test, fix, pr, commit, explain, humanize, new-worktree}
+#   <repo>-{review, precommit, plan, debug, implement, refactor, test, fix, pr, commit, explain, humanize, new-worktree}
 
 # Shared, once:
 .github/PULL_REQUEST_TEMPLATE.md   # only if the repo doesn't already have one
 .gitignore                         # appends klaussy output exclusions (pr-description.md, REVIEW_OUTPUT.md, plan.md)
 ```
+
+<details>
+<summary><b>Example: what a generated skill looks like</b></summary>
+
+Every skill is namespaced to your repo, carries an auto-trigger `description`, and gets a scoped tool allow-list. For a repo named `klaussy-agents`, `<repo>-fix` is written as `.claude/skills/klaussy-agents-fix/SKILL.md`:
+
+```markdown
+---
+name: klaussy-agents-fix
+description: Use when the user wants lint, format, and type errors fixed in the
+  current changes. Reads CLAUDE.md for the repo's lint/format/type-check
+  commands, runs each, and fixes only style/format/type issues.
+allowed-tools: Read Grep Glob Bash Edit
+---
+
+Fix all lint, format, and type errors in the current changes.
+...
+```
+
+The same skill is re-emitted in each target agent's native directory and syntax (see below).
+
+</details>
 
 See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping (conventions, skill adaptation, secret exclusion, hook coverage), and the table below for what each skill does.
 
@@ -66,6 +104,7 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 | Skill | What it does | Output |
 |-------|-------------|--------|
 | `<repo>-review` | Senior-level PR review against your base branch. Small PRs get a single-pass review; larger PRs fan out to parallel sub-agents (correctness, architecture, security, scope, plus an Agentic & Evals lens when the diff touches AI/agent/eval code, and an **Architecture Decision & Design-Doc lens when the PR contains an ADR/RFC/design doc**). Precision-biased (empty review is a valid outcome), every finding must name a concrete trigger, and a validation phase self-refutes and removes false positives. Comments default to a collaborative tone (say `blunt` for a terse review) and are humanized (no AI tells), keeping full detail either way | `REVIEW_OUTPUT.md` |
+| `<repo>-precommit` | Last-mile review of a staged / about-to-commit diff across five lenses — silent failures, leaked secrets, debug leftovers, blatant correctness landmines, and excessive/narrating comments. Reports findings on the changed lines only; never refactors. Also the canonical source for klaussy-desktop's pre-commit gate (it's user-invoked, not auto-triggered) | — |
 | `<repo>-plan` | Multi-phase task planning + implementation: discovery → parallel exploration → clarify → parallel architectures → approval → implement → parallel review → summary. The approved plan is written to `plan.md` and used as a resumable checklist | `plan.md` |
 | `<repo>-test` | Writes tests for current changes matching your repo's test patterns. Covers happy path, edge cases, and error paths without over-mocking | — |
 | `<repo>-fix` | Fixes all lint, format, and type errors | — |
@@ -78,7 +117,7 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 | `<repo>-humanize` | Strips AI tells from prose (files or pasted text): rewrites by the humanization spec, then runs the deterministic `klaussy humanize` scrubber as a guaranteed backstop. Never touches code | — |
 
-**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When the agent is about to commit, the guard runs your auto-detected format + lint commands and blocks the commit on any non-zero exit. The same guard is wired into every selected agent (see **Hooks** under [Multi-agent targets](#multi-agent-targets)). For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
+**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When the agent is about to commit, the guard runs your auto-detected format + lint commands — scoped to the files being committed, so pre-existing issues elsewhere in the repo can't block an unrelated change — and blocks the commit on any non-zero exit. The same guard is wired into every selected agent (see **Hooks** under [Multi-agent targets](#multi-agent-targets)). For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
 
 **Read-injection guard** — A `PreToolUse` hook (for `Read`) and `PostToolUse` hook (for `WebFetch`) that scans content for prompt-injection markers (`ignore previous instructions`, ChatML/Llama control tokens, role-prefix injection, persona reassignment) before the agent consumes it. Local files matching the patterns are blocked; web responses are surfaced back as untrusted-content warnings. Pure-stdlib Python so the repo stays portable. Lives at `.claude/hooks/read_injection_guard.py`.
 
@@ -105,9 +144,19 @@ klaussy discovers your repo's conventions **once** (into `CLAUDE.md` via klaussy
 | `copilot` | `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md` | `.github/skills/<repo>-<skill>/` | — (no committed allow-list; CLI gates via flags) |
 | `antigravity` | `AGENTS.md` + plugin `rules/*.md` (`trigger: glob`) | `.gemini/antigravity-cli/plugins/klaussy/skills/<repo>-<skill>/` | `.agents/settings.json` (best-effort) + plugin `hooks.json` |
 
-**Skill adaptation.** The bundled skills are authored in Claude Code's syntax — `​```!` dynamic-shell blocks, parallel sub-agents via the `Agent`/`subagent_type` tool, and `ExitPlanMode`. klaussy rewrites the bodies to capture the same intent for each target: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note. That note does **not** assume the other agents are single-threaded — as of 2026 Cursor (`Task`), Codex (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a model-invocable parallel sub-agent tool, so the note tells the agent to map Claude's wording to its own equivalent (falling back to sequential only if it has none) and to use its own plan/approval mode. Simple skills (`commit`, `pr`, `explain`, …) reference none of this and are unchanged apart from path references.
+<details>
+<summary><b>How skills are adapted per agent</b></summary>
 
-**Conventions mapping.** Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and Antigravity plugin rules `trigger: glob` + `globs:`. Gemini and Codex scope by *directory placement*, so a rule whose glob resolves to an existing subdirectory is emitted as a nested `GEMINI.md` / `AGENTS.md` in that directory (loaded only when that subtree is touched); rules whose globs don't map to a real directory fall back to inlined `### Applies to:` sections in the root file.
+The bundled skills are authored in Claude Code's syntax — `​```!` dynamic-shell blocks, parallel sub-agents via the `Agent`/`subagent_type` tool, and `ExitPlanMode`. klaussy rewrites the bodies to capture the same intent for each target: dynamic blocks become explicit "run this command" instructions, and skills that orchestrate sub-agents or plan mode get a short adaptation note. That note does **not** assume the other agents are single-threaded — as of 2026 Cursor (`Task`), Codex (`spawn_agent`), Gemini (subagents) and Copilot (`task`) all have a model-invocable parallel sub-agent tool, so the note tells the agent to map Claude's wording to its own equivalent (falling back to sequential only if it has none) and to use its own plan/approval mode. Simple skills (`commit`, `pr`, `explain`, …) reference none of this and are unchanged apart from path references.
+
+</details>
+
+<details>
+<summary><b>How path-scoped rules map per agent</b></summary>
+
+Path-scoped rules (`.claude/rules/*.md` with `paths:` frontmatter) map to each agent's own scoping mechanism: Cursor `globs:`, Copilot `applyTo:`, and Antigravity plugin rules `trigger: glob` + `globs:`. Gemini and Codex scope by *directory placement*, so a rule whose glob resolves to an existing subdirectory is emitted as a nested `GEMINI.md` / `AGENTS.md` in that directory (loaded only when that subtree is touched); rules whose globs don't map to a real directory fall back to inlined `### Applies to:` sections in the root file.
+
+</details>
 
 **Permissions & secrets.** Each agent gets a stack-appropriate command allow-list in its native format (`.claude/settings.json`, `.gemini/settings.json` `tools.allowed`, `.cursor/permissions.json` `terminalAllowlist`, `.codex/config.toml` approval/sandbox). For keeping secrets (`.env`, `*.pem`, `credentials*`, …) out of the agent's reach, klaussy uses each agent's native exclusion mechanism:
 
@@ -131,9 +180,19 @@ Note: even where supported, ignore-file exclusion is best-effort. On Gemini it o
 
 Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klaussy wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klaussy-guards.json`, `.gemini/antigravity-cli/plugins/klaussy/hooks.json`.
 
-**Cross-platform.** The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klaussy writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
+<details>
+<summary><b>Cross-platform hook details</b></summary>
 
-**Other caveats.** Codex's slash-prompt format is deprecated in favor of Skills, so klaussy emits Codex *Skills* (at `.agents/skills/`). Google Antigravity gets project-wide conventions via the cross-tool `AGENTS.md`, plus a committed Claude-style CLI plugin at `.gemini/antigravity-cli/plugins/klaussy/` (`plugin.json` marker, `hooks.json` guards, `skills/`, `rules/`). The Antigravity CLI loads plugins from `~/.gemini/antigravity-cli/plugins/`, so import or symlink the committed plugin there. The `hooks.json` uses Claude-style **events** (`PreToolUse`/`PostToolUse`) but Antigravity-native **tool matchers** (`run_command`, `view_file`, `read_url_content` — not Claude's `Bash`/`Read`/`WebFetch`), grouped under the plugin name. One thing still unverified against the (JS-rendered) official spec: whether the shared guard scripts **block** correctly under Antigravity's hook I/O (it reads `toolCall.args.*` and may expect a JSON `{"decision":"deny"}` on stdout rather than the `exit 2` other agents honor). The `.agents/settings.json` allow-list is best-effort.
+The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klaussy writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
+
+</details>
+
+<details>
+<summary><b>Codex & Antigravity caveats</b></summary>
+
+Codex's slash-prompt format is deprecated in favor of Skills, so klaussy emits Codex *Skills* (at `.agents/skills/`). Google Antigravity gets project-wide conventions via the cross-tool `AGENTS.md`, plus a committed Claude-style CLI plugin at `.gemini/antigravity-cli/plugins/klaussy/` (`plugin.json` marker, `hooks.json` guards, `skills/`, `rules/`). The Antigravity CLI loads plugins from `~/.gemini/antigravity-cli/plugins/`, so import or symlink the committed plugin there. The `hooks.json` uses Claude-style **events** (`PreToolUse`/`PostToolUse`) but Antigravity-native **tool matchers** (`run_command`, `view_file`, `read_url_content` — not Claude's `Bash`/`Read`/`WebFetch`), grouped under the plugin name. One thing still unverified against the (JS-rendered) official spec: whether the shared guard scripts **block** correctly under Antigravity's hook I/O (it reads `toolCall.args.*` and may expect a JSON `{"decision":"deny"}` on stdout rather than the `exit 2` other agents honor). The `.agents/settings.json` allow-list is best-effort.
+
+</details>
 
 ## Options
 
