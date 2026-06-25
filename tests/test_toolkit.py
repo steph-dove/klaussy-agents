@@ -70,3 +70,42 @@ def test_skills_narrows_to_selected_agent(repo: Path):
 def test_unknown_agent_raises(repo: Path):
     with pytest.raises(ValueError, match="Unknown agent"):
         toolkit.skills(repo, agents=["bogus"])
+
+
+def test_settings_scaffolds_then_rerun_marks_skipped(repo: Path):
+    first = toolkit.settings(repo, agents=["claude"])
+    assert first.ok and "[claude] settings" in first.completed
+    assert (repo / ".claude" / "settings.json").exists()
+    # Re-running without force makes the generator bail → recorded as skipped.
+    again = toolkit.settings(repo, agents=["claude"])
+    assert not again.ok
+    assert "[claude] settings" in again.skipped
+
+
+def test_hooks_scaffolds_guards(repo: Path):
+    result = toolkit.hooks(repo, agents=["claude"])
+    assert result.ok
+    assert (repo / ".claude" / "hooks" / "comment_guard.py").exists()
+
+
+def test_github_creates_then_skips(repo: Path):
+    path = toolkit.github(repo)
+    assert path is not None and path.exists()
+    assert toolkit.github(repo) is None  # already exists → no overwrite
+
+
+def test_checklist_returns_written_path(repo: Path):
+    toolkit.skills(repo, agents=["claude"], base_branch="main")  # review skill first
+    # force=True to re-enrich the existing review skill (the init flow does the same).
+    out = toolkit.checklist(repo, force=True, base_branch="main")
+    assert out.exists()
+
+
+def test_fix_and_test_skills_scope_to_base_branch(repo: Path):
+    toolkit.skills(repo, agents=["claude"], base_branch="develop")
+    skills_dir = repo / ".claude" / "skills"
+    fix = next(skills_dir.glob("*-fix")) / "SKILL.md"
+    test = next(skills_dir.glob("*-test")) / "SKILL.md"
+    # fix/test scope to the branch diff, not the whole repo (substitution applied).
+    assert "develop...HEAD" in fix.read_text()
+    assert "develop...HEAD" in test.read_text()
