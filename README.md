@@ -69,25 +69,6 @@ Antigravity   AGENTS.md  .gemini/antigravity-cli/plugins/klaussy/{skills,rules}/
 .gitignore                         # appends klaussy output exclusions (pr-description.md, REVIEW_OUTPUT.md, plan.md)
 ```
 
-**What each piece does** — pre-commit and humanize first, since that's what most people reach for:
-
-- **Pre-commit guard** — a `git commit` hook that runs your format + lint on the files being committed (plus a commented-out-code check on Python) and blocks the commit on failure. Wired into every agent.
-- **Humanize** — strips AI tells (em-dashes, filler openers, chatbot scaffolding) from prose. The `<repo>-humanize` skill rewrites by spec; the deterministic `klaussy humanize` scrubber is a code-preserving backstop shared with klaussy-desktop.
-- **Comment guard** — a hook that catches the agent's outgoing `gh` comment and humanizes it through that same scrubber before it posts. Wired into every agent.
-- **Skills** — namespaced `<repo>-<skill>` workflow skills, auto-triggered by description, written into each agent's skills directory (detailed below).
-- **CLAUDE.md** — auto-detected conventions, architecture, commands, and pitfalls; path-scoped rules split into `.claude/rules/*.md` and emitted in each agent's native file.
-- **settings.json** — stack-detected tool permissions, plus deny rules that keep secrets (`.env`, `*.pem`, `credentials*`) out of the agent's reach.
-- **Read-injection guard** — scans file reads and web fetches for prompt-injection markers before the agent consumes them.
-- **PR template & .gitignore** — a PR template if your repo lacks one, and `.gitignore` entries for generated outputs.
-
-### Comment guard
-
-Before the agent posts a comment via `gh` (`gh pr comment`, `gh issue comment`, `gh pr review`), this hook runs the comment body through klaussy's deterministic humanize scrubber, so what actually lands has no AI tells.
-
-On **Claude** it's transparent: a `PreToolUse` hook rewrites the command in place (via `updatedInput`) with the cleaned body, so the comment posts humanized with no extra round trip. On the **other agents** — whose hook protocols can't rewrite tool input — it blocks the post (`exit 2`) and hands back the humanized command for the agent to re-issue. Either way, the posted comment is scrubbed.
-
-It only touches literal bodies (`-b` / `--body` / `--body=`); a shell-expanded body (`$(…)`) or one that's already clean passes through untouched, and a missing `klaussy` on `PATH` never blocks a post. The scrubbing is the same canonical implementation as the `<repo>-humanize` skill and the `klaussy humanize` CLI. Lives at `.claude/hooks/comment_guard.py` (and each agent's `klaussy_comment_guard.py`).
-
 <details>
 <summary><b>Example: what a generated skill looks like</b></summary>
 
@@ -116,19 +97,19 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
-| `<repo>-review` | Senior-level PR review against your base branch. Small PRs get a single-pass review; larger PRs fan out to parallel sub-agents (correctness, architecture, security, scope, plus an Agentic & Evals lens when the diff touches AI/agent/eval code, and an **Architecture Decision & Design-Doc lens when the PR contains an ADR/RFC/design doc**). Precision-biased (empty review is a valid outcome), every finding must name a concrete trigger, and a validation phase self-refutes and removes false positives. Comments default to a collaborative tone (say `blunt` for a terse review) and are humanized (no AI tells), keeping full detail either way | `REVIEW_OUTPUT.md` |
 | `<repo>-precommit` | Last-mile review of a staged / about-to-commit diff across five lenses — silent failures, leaked secrets, debug leftovers, blatant correctness landmines, and excessive/narrating comments. Reports findings on the changed lines only; never refactors. Also the canonical source for klaussy-desktop's pre-commit gate (it's user-invoked, not auto-triggered) | — |
-| `<repo>-plan` | Multi-phase task planning + implementation: discovery → parallel exploration → clarify → parallel architectures → approval → implement → parallel review → summary. The approved plan is written to `plan.md` and used as a resumable checklist | `plan.md` |
-| `<repo>-test` | Writes tests for current changes matching your repo's test patterns. Covers happy path, edge cases, and error paths without over-mocking | — |
-| `<repo>-fix` | Fixes all lint, format, and type errors | — |
-| `<repo>-pr` | Generates a ready-to-paste PR description | `pr-description.md` |
-| `<repo>-commit` | Generates a commit message from staged changes | — |
-| `<repo>-debug` | Five-phase debug flow: reproduce, diagnose root cause, write a failing test, fix, verify against the full suite | — |
-| `<repo>-implement` | Implements a pasted ticket or design doc. Uses plan mode to investigate and plan before editing, enforces scope rules, and writes failing tests first for bug fixes | — |
-| `<repo>-refactor` | Refactors code while preserving behavior exactly. Requires a passing test baseline, runs tests between every incremental step | — |
-| `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
-| `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 | `<repo>-humanize` | Strips AI tells from prose (files or pasted text): rewrites by the humanization spec, then runs the deterministic `klaussy humanize` scrubber as a guaranteed backstop. Never touches code | — |
+| `<repo>-review` | Senior-level PR review against your base branch. Small PRs get a single-pass review; larger PRs fan out to parallel sub-agents (correctness, architecture, security, scope, plus an Agentic & Evals lens when the diff touches AI/agent/eval code, and an **Architecture Decision & Design-Doc lens when the PR contains an ADR/RFC/design doc**). Precision-biased (empty review is a valid outcome), every finding must name a concrete trigger, and a validation phase self-refutes and removes false positives. Comments default to a collaborative tone (say `blunt` for a terse review) and are humanized (no AI tells), keeping full detail either way | `REVIEW_OUTPUT.md` |
+| `<repo>-commit` | Generates a commit message from staged changes | — |
+| `<repo>-pr` | Generates a ready-to-paste PR description | `pr-description.md` |
+| `<repo>-fix` | Fixes all lint, format, and type errors | — |
+| `<repo>-test` | Writes tests for current changes matching your repo's test patterns. Covers happy path, edge cases, and error paths without over-mocking | — |
+| `<repo>-plan` | Multi-phase task planning + implementation: discovery → parallel exploration → clarify → parallel architectures → approval → implement → parallel review → summary. The approved plan is written to `plan.md` and used as a resumable checklist | `plan.md` |
+| `<repo>-implement` | Implements a pasted ticket or design doc. Uses plan mode to investigate and plan before editing, enforces scope rules, and writes failing tests first for bug fixes | — |
+| `<repo>-debug` | Five-phase debug flow: reproduce, diagnose root cause, write a failing test, fix, verify against the full suite | — |
+| `<repo>-refactor` | Refactors code while preserving behavior exactly. Requires a passing test baseline, runs tests between every incremental step | — |
+| `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
+| `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
 
 ### Migrating from 0.1.x
 
@@ -183,22 +164,6 @@ Note: even where supported, ignore-file exclusion is best-effort. On Gemini it o
 | comment-humanize | ✅ rewrite | ✅ block | ✅ block | ✅ block | ✅ block | ✅ block |
 | read-injection (local read) | ✅ | ✅ | ✅ | — | — | ✅ |
 | read-injection (web fetch) | ✅ | ✅ | — | — | — | ✅ |
-
-Codex exposes no pre-file-read hook event (only shell/tool execution), and Copilot's `preToolUse` is *fail-closed* (a crashing hook denies every tool call) with unconfirmed read-tool argument shapes — so for those two klaussy wires only the commit guard, and the guards are hardened to never crash (any parse error → allow). Config lands in each agent's native location: `.gemini/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.github/hooks/klaussy-guards.json`, `.gemini/antigravity-cli/plugins/klaussy/hooks.json`.
-
-<details>
-<summary><b>Cross-platform hook details</b></summary>
-
-The guard scripts are pure-stdlib Python with a `#!/usr/bin/env python3` shebang. Copilot uses its native `bash`/`powershell` hook split, so it runs the right interpreter on any OS. Cursor execs the script directly via its shebang. Gemini and Codex run a shell-string command, so klaussy writes the interpreter for the OS it runs on (`python3` on macOS/Linux, `python` on Windows); a mixed-OS team should ensure that interpreter resolves on each machine (Windows users: the python.org launcher honors the shebang).
-
-</details>
-
-<details>
-<summary><b>Codex & Antigravity caveats</b></summary>
-
-Codex's slash-prompt format is deprecated in favor of Skills, so klaussy emits Codex *Skills* (at `.agents/skills/`). Google Antigravity gets project-wide conventions via the cross-tool `AGENTS.md`, plus a committed Claude-style CLI plugin at `.gemini/antigravity-cli/plugins/klaussy/` (`plugin.json` marker, `hooks.json` guards, `skills/`, `rules/`). The Antigravity CLI loads plugins from `~/.gemini/antigravity-cli/plugins/`, so import or symlink the committed plugin there. The `hooks.json` uses Claude-style **events** (`PreToolUse`/`PostToolUse`) but Antigravity-native **tool matchers** (`run_command`, `view_file`, `read_url_content` — not Claude's `Bash`/`Read`/`WebFetch`), grouped under the plugin name. One thing still unverified against the (JS-rendered) official spec: whether the shared guard scripts **block** correctly under Antigravity's hook I/O (it reads `toolCall.args.*` and may expect a JSON `{"decision":"deny"}` on stdout rather than the `exit 2` other agents honor). The `.agents/settings.json` allow-list is best-effort.
-
-</details>
 
 ## Options
 
