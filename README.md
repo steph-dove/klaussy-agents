@@ -8,18 +8,6 @@ Multi-agent repo boilerplate generator. One command to make any repo ready for
 **Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, and Google Antigravity** — each gets the
 same conventions and the same workflow skills in its own native format.
 
-## Contents
-
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [What Gets Generated](#what-gets-generated)
-- [Multi-agent targets](#multi-agent-targets)
-- [Options](#options)
-- [Individual Commands](#individual-commands)
-- [How It Works](#how-it-works)
-- [Running klaussy](#running-klaussy)
-- [Requirements](#requirements)
-
 ## Install
 
 ```bash
@@ -46,6 +34,18 @@ klaussy init --agents claude,gemini,cursor     # a subset
 ```
 
 See [Multi-agent targets](#multi-agent-targets) for what each agent gets.
+
+## Contents
+
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [What Gets Generated](#what-gets-generated)
+- [Multi-agent targets](#multi-agent-targets)
+- [Options](#options)
+- [Individual Commands](#individual-commands)
+- [How It Works](#how-it-works)
+- [Running klaussy](#running-klaussy)
+- [Requirements](#requirements)
 
 ## What Gets Generated
 
