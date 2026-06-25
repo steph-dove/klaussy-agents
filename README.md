@@ -242,7 +242,7 @@ All subcommands support `--repo`, `--force`, and `--base-branch` where applicabl
 
 ## Running klaussy
 
-The CLI is agent-agnostic — `klaussy init` scaffolds whichever agents you target (all six by default). If you use Claude Code, klaussy can additionally run as a Claude Code plugin or MCP server:
+The CLI is agent-agnostic — `klaussy init` scaffolds whichever agents you target (all six by default). It's also usable as a Python library, and — if you use Claude Code — as a plugin or MCP server:
 
 ### As a CLI (simplest)
 
@@ -285,6 +285,34 @@ Or add to your project's `.mcp.json`:
 ```
 
 The MCP server exposes these tools: `klaussy_init`, `klaussy_checklist`, `klaussy_skills`, `klaussy_settings`, `klaussy_status`.
+
+### As a Python library
+
+Every operation the CLI runs is available programmatically from `klaussy.toolkit` — no subprocess, no prompts. Handy for scripting scaffolds across many repos or wiring klaussy into your own tooling.
+
+```python
+from klaussy import toolkit
+
+# Scaffold selected agents; returns a ScaffoldResult.
+result = toolkit.init(repo=".", agents=["claude", "gemini"])
+print(result.completed, result.skipped, result.ok)
+
+# Individual steps mirror the CLI commands.
+toolkit.skills(repo=".", agents=["claude"])
+toolkit.settings(repo=".")
+toolkit.hooks(repo=".")
+toolkit.github(repo=".")
+toolkit.checklist(repo=".")
+
+# Scrub AI tells from a string (or files).
+clean = toolkit.humanize("A great solution — it works.")
+toolkit.humanize_files(["NOTES.md"], write=True)
+
+# Which klaussy files exist in a repo.
+toolkit.status(repo=".")   # {"CLAUDE.md": "exists", ...}
+```
+
+`agents` accepts a list, a single key, or `"all"` (the default); an unset `base_branch` is auto-detected. Import from `klaussy.toolkit` — the internal modules may move between releases, but that namespace is the supported surface.
 
 ## Requirements
 
