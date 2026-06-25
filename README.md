@@ -69,6 +69,16 @@ Antigravity   AGENTS.md  .gemini/antigravity-cli/plugins/klaussy/{skills,rules}/
 .gitignore                         # appends klaussy output exclusions (pr-description.md, REVIEW_OUTPUT.md, plan.md)
 ```
 
+**What each piece does** — pre-commit and humanize first, since that's what most people reach for:
+
+- **Pre-commit guard** — a `git commit` hook that runs your format + lint on the files being committed (plus a commented-out-code check on Python) and blocks the commit on failure. Wired into every agent.
+- **Humanize** — strips AI tells (em-dashes, filler openers, chatbot scaffolding) from prose. The `<repo>-humanize` skill rewrites by spec; the deterministic `klaussy humanize` scrubber is a code-preserving backstop shared with klaussy-desktop.
+- **Skills** — namespaced `<repo>-<skill>` workflow skills, auto-triggered by description, written into each agent's skills directory (detailed below).
+- **CLAUDE.md** — auto-detected conventions, architecture, commands, and pitfalls; path-scoped rules split into `.claude/rules/*.md` and emitted in each agent's native file.
+- **settings.json** — stack-detected tool permissions, plus deny rules that keep secrets (`.env`, `*.pem`, `credentials*`) out of the agent's reach.
+- **Read-injection guard** — scans file reads and web fetches for prompt-injection markers before the agent consumes them.
+- **PR template & .gitignore** — a PR template if your repo lacks one, and `.gitignore` entries for generated outputs.
+
 <details>
 <summary><b>Example: what a generated skill looks like</b></summary>
 
@@ -93,13 +103,7 @@ The same skill is re-emitted in each target agent's native directory and syntax 
 
 See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping (conventions, skill adaptation, secret exclusion, hook coverage), and the table below for what each skill does.
 
-### What each piece does
-
-**CLAUDE.md** — Auto-detected conventions, architecture, commands, and pitfalls for your repo. As of 0.2.0 path-scoped rules are split out into individual files under `.claude/rules/<glob-stem>.md` (each with `paths:` frontmatter) so rules apply where they belong instead of as a flat list — `CLAUDE.md` itself holds the project-wide content. It's the conventions source each agent reads, emitted in that agent's native file (`CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `.github/copilot-instructions.md`, or `.cursor/rules/`).
-
-**settings.json** — Auto-detects your stack (Python, Node, Go, Rust, Make) and sets tool permissions. Detects sensitive files (`.env`, `*.pem`, `credentials*`) and adds deny rules so the agent can't read them. Each agent gets this in its native form — see **Permissions & secrets** under [Multi-agent targets](#multi-agent-targets).
-
-**Skills** — Each repo gets a set of namespaced skills (`<repo>-<skill>`) so the agent auto-triggers them by description and they don't collide across repos. They're written into each selected agent's skills directory (`.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`). The bundled set is listed below; the canonical list lives in `SKILL_NAMES` in `src/klaussy/skills.py`. Prose-output skills (review, pr, commit, explain) share one humanization spec (`HUMANIZE_BLOCK`) so their output reads human — no em-dashes, filler openers, or chatbot scaffolding — across every agent. For a hard guarantee independent of how well the model complied, klaussy also ships a **deterministic, code-preserving scrubber**: the `klaussy.humanize` module and a `klaussy humanize` CLI (pipe a comment with `printf '%s' "$c" | klaussy humanize`, or scrub files with `klaussy humanize FILE --write` / `--check`). Both the prompt spec and the scrubber are faithful ports of klaussy-desktop's `humanize-comment.js`, so desktop and CI can pipe through this one canonical implementation instead of diverging.
+### The bundled skills
 
 | Skill | What it does | Output |
 |-------|-------------|--------|
@@ -116,14 +120,6 @@ See [Multi-agent targets](#multi-agent-targets) for the exact per-agent mapping 
 | `<repo>-new-worktree` | Creates a git worktree with a branch named for your task | — |
 | `<repo>-explain` | Explains code or concept; defaults to explaining the current diff | — |
 | `<repo>-humanize` | Strips AI tells from prose (files or pasted text): rewrites by the humanization spec, then runs the deterministic `klaussy humanize` scrubber as a guaranteed backstop. Never touches code | — |
-
-**Git-commit guard** — A `PreToolUse` hook on `Bash` that watches for `git commit` invocations. When the agent is about to commit, the guard runs your auto-detected format + lint commands — scoped to the files being committed, so pre-existing issues elsewhere in the repo can't block an unrelated change — and blocks the commit on any non-zero exit. The same guard is wired into every selected agent (see **Hooks** under [Multi-agent targets](#multi-agent-targets)). For Python it also runs a deterministic commented-out-code check (`ruff check --select ERA`, block-only — it flags the lines, never deletes them). Project-specific commands are baked into `.claude/hooks/git_commit_guard.py` at scaffold time. The broader, judgment-based comment hygiene (verbose/narrating comments → condense or delete, keep only "why") can't be done deterministically, so it lives in the skills: the review skill flags it, and the implement/refactor/fix skills avoid writing it.
-
-**Read-injection guard** — A `PreToolUse` hook (for `Read`) and `PostToolUse` hook (for `WebFetch`) that scans content for prompt-injection markers (`ignore previous instructions`, ChatML/Llama control tokens, role-prefix injection, persona reassignment) before the agent consumes it. Local files matching the patterns are blocked; web responses are surfaced back as untrusted-content warnings. Pure-stdlib Python so the repo stays portable. Lives at `.claude/hooks/read_injection_guard.py`.
-
-**PR template** — A basic PR template, only created if your repo doesn't already have one (checks root, `.github/`, and `docs/`).
-
-**.gitignore** — Appends `pr-description.md`, `REVIEW_OUTPUT.md`, and `plan.md` so generated outputs don't get committed.
 
 ### Migrating from 0.1.x
 
