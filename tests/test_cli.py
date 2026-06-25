@@ -331,11 +331,11 @@ class TestChecklist:
 class TestHooks:
     def test_detect_lint_python(self, repo: Path):
         cmd = _detect_lint_command(repo)
-        assert cmd == "ruff check --fix ."
+        assert cmd == "ruff check --fix __KLAUSSY_PATHS__"
 
     def test_detect_format_python(self, repo: Path):
         cmd = _detect_format_command(repo)
-        assert cmd == "ruff format ."
+        assert cmd == "ruff format __KLAUSSY_PATHS__"
 
     def test_scaffold_hooks_no_precommit_event(self, repo: Path):
         """PreCommit isn't a real Claude Code hook event; it must not be written."""
@@ -449,13 +449,15 @@ class TestHooks:
         assert "__KLAUSSY_FORMAT_CMD__" not in text
         assert "__KLAUSSY_LINT_CMD__" not in text
         assert "__KLAUSSY_COMMENT_CHECK_CMD__" not in text
-        assert "ruff format ." in text, "format command should be baked in"
-        assert "ruff check --fix ." in text, "lint command should be baked in"
-        assert "ruff check --select ERA ." in text, "commented-out-code check baked in"
+        assert "ruff format __KLAUSSY_PATHS__" in text, "format command should be baked in"
+        assert "ruff check --fix __KLAUSSY_PATHS__" in text, "lint command should be baked in"
+        assert (
+            "ruff check --select ERA __KLAUSSY_PATHS__" in text
+        ), "commented-out-code check baked in"
 
     def test_detect_comment_check_python(self, repo: Path):
         # Block-only ERA check for Python; nothing for a bare repo.
-        assert _detect_comment_check_command(repo) == "ruff check --select ERA ."
+        assert _detect_comment_check_command(repo) == "ruff check --select ERA __KLAUSSY_PATHS__"
         assert "--fix" not in _detect_comment_check_command(repo)
 
     def test_detect_comment_check_none_without_python(self, tmp_path: Path):
@@ -572,6 +574,53 @@ class TestGitCommitGuard:
     )
     def test_non_commit_commands(self, is_git_commit, command):
         assert not is_git_commit(command), f"should NOT match: {command!r}"
+
+    @pytest.fixture()
+    def guard(self, repo: Path):
+        """Load the rendered guard module so its scoping helpers are callable."""
+        import importlib.util
+
+        scaffold_hooks(repo=repo)
+        script_path = repo / ".claude" / "hooks" / "git_commit_guard.py"
+        spec = importlib.util.spec_from_file_location("_commitguard_full", script_path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_resolve_scopes_placeholder_to_staged_files(self, guard):
+        cmd = guard._resolve("ruff check __KLAUSSY_PATHS__", ["a.py", "b.py"])
+        assert cmd == "ruff check a.py b.py"
+
+    def test_resolve_skips_when_nothing_staged(self, guard):
+        # No staged files -> None so the gate never falls back to a repo-wide run
+        # (a bare `ruff check` with no path defaults to the whole tree).
+        assert guard._resolve("ruff check __KLAUSSY_PATHS__", []) is None
+
+    def test_resolve_runs_placeholderless_commands_repo_wide(self, guard):
+        # Script-based commands (npm/make) carry no placeholder -> run as written.
+        assert guard._resolve("npm run lint", []) == "npm run lint"
+
+    def test_resolve_quotes_paths_with_spaces(self, guard):
+        cmd = guard._resolve("ruff check __KLAUSSY_PATHS__", ["a b.py"])
+        assert cmd == "ruff check 'a b.py'"
+
+    def test_run_allows_when_command_missing(self, guard):
+        # A missing linter must not block the commit on the guard's own failure.
+        assert guard._run("klaussy-no-such-tool-xyz --check") == 0
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git commit -m x", False),
+            ("git commit -am wip", True),
+            ("git commit -a -m wip", True),
+            ("git commit --all -m wip", True),
+            ("git commit --amend", False),
+        ],
+    )
+    def test_commits_all_detects_stage_everything_flag(self, guard, command, expected):
+        assert guard._commits_all(command) is expected
 
 
 class TestGitHub:
@@ -884,7 +933,7 @@ class TestMultiAgentHooks:
         assert events["AfterTool"][0]["matcher"] == "web_fetch"
         guard = repo / ".gemini" / "hooks" / "klaussy_commit_guard.py"
         assert guard.stat().st_mode & 0o100  # executable
-        assert "ruff format ." in guard.read_text()  # baked in
+        assert "ruff format __KLAUSSY_PATHS__" in guard.read_text()  # baked in
 
     def test_cursor_emits_before_read_and_shell(self, repo: Path):
         from klaussy.agents.backends import CursorBackend
@@ -1257,7 +1306,7 @@ class TestCommentHygiene:
 
         CursorBackend().emit_hooks(repo, force=True)
         guard = (repo / ".cursor" / "hooks" / "klaussy_commit_guard.py").read_text()
-        assert "ruff check --select ERA ." in guard
+        assert "ruff check --select ERA __KLAUSSY_PATHS__" in guard
         assert "__KLAUSSY_COMMENT_CHECK_CMD__" not in guard
 
 

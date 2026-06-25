@@ -24,6 +24,11 @@ PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
 PLAN_GUIDANCE_COMMAND = f"python3 {PLAN_GUIDANCE_RELPATH}"
 
+# Placeholder baked into direct tool commands; the commit guard expands it to
+# the staged files at commit time so the gate only judges the change being
+# committed. Must match PATHS_TOKEN in the commit-guard templates.
+PATHS_PLACEHOLDER = "__KLAUSSY_PATHS__"
+
 
 def read_pre_plan_guidance() -> str:
     """The canonical pre-plan guardrails text.
@@ -38,9 +43,16 @@ def read_pre_plan_guidance() -> str:
 
 
 def _detect_lint_command(repo: Path) -> str | None:
-    """Detect the project's lint command."""
+    """Detect the project's lint command.
+
+    Direct tool invocations carry the `__KLAUSSY_PATHS__` placeholder, which the
+    commit guard expands to the staged files so the gate judges only the change
+    being committed — not pre-existing issues elsewhere in the tree. Script-based
+    commands (`npm run lint`, `make lint`) define their own scope, so they have
+    no placeholder and run repo-wide.
+    """
     if (repo / "pyproject.toml").exists():
-        return "ruff check --fix ."
+        return f"ruff check --fix {PATHS_PLACEHOLDER}"
     if (repo / "package.json").exists():
         pkg = json.loads((repo / "package.json").read_text())
         scripts = pkg.get("scripts", {})
@@ -64,21 +76,22 @@ def _detect_comment_check_command(repo: Path) -> str | None:
     the author instead of silently deleting intentional commented code.
     """
     if (repo / "pyproject.toml").exists():
-        return "ruff check --select ERA ."
+        return f"ruff check --select ERA {PATHS_PLACEHOLDER}"
     return None
 
 
 def _detect_format_command(repo: Path) -> str | None:
-    """Detect the project's format command."""
+    """Detect the project's format command. See `_detect_lint_command` for how
+    the `__KLAUSSY_PATHS__` placeholder scopes the command to staged files."""
     if (repo / "pyproject.toml").exists():
-        return "ruff format ."
+        return f"ruff format {PATHS_PLACEHOLDER}"
     if (repo / "package.json").exists():
         pkg = json.loads((repo / "package.json").read_text())
         scripts = pkg.get("scripts", {})
         if "format" in scripts:
             return "npm run format"
         if "prettier" in " ".join(scripts.values()):
-            return "npx prettier --write ."
+            return f"npx prettier --write {PATHS_PLACEHOLDER}"
     if (repo / "Makefile").exists():
         content = (repo / "Makefile").read_text()
         if "format" in content:

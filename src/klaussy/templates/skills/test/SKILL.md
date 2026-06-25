@@ -8,7 +8,7 @@ Write tests for the current changes. Follow these steps:
 
 1. **Read CLAUDE.md** to understand the project's test framework, conventions, and test commands.
 2. **Read any `.claude/rules/*.md`** whose `paths:` glob matches the changed files — they capture testing conventions specific to this layer (e.g. how API tests are structured vs. how DB tests are structured).
-3. **Check `git diff`** to identify what changed. Classify the change:
+3. **Identify what changed** with `git diff {{BASE_BRANCH}}...HEAD` (the whole branch's work), plus `git diff` and `git diff --cached` for any uncommitted edits — not a bare `git diff`, which would miss everything already committed on the branch. Classify the change:
    - **Pure refactor** (code moved/renamed, no behavior change): update existing tests' imports and call sites; do NOT invent new tests for behavior that already had coverage.
    - **New behavior or modified behavior**: continue to step 4.
 4. **Find existing test files** for the modules you're testing. Read them fully — match their patterns:
