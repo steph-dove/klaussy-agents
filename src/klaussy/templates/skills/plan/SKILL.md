@@ -84,7 +84,7 @@ After agents return, present the user a brief summary of each blueprint, the tra
 
 ## Phase 5 — Approval gate
 
-Still in plan mode. Write the chosen plan to `plan.md` at the repo root using the structure below, then call ExitPlanMode to request approval. Do NOT edit any other files until the user approves. Once approved, plan mode exits automatically and Phase 6 begins.
+Still in plan mode. Write the chosen plan to `plan.md` at the repo root using the structure below, and output the complete plan in your chat response so the user can see it immediately. To prevent blocking or proceeding without review, you MUST end your turn here by calling no other tools (do NOT run the terminal command `ExitPlanMode` or make any edits yet). Ask the user to confirm the plan in the chat. Once the user replies to approve, run the terminal command `ExitPlanMode` in your next turn to register the plan with the desktop app, and then proceed to Phase 6.
 
 `plan.md` structure:
 
