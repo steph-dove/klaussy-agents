@@ -46,38 +46,41 @@ def read_pre_plan_guidance() -> str:
     return source.read_text().rstrip() + "\n"
 
 
-def _detect_lint_command(repo: Path) -> str | None:
-    """Detect the project's lint command.
+def _has_node_tool(pkg: dict, tool: str) -> bool:
+    """True if a Node tool is a dependency or named in any package.json script."""
+    deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+    if tool in deps:
+        return True
+    return any(tool in script for script in pkg.get("scripts", {}).values())
 
-    Direct tool invocations carry the `__KLAUSSY_PATHS__` placeholder, which the
-    commit guard expands to the staged files so the gate judges only the change
-    being committed — not pre-existing issues elsewhere in the tree. Script-based
-    commands (`npm run lint`, `make lint`) define their own scope, so they have
-    no placeholder and run repo-wide.
+
+def _detect_lint_command(repo: Path) -> str | None:
+    """Detect the project's lint command, always scoped to the staged files.
+
+    Every command carries the `__KLAUSSY_PATHS__` placeholder, which the commit
+    guard expands to the files being committed so the gate judges only the change
+    in flight — never the whole tree. We deliberately do NOT fall back to a
+    repo-wide `npm run lint` / `npm run lint:fix`: blocking a commit on unrelated
+    pre-existing issues (or auto-fixing unrelated files) is the behavior we're
+    avoiding. If the linter can't be scoped, the guard skips linting.
     """
     if (repo / "pyproject.toml").exists():
         return f"ruff check --fix {PATHS_PLACEHOLDER}"
     if (repo / "package.json").exists():
         pkg = json.loads((repo / "package.json").read_text())
-        scripts = pkg.get("scripts", {})
-        if "lint" in scripts:
-            return "npm run lint"
-        if "lint:fix" in scripts:
-            return "npm run lint:fix"
-    if (repo / "Makefile").exists():
-        content = (repo / "Makefile").read_text()
-        if "lint" in content:
-            return "make lint"
+        if _has_node_tool(pkg, "eslint"):
+            return f"npx eslint --fix {PATHS_PLACEHOLDER}"
     return None
 
 
 def _detect_comment_check_command(repo: Path) -> str | None:
     """Detect a deterministic commented-out-code check (block-only, no auto-fix).
 
-    Only the objective slice of "comment hygiene" is lintable; verbosity and
-    narration are judgment calls handled in the skills, not here. ruff's ERA
-    rule flags commented-out code without `--fix`, so it surfaces the lines for
-    the author instead of silently deleting intentional commented code.
+    Covers the commented-out-*code* slice of comment hygiene via ruff's ERA rule,
+    which flags without `--fix` so it surfaces the lines instead of silently
+    deleting intentional commented code. The other slice — verbose narration
+    prose — is caught by the repo-independent `klaussy comment-lint` check the
+    commit guard runs alongside this one (see the guard's VERBOSE_COMMENT_CMD).
     """
     if (repo / "pyproject.toml").exists():
         return f"ruff check --select ERA {PATHS_PLACEHOLDER}"
@@ -85,21 +88,23 @@ def _detect_comment_check_command(repo: Path) -> str | None:
 
 
 def _detect_format_command(repo: Path) -> str | None:
-    """Detect the project's format command. See `_detect_lint_command` for how
-    the `__KLAUSSY_PATHS__` placeholder scopes the command to staged files."""
+    """Detect the project's format command, always scoped to the staged files.
+
+    A formatter runs with `--write`, so an unscoped command (e.g. `npm run
+    format`, which is typically `prettier --write .`) would rewrite the entire
+    tree on every commit — flooding the diff and blocking the commit if any
+    unrelated file fails. We only ever emit a command carrying `__KLAUSSY_PATHS__`
+    so the guard touches nothing outside the diff; if the formatter can't be
+    scoped, the guard skips formatting rather than run it repo-wide.
+    """
     if (repo / "pyproject.toml").exists():
         return f"ruff format {PATHS_PLACEHOLDER}"
     if (repo / "package.json").exists():
         pkg = json.loads((repo / "package.json").read_text())
-        scripts = pkg.get("scripts", {})
-        if "format" in scripts:
-            return "npm run format"
-        if "prettier" in " ".join(scripts.values()):
-            return f"npx prettier --write {PATHS_PLACEHOLDER}"
-    if (repo / "Makefile").exists():
-        content = (repo / "Makefile").read_text()
-        if "format" in content:
-            return "make format"
+        if _has_node_tool(pkg, "prettier"):
+            # --ignore-unknown so staged files prettier can't parse (e.g. a .py
+            # committed alongside JS) are skipped instead of failing the run.
+            return f"npx prettier --write --ignore-unknown {PATHS_PLACEHOLDER}"
     return None
 
 

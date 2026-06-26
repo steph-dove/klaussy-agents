@@ -1330,7 +1330,7 @@ class TestCommentHygiene:
         scaffold_hooks(repo=repo)
         guard = (repo / ".claude" / "hooks" / "git_commit_guard.py").read_text()
         assert "COMMENT_CHECK_CMD" in guard
-        assert "(FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD)" in guard
+        assert "(FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD)" in guard
 
     def test_multi_agent_commit_guard_bakes_comment_check(self, repo: Path):
         from klaussy.agents.backends import CursorBackend

@@ -12,6 +12,7 @@ from klaussy import __version__
 from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klaussy.checklist import generate_checklist
 from klaussy.claude_md import run_init
+from klaussy.comment_lint import analyze as analyze_comments
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
@@ -68,7 +69,11 @@ def _prompt_base_branch(repo: Path) -> str:
 @app.callback()
 def _callback(
     version: bool = typer.Option(
-        False, "--version", "-V", callback=version_callback, is_eager=True,
+        False,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
         help="Show version and exit.",
     ),
 ) -> None:
@@ -83,17 +88,18 @@ def init(
         False, "--skip-enrich", help="Skip Claude CLI enrichment (faster, no API call)."
     ),
     review_template: Path | None = typer.Option(
-        None, "--review-template",
+        None,
+        "--review-template",
         help="Path to a custom review prompt to use instead of the default.",
     ),
     base_branch: str | None = typer.Option(
-        None, "--base-branch", "-b",
+        None,
+        "--base-branch",
+        "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
     agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
-    all_agents: bool = typer.Option(
-        False, "--all", help="Scaffold every supported agent."
-    ),
+    all_agents: bool = typer.Option(False, "--all", help="Scaffold every supported agent."),
 ) -> None:
     """Generate repo boilerplate for one or more AI coding agents."""
     repo = repo.resolve()
@@ -108,8 +114,10 @@ def init(
     # repo's rules once, then each non-Claude backend converts them into its own
     # native conventions file. Always generated, even if claude isn't selected.
     steps: list[tuple[str, Callable[[], object]]] = [
-        ("CLAUDE.md (conventions source)",
-         lambda: run_init(repo=repo, force=force, skip_enrich=skip_enrich)),
+        (
+            "CLAUDE.md (conventions source)",
+            lambda: run_init(repo=repo, force=force, skip_enrich=skip_enrich),
+        ),
     ]
     for key in selected:
         steps.extend(
@@ -137,7 +145,9 @@ def checklist(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
     base_branch: str | None = typer.Option(
-        None, "--base-branch", "-b",
+        None,
+        "--base-branch",
+        "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
 ) -> None:
@@ -153,11 +163,14 @@ def skills(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
     review_template: Path | None = typer.Option(
-        None, "--review-template",
+        None,
+        "--review-template",
         help="Path to a custom review skill body to use instead of the default.",
     ),
     base_branch: str | None = typer.Option(
-        None, "--base-branch", "-b",
+        None,
+        "--base-branch",
+        "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
     agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
@@ -269,6 +282,33 @@ def humanize(
             sys.stdout.write(cleaned)
 
     if check and changed:
+        raise typer.Exit(1)
+
+
+@app.command(name="comment-lint")
+def comment_lint(
+    files: list[Path] = typer.Argument(
+        ..., help="Source files to scan for over-long comment blocks."
+    ),
+) -> None:
+    """Flag verbose comments (block-only); exit 1 if any are found.
+
+    The deterministic backstop the precommit guard runs after format/lint to
+    catch narration comments ruff can't. It only reports — stripping a flagged
+    comment to the bare minimum is left to the author. Unreadable files and
+    unsupported languages are skipped silently.
+    """
+    findings = []
+    for path in files:
+        try:
+            text = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        findings.extend(analyze_comments(str(path), text))
+
+    for finding in findings:
+        console.print(finding.render())
+    if findings:
         raise typer.Exit(1)
 
 

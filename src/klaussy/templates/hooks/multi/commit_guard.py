@@ -36,6 +36,10 @@ FORMAT_CMD: str | None = "__KLAUSSY_FORMAT_CMD__"
 LINT_CMD: str | None = "__KLAUSSY_LINT_CMD__"
 # Deterministic commented-out-code check (block-only; flags, never deletes).
 COMMENT_CHECK_CMD: str | None = "__KLAUSSY_COMMENT_CHECK_CMD__"
+# Deterministic verbose-comment check; repo-independent, so a literal rather
+# than a sentinel. Block-only — flags over-long narration comments for the
+# author to trim, never edits them.
+VERBOSE_COMMENT_CMD: str | None = "klaussy comment-lint __KLAUSSY_PATHS__"
 
 # Stand-in for the files being committed; expanded just before each command runs.
 PATHS_TOKEN = "__KLAUSSY_PATHS__"
@@ -137,7 +141,7 @@ def main() -> int:
         if not _is_git_commit(command):
             return 0
         paths = _changed_paths(include_unstaged=_commits_all(command))
-        for cmd in (FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD):
+        for cmd in (FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD):
             if not cmd:
                 continue
             resolved = _resolve(cmd, paths)
