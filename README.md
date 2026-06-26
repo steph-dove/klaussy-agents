@@ -1,4 +1,4 @@
-# <img src="brand-mark.png" width="32" height="32" align="center" alt="Klaussy Logo"> klaussy 🔍🤖
+# <img src="brand-mark.png" width="32" height="32" style="vertical-align: middle;" alt="Klaussy Logo"> klaussy 🔍🤖
 
 [![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
 [![Python versions](https://img.shields.io/pypi/pyversions/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
