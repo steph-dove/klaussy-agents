@@ -4,7 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, and Google Antigravity.
+> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, Google Antigravity, and Cline.
 
 Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **six major AI coding environments**—matching each agent's native file formats and capability profiles.
 
@@ -34,6 +34,7 @@ klaussy init
 *   **🐙 GitHub Copilot**: Instructions with custom `applyTo` file matchers (`.instructions.md`), and skills nested in `.github/skills/`.
 *   **♊ Gemini CLI**: Hierarchical `GEMINI.md` scoping (loaded only when touching subdirectories), settings tool allow-lists, and `.geminiignore` filtering.
 *   **📜 Codex CLI**: Structured `AGENTS.md` root-and-nesting rules, generic skills, and `.codex/config.toml` sandbox configurations.
+*   **🧬 Cline**: `.clinerules/` Markdown rules with `paths:` glob activation, event-named `.clinerules/hooks/` guards (commit, read/web-injection, plan guidance), and `.clineignore` read blocks.
 
 ---
 

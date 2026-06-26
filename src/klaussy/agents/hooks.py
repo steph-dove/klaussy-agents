@@ -358,6 +358,35 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
         _report(label, bool(fmt or lint or com), read=True, web=True)
 
 
+def cline_hooks(repo: Path, *, force: bool) -> None:
+    """Install event-named executables under `.clinerules/hooks/`.
+
+    Uses `cline_tool_guard.py` as a shim for `PreToolUse` and `PostToolUse`
+    to execute commit, comment, and read guards. Runs plan guidance on
+    `UserPromptSubmit`.
+    """
+    label = "Cline"
+    fmt, lint, com = _commit_cmds(repo)
+    hooks_dir = ".clinerules/hooks"
+
+    # Shared guards driven by the shim.
+    if fmt or lint or com:
+        _install_script(
+            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
+            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+        )
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
+
+    # Install the bridge shim under PreToolUse and PostToolUse.
+    _install_script(repo, f"{hooks_dir}/PreToolUse", "cline_tool_guard.py")
+    _install_script(repo, f"{hooks_dir}/PostToolUse", "cline_tool_guard.py")
+    # Plan guidance rides UserPromptSubmit (no plan signal on stdin).
+    _install_guidance_script(repo, f"{hooks_dir}/UserPromptSubmit", "cline")
+
+    _report(label, bool(fmt or lint or com), read=True, web=True, plan=True)
+
+
 def _report(
     label: str,
     commit: bool,

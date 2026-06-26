@@ -2,8 +2,8 @@
 
 klaussy generates Claude Code boilerplate and translates it into the native
 formats of other AI coding agents (Gemini CLI, Cursor, Codex, GitHub Copilot,
-Google Antigravity), all of which now read the open Agent Skills `SKILL.md`
-spec.
+Google Antigravity, Cline), all of which now read the open Agent Skills
+`SKILL.md` spec.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from klaussy.agents.backends import BACKENDS, ClaudeBackend, GenericBackend
 
 ALL_AGENTS = list(BACKENDS.keys())
 # No --agents and no --all → scaffold every supported agent. The bundled skills
-# are portable across all five, so the default is "make this repo ready for
+# are portable across every backend, so the default is "make this repo ready for
 # whatever agent the user (or a teammate) reaches for".
 DEFAULT_AGENTS = list(ALL_AGENTS)
 

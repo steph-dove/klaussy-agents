@@ -25,6 +25,7 @@ from klaussy.agents.base import (
 from klaussy.agents.emit import write_skills
 from klaussy.agents.hooks import (
     antigravity_hooks,
+    cline_hooks,
     codex_hooks,
     copilot_hooks,
     cursor_hooks,
@@ -638,6 +639,66 @@ class AntigravityBackend(GenericBackend):
         antigravity_hooks(repo, force=force)
 
 
+class ClineBackend(GenericBackend):
+    """Cline backend.
+
+    Reads rules from `.clinerules/`, excludes secrets via `.clineignore`, and
+    runs event-named hooks under `.clinerules/hooks/`. Skills are placed in
+    `.agents/skills`.
+    """
+
+    key = "cline"
+    label = "Cline"
+    profile = CapabilityProfile(
+        key="cline",
+        label="Cline",
+        skills_root=".agents/skills",
+        dynamic_shell=False,
+        subagents=False,
+        plan_mode=False,
+        # Claude's allowed-tools use Claude tool syntax (Bash(git diff *)); drop
+        # them so Cline falls back to its own defaults rather than mis-parse.
+        keep_allowed_tools=False,
+        keep_disable_invocation=False,
+    )
+
+    def emit_conventions(self, repo, *, force):
+        doc = read_canonical_conventions(repo)
+        if doc is None:
+            self._warn_no_conventions()
+            return
+        rules_dir = repo / ".clinerules"
+        # Project-wide conventions as an always-on rule (no `paths:` frontmatter).
+        self._write(
+            rules_dir / "conventions.md",
+            doc.project_wide.rstrip() + "\n",
+            force=force,
+            what=".clinerules/conventions.md",
+        )
+        # Path-scoped rules as conditional rules keyed by glob via `paths:`.
+        for rule in doc.rules:
+            paths_yaml = "\n".join(f'  - "{g}"' for g in rule.globs)
+            frontmatter = f"---\npaths:\n{paths_yaml}\n---\n\n"
+            self._write(
+                rules_dir / f"{rule.stem}.md",
+                frontmatter + rule.body.rstrip() + "\n",
+                force=force,
+                what=f".clinerules/{rule.stem}.md",
+            )
+
+    def emit_settings(self, repo, *, force):
+        # Cline auto-approval is GUI-only; .clineignore is the only committed control.
+        _write_secret_ignore(repo, ".clineignore", self.label)
+        console.print(
+            "[dim][Cline] note: auto-approval is a GUI/workspace setting with no "
+            "committed allow-list file, so command-gating isn't scaffolded; "
+            ".clineignore above is the committed secret-exclusion control.[/dim]"
+        )
+
+    def emit_hooks(self, repo, *, force):
+        cline_hooks(repo, force=force)
+
+
 BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
     b.key: b
     for b in (
@@ -647,5 +708,6 @@ BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
         CodexBackend(),
         CopilotBackend(),
         AntigravityBackend(),
+        ClineBackend(),
     )
 }

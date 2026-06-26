@@ -9,6 +9,7 @@ because each exposes a different injection surface:
   * Gemini CLI   BeforeAgent                -> injects each turn, before planning
   * Cursor       sessionStart               -> injects once per session
   * Copilot      sessionStart               -> injects once per session
+  * Cline        UserPromptSubmit           -> injects each prompt (no plan signal)
 
 Guidance text and DIALECT are baked in at scaffold time, so the script needs no
 arguments. Hardened to never crash or block: any unexpected payload or error
@@ -73,6 +74,10 @@ def _emit(dialect: str, payload: dict) -> dict | None:
         return {"additional_context": GUIDANCE}
     if dialect == "copilot":
         return {"additionalContext": GUIDANCE}
+    if dialect == "cline":
+        # Cline's UserPromptSubmit uses contextModification and lacks a plan-mode
+        # signal, so guidance is injected on every prompt.
+        return {"cancel": False, "contextModification": GUIDANCE}
     return None
 
 
