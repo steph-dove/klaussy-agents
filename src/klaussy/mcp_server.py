@@ -41,7 +41,7 @@ def klaussy_init(
     skills (review, plan, debug, …) in that agent's native skills directory, a
     native conventions file, and stack-appropriate permissions. `agents` is a
     comma-separated list from: claude, gemini, cursor, codex, copilot,
-    antigravity, cline (or "all"). Defaults to all agents. Also writes the PR template
+    antigravity, cline, aider (or "all"). Defaults to all agents. Also writes the PR template
     and .gitignore entries.
     """
     args = ["init", "--repo", repo, "--base-branch", base_branch]
@@ -76,7 +76,7 @@ def klaussy_settings(
     """Generate stack-appropriate permissions for each selected agent.
 
     `agents` is a comma-separated list from claude, gemini, cursor, codex,
-    copilot, antigravity, cline (or "all"); defaults to all. Copilot has no per-repo
+    copilot, antigravity, cline, aider (or "all"); defaults to all. Copilot has no per-repo
     permission model and is skipped; Antigravity's permissions are best-effort.
     """
     args = ["settings", "--repo", repo]
@@ -100,8 +100,8 @@ def klaussy_skills(
 
     Writes one SKILL.md folder per entry in SKILL_NAMES, adapted to each agent.
     `agents` is a comma-separated list from claude, gemini, cursor, codex,
-    copilot, antigravity, cline (or "all"); defaults to all. See src/klaussy/skills.py
-    for the set.
+    copilot, antigravity, cline, aider (or "all"); defaults to all. See src/klaussy/skills.py
+    for the set. Aider has no skills mechanism and is skipped with a note.
     """
     args = ["skills", "--repo", repo, "--base-branch", base_branch]
     if force:
@@ -128,7 +128,9 @@ def klaussy_hooks(
     Installs the git-commit guard (format + lint scoped to the files being
     committed) and the read-injection guard, wired to whatever events each
     agent's protocol exposes. `agents` is a comma-separated list from claude,
-    gemini, cursor, codex, copilot, antigravity, cline (or "all"); defaults to all.
+    gemini, cursor, codex, copilot, antigravity, cline, aider (or "all"); defaults to all.
+    Aider has no hook mechanism and is skipped (its auto-lint/auto-test config is
+    written by the settings step instead).
     """
     args = ["hooks", "--repo", repo]
     if force:

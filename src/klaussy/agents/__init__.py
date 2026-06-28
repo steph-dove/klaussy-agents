@@ -2,8 +2,9 @@
 
 klaussy generates Claude Code boilerplate and translates it into the native
 formats of other AI coding agents (Gemini CLI, Cursor, Codex, GitHub Copilot,
-Google Antigravity, Cline), all of which now read the open Agent Skills
-`SKILL.md` spec.
+Google Antigravity, Cline), most of which now read the open Agent Skills
+`SKILL.md` spec. Aider is the exception: it has no skills/hooks mechanism, so it
+gets a flat `CONVENTIONS.md` wired into `.aider.conf.yml` instead.
 """
 
 from __future__ import annotations
