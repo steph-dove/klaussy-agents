@@ -1,7 +1,7 @@
 ---
 name: {{REPO}}-review
 description: Use when the user wants a thorough PR or branch review. Triages by diff size — small PRs get a single-pass review, large PRs fan out to parallel sub-agents (correctness, architecture, security, scope, and an Agentic & Evals lens that activates on AI/agent code) with a validation phase that drops false positives.
-allowed-tools: Read Grep Glob Bash(git *) Write Agent
+allowed-tools: Read Grep Glob Bash(git *) Bash(klaussy review-prep *) Write Agent
 ---
 
 You are conducting a thorough PR review. Follow these phases in order.
@@ -34,9 +34,9 @@ git branch --show-current
 
 ### What you still need to do
 
-1. Run `git diff {{BASE_BRANCH}}...HEAD` to get the full diff (kept as a tool call rather than injected — diffs can be very large).
-2. **Read the full file (not just the diff hunks) for every changed file listed in the stat above.** These are independent reads — issue them all in a single batch of parallel tool calls, not sequentially.
-3. Count the total lines changed (additions + deletions) from the stat.
+1. **Get the reviewable diff.** Run `klaussy review-prep --base {{BASE_BRANCH}}`. It returns the diff trimmed to reviewable files — lockfiles, generated/vendored trees, minified/binary blobs, and pure renames are dropped — followed by an **Excluded from review** manifest listing what it dropped and why. Use this trimmed diff as *the diff* for the rest of the review. If the `klaussy` CLI isn't on PATH (the command errors), fall back to `git diff {{BASE_BRANCH}}...HEAD` for the full untrimmed diff and proceed as before. Kept as a tool call rather than injected — even trimmed, diffs can be large.
+2. **Read the full file (not just the diff hunks) for every *reviewable* changed file** — the files present in the trimmed diff, not the ones in the Excluded manifest. These are independent reads — issue them all in a single batch of parallel tool calls, not sequentially. The excluded files are deliberately out of scope: don't read or comment on them unless a finding in a reviewable file points directly at one.
+3. Count the total **reviewable** lines changed — use the `N changed line(s)` figure in the review-prep summary line (on the `git diff` fallback, take the `--stat` total but ignore any lockfile / generated / vendored / minified / binary files).
 4. If the branch name contains a ticket reference (e.g. FEAT-1234), note it for context.
 5. **Detect Architecture Decision Records / design docs.** Check the changed files for an ADR, RFC, or technical design doc using two signals:
    - **Path**: any of `docs/adr/`, `doc/adr/`, `adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, `rfcs/`, `docs/rfcs/`, `docs/design/`, `design-docs/`, or filenames like `NNNN-title.md`, `ADR-NNNN-*.md`, `*.adr.md`, `*.rfc.md`, `*.design.md`.
@@ -50,7 +50,7 @@ Store the diff output and file contents — you will need them in the next phase
 
 ## Phase 2: Triage
 
-Count the total lines changed from the `--stat` output.
+Count the total **reviewable** lines changed (from Phase 1 step 3 — the trimmed-diff figure, not the raw `--stat`, which still counts the dropped lockfile/generated/vendored noise).
 
 - **If < 150 lines changed:** proceed to [Small PR Review](#small-pr-review) below.
 - **If ≥ 150 lines changed:** proceed to [Parallel Review](#parallel-review) below.
@@ -156,7 +156,7 @@ Write this output to `REVIEW_OUTPUT.md`.
 This PR is large enough to benefit from focused, parallel review.
 
 1. **Read `.claude/skills/{{REPO}}-review/sub-agents.md`.** That file has the canonical list of sub-agent **Lens** sections plus a shared **Common scaffold** (intro, output format, ground rules). Some lenses are conditional — see step 3 for the detection-driven ones.
-2. **Compose each sub-agent's prompt** by concatenating: the Common scaffold (with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced by the actual diff and log from Phase 1), then the sub-agent's Lens, then its Additional rules (if any). The "How to compose a sub-agent prompt" section at the top of `sub-agents.md` documents this exactly.
+2. **Compose each sub-agent's prompt** by concatenating: the Common scaffold (with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced by the trimmed diff and commit log from Phase 1), then the sub-agent's Lens, then its Additional rules (if any). The "How to compose a sub-agent prompt" section at the top of `sub-agents.md` documents this exactly.
 3. **Decide whether to spawn sub-agent 5 (Agentic & Evals).** Skim the diff for AI / agent / eval signals — changes under `**/skills/**`, `**/agents/**`, `**/.claude/**`, MCP server files (`mcp_*.{py,ts,js}`, `mcp-server*.*`, `.mcp.json`), eval suites (`**/evals/**`, `eval_*.{py,ts,js}`, `*.eval.*`), or imports of `anthropic` / `openai` / `langchain` / `langgraph` / `mcp` / `@anthropic-ai/sdk` / `inspect_ai` / `langsmith` / `promptfoo`. If any signal is present, include sub-agent 5; otherwise skip it (it has nothing to review). The full detection list is at the top of sub-agent 5 in `sub-agents.md`.
 4. **Decide whether to spawn sub-agent 6 (Architecture Decision & Design-Doc).** If Phase 1 detected an ADR, RFC, or design doc, include sub-agent 6 and pass it the doc's full text; otherwise skip it. The detection signals are restated at the top of sub-agent 6 in `sub-agents.md`.
 5. **Use the Agent tool to launch all selected sub-agents in a single assistant message** — that gives you parallel execution. Each call passes `subagent_type: general-purpose` and the composed body from step 2. Sub-agents return findings as text and must NOT write any files.
