@@ -81,7 +81,9 @@ def adapt_body(body: str, profile: CapabilityProfile) -> str:
         text = _DYNAMIC_BLOCK.sub(_replace_dynamic_block, text)
     if profile.skills_root != ".claude/skills":
         text = text.replace(".claude/skills/", f"{profile.skills_root}/")
-    return _capability_banner(body, profile) + text
+    # Detect capabilities against the adapted text: a subagent/plan-mode mention
+    # that lived inside a stripped ```! block shouldn't trigger a banner.
+    return _capability_banner(text, profile) + text
 
 
 def adapt_aux(content: str, profile: CapabilityProfile) -> str:
