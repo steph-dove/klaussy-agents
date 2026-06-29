@@ -161,13 +161,15 @@ This PR is large enough to benefit from focused, parallel review.
 4. **Decide whether to spawn sub-agent 6 (Architecture Decision & Design-Doc).** If Phase 1 detected an ADR, RFC, or design doc, include sub-agent 6 and pass it the doc's full text; otherwise skip it. The detection signals are restated at the top of sub-agent 6 in `sub-agents.md`.
 5. **Use the Agent tool to launch all selected sub-agents in a single assistant message** — that gives you parallel execution. Each call passes `subagent_type: general-purpose` and the composed body from step 2. Sub-agents return findings as text and must NOT write any files.
 
+**Model tiering (optional, if your sub-agent tool accepts a per-call model).** The lenses don't all need the same horsepower. Run the mechanical lens — **Sub-agent 4: Scope & Conventions**, which is mostly pattern-matching intent and checking conventions — on a fast, cheap model (e.g. `haiku`), and keep the reasoning-heavy lenses (correctness, architecture, security, agentic, ADR) on the default/inherited model where judgment earns its keep. Because the sub-agents run in parallel, this mainly saves **cost** rather than wall-clock (the cheap lens was never the slowest); the latency win comes from the parallel validation in Phase 3. If your tool has no per-call model control, run them all on the default model — tiering is an optimization, not a requirement.
+
 After all sub-agents return, proceed to Phase 3.
 
 ---
 
 ## Phase 3: Validation
 
-Before synthesizing, validate every finding from the sub-agents. For each finding:
+Before synthesizing, validate every finding from the sub-agents. The rubric for a single finding is:
 
 1. **Read the full file** referenced in the finding's location (not just the diff hunk).
 2. **Trace the code path** — follow function calls, imports, type definitions, and control flow to understand the full context. Read caller and callee files as needed.
@@ -181,7 +183,12 @@ Before synthesizing, validate every finding from the sub-agents. For each findin
 5. **Remove invalid findings.** Do not include them in the final output. Do not note that they were removed.
 6. **Downgrade severity** if tracing reveals the issue is less impactful than initially assessed (e.g., a "High" race condition that only affects a debug-only path should be "Low" or "Nit").
 
-Be thorough — read as many files as needed to verify each finding. A shorter, accurate review is far more valuable than a long review with false positives.
+**Validate in parallel when there are enough findings.** Reading files and tracing paths one finding at a time is the slowest *serial* stretch of a large review — every other phase before it fanned out, but this one doesn't by default. So:
+
+- **If the sub-agents returned more than 6 findings total:** partition them into batches of ~4–6 (group by file where you can, so a validator reads each file once) and spawn **one validation sub-agent per batch** with the Agent tool, all **in a single assistant message** (parallel). Compose each from `.claude/skills/{{REPO}}-review/sub-agents.md` → **Validation sub-agent**, passing it that batch of findings plus the trimmed diff; it reads whatever caller/callee files it needs and returns only the survivors (with the rubric applied and any severity downgrades). Collect all survivors, then go to Phase 4. Each validator must NOT write files.
+- **If there are 6 or fewer findings:** validate them inline yourself with the rubric above — the fan-out overhead isn't worth it.
+
+A shorter, accurate review is far more valuable than a long review with false positives.
 
 ---
 
