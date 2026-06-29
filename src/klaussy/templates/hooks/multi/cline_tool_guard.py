@@ -17,6 +17,7 @@ from pathlib import Path
 HOOKS_DIR = Path(__file__).resolve().parent
 COMMIT_GUARD = HOOKS_DIR / "klaussy_commit_guard.py"
 COMMENT_GUARD = HOOKS_DIR / "klaussy_comment_guard.py"
+DEPENDENCY_GUARD = HOOKS_DIR / "klaussy_dependency_guard.py"
 READ_GUARD = HOOKS_DIR / "klaussy_read_guard.py"
 
 # web_fetch is the confirmed VS Code name; the others cover runtime drift.
@@ -65,7 +66,7 @@ def _handle_pre(payload: dict) -> None:
     if isinstance(command, str) and command:
         # Gate commands via commit and comment guards.
         synthesized = {"tool_input": {"command": command}}
-        for guard in (COMMIT_GUARD, COMMENT_GUARD):
+        for guard in (COMMIT_GUARD, COMMENT_GUARD, DEPENDENCY_GUARD):
             rc, err = _run_guard(guard, synthesized)
             if rc == 2:
                 _block(err or "Blocked by klaussy guard.")

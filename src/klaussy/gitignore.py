@@ -11,6 +11,8 @@ GITIGNORE_ENTRIES = [
     "pr-description.md",
     "REVIEW_OUTPUT.md",
     "plan.md",
+    # Live cross-agent session state; the .agents/SESSION.md protocol doc stays committed.
+    ".agents/session.json",
 ]
 
 

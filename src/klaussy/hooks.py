@@ -24,6 +24,10 @@ COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
 COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
 COMMENT_GUARD_COMMAND = f"python3 {COMMENT_GUARD_RELPATH}"
 
+DEPENDENCY_GUARD_SCRIPT_NAME = "dependency_guard.py"
+DEPENDENCY_GUARD_RELPATH = f".claude/hooks/{DEPENDENCY_GUARD_SCRIPT_NAME}"
+DEPENDENCY_GUARD_COMMAND = f"python3 {DEPENDENCY_GUARD_RELPATH}"
+
 PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
 PLAN_GUIDANCE_COMMAND = f"python3 {PLAN_GUIDANCE_RELPATH}"
@@ -128,6 +132,23 @@ def _install_comment_guard_script(repo: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     source = resources.files("klaussy").joinpath(
         f"templates/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
+    )
+    dest.write_text(source.read_text())
+    mode = dest.stat().st_mode
+    dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return dest
+
+
+def _install_dependency_guard_script(repo: Path) -> Path:
+    """Copy the dependency gate into .claude/hooks/ and mark executable.
+
+    No commands are baked in — it inspects the install command and blocks on a
+    new-dependency add, so the cross-agent `multi/` copy is used verbatim (it
+    already reads Claude's `tool_input.command` payload shape)."""
+    dest = repo / DEPENDENCY_GUARD_RELPATH
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    source = resources.files("klaussy").joinpath(
+        f"templates/hooks/multi/{DEPENDENCY_GUARD_SCRIPT_NAME}"
     )
     dest.write_text(source.read_text())
     mode = dest.stat().st_mode
@@ -259,6 +280,10 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # Comment guard rewrites an outgoing `gh` comment through `klaussy humanize`
     # (PreToolUse updatedInput). No project-specific command, so always installed.
     _install_comment_guard_script(repo)
+    # Dependency gate blocks a `pip/npm/poetry/… install <pkg>` that adds a new
+    # named dependency until the agent confirms it. No project-specific command,
+    # so always installed.
+    _install_dependency_guard_script(repo)
     def _entry(matcher: str, command: str) -> dict:
         return {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
 
@@ -266,6 +291,7 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
         _entry("Read", GUARD_COMMAND),
         _entry("EnterPlanMode", PLAN_GUIDANCE_COMMAND),
         _entry("Bash", COMMENT_GUARD_COMMAND),
+        _entry("Bash", DEPENDENCY_GUARD_COMMAND),
     ]
     desired_post: list[dict] = [_entry("WebFetch", GUARD_COMMAND)]
 
@@ -307,6 +333,9 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     console.print(f"[green]✔ Installed read-injection guard at {GUARD_RELPATH}[/green]")
     console.print(
         f"[green]✔ Installed pre-plan guidance hook at {PLAN_GUIDANCE_RELPATH}[/green]"
+    )
+    console.print(
+        f"[green]✔ Installed dependency gate at {DEPENDENCY_GUARD_RELPATH}[/green]"
     )
     if has_commit_guard:
         console.print(

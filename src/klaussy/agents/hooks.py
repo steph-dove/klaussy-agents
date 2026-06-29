@@ -30,6 +30,7 @@ console = Console()
 
 COMMIT_GUARD = "klaussy_commit_guard.py"
 COMMENT_GUARD = "klaussy_comment_guard.py"
+DEPENDENCY_GUARD = "klaussy_dependency_guard.py"
 READ_GUARD = "klaussy_read_guard.py"
 GUIDANCE_GUARD = "klaussy_plan_guidance.py"
 
@@ -139,6 +140,13 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
                    "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
                    "timeout": 60000}],
     })
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    before.append({
+        "matcher": "run_shell_command",
+        "hooks": [{"type": "command",
+                   "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}",
+                   "timeout": 60000}],
+    })
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}",
                 "timeout": 60000}
@@ -191,6 +199,11 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
         {"command": f"{hooks_dir}/{COMMENT_GUARD}", "type": "command",
          "failClosed": True}
     )
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    before_shell.append(
+        {"command": f"{hooks_dir}/{DEPENDENCY_GUARD}", "type": "command",
+         "failClosed": True}
+    )
     hooks["beforeShellExecution"] = before_shell
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     hooks["beforeReadFile"] = [
@@ -241,6 +254,10 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     bash_hooks.append({"type": "command",
                        "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
                        "timeout": 60})
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    bash_hooks.append({"type": "command",
+                       "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}",
+                       "timeout": 60})
     hooks_cfg["PreToolUse"] = [{"matcher": "Bash", "hooks": bash_hooks}]
 
     if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg},
@@ -286,6 +303,13 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
         "type": "command",
         "bash": f"python3 {hooks_dir}/{COMMENT_GUARD}",
         "powershell": f"python {hooks_dir}/{COMMENT_GUARD}",
+        "timeoutSec": 60,
+    })
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    pre_tool.append({
+        "type": "command",
+        "bash": f"python3 {hooks_dir}/{DEPENDENCY_GUARD}",
+        "powershell": f"python {hooks_dir}/{DEPENDENCY_GUARD}",
         "timeoutSec": 60,
     })
     hooks_cfg["preToolUse"] = pre_tool
@@ -336,6 +360,9 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
     run_command_hooks.append({"type": "command",
                               "command": f"{py} {hooks_dir}/{COMMENT_GUARD}"})
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    run_command_hooks.append({"type": "command",
+                              "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}"})
     pre.append({"matcher": "run_command", "hooks": run_command_hooks})
     config = {
         "klaussy": {
@@ -376,6 +403,7 @@ def cline_hooks(repo: Path, *, force: bool) -> None:
             format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
         )
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
 
     # Install the bridge shim under PreToolUse and PostToolUse.

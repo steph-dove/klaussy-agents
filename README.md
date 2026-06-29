@@ -128,7 +128,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📋 Requirements
 - Python 3.10+
-- `klaussy-repo-conventions >= 1.4.0`
+- `klaussy-repo-conventions >= 1.5.0`
 - Claude Code CLI (optional, for `--init` enrichment)
 - `mcp` (optional, for MCP server support)
 
@@ -136,8 +136,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-### v0.9.0
-- **New backend: Aider (Ollama).** Model-agnostic, commonly run on a local Ollama model. Emits a flat `CONVENTIONS.md` (project-wide conventions + inlined path-scoped rules) wired into `.aider.conf.yml`'s `read:` key, `auto-lint`/`lint-cmd` + `test-cmd` gating, and `.aiderignore` read blocks. Aider has no skills/hooks mechanism, so those steps are skipped with an honest note.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.10.0** (dependency gate hook, `adr-generator` + `security-audit` skills, shared cross-agent session state).
 
 ---
 

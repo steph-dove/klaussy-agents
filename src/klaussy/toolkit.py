@@ -24,6 +24,7 @@ from klaussy.claude_md import run_init
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as _humanize_text
+from klaussy.session import scaffold_session
 from klaussy.skills import SKILL_NAMES
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "hooks",
     "github",
     "checklist",
+    "session",
     "humanize",
     "humanize_files",
     "status",
@@ -137,6 +139,7 @@ def init(
             )
         )
     steps.append(("PR template", lambda: scaffold_github(repo=repo, force=force)))
+    steps.append(("shared session", lambda: scaffold_session(repo=repo, force=force)))
     steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
     return _run_steps(repo, selected, steps)
 
@@ -195,6 +198,14 @@ def hooks(
 def github(repo: PathLike = ".", *, force: bool = False) -> Path | None:
     """Generate the PR template; returns its path, or None if one already exists."""
     return scaffold_github(repo=Path(repo).resolve(), force=force)
+
+
+def session(repo: PathLike = ".", *, force: bool = False) -> Path:
+    """Scaffold the cross-agent shared session-state file; returns its path.
+
+    Writes `.agents/session.json` (live working state, gitignored) and its
+    protocol doc. Existing live state is preserved unless `force` is set."""
+    return scaffold_session(repo=Path(repo).resolve(), force=force)
 
 
 def checklist(
