@@ -12,6 +12,8 @@ For each selected sub-agent, build the prompt body as:
 
 Then call the Agent tool with `subagent_type: general-purpose` and that composed body. Launch all selected sub-agents **in a single assistant message** (parallel tool calls), not sequentially. Each sub-agent must NOT write any files — they return findings as text.
 
+**Model tiering (optional).** If your sub-agent tool accepts a per-call model, run the mechanical lens (**Sub-agent 4: Scope & Conventions**) on a fast, cheap model (e.g. `haiku`) and keep the reasoning-heavy lenses on the default/inherited model. Running in parallel, this saves cost more than wall-clock. The **Validation sub-agent** below stays on the default model — dropping false positives is judgment work. No per-call model control? Run everything on the default model.
+
 ---
 
 ## Common scaffold (apply to every sub-agent)
@@ -331,4 +333,38 @@ the decision is sound, honestly argued, and matches the code.
   gaps = Medium/Low.
 - If the doc is genuinely complete and well-argued, say so in one line and return no
   findings. A good ADR is common; don't manufacture problems.
+```
+
+---
+
+## Validation sub-agent
+
+Used in Phase 3 when there are more than 6 findings to validate. Spawn one per batch of ~4–6 findings (grouped by file where possible), in parallel. Compose the prompt as: this block, with `[PASTE THE TRIMMED DIFF HERE]` and `[PASTE THE FINDINGS BATCH HERE]` replaced. Launch all validators in a single assistant message; each returns only the surviving findings as text and writes no files.
+
+```
+You are validating a batch of code-review findings before they ship. Your job is to drop false positives and fix overstated severity — not to find new issues. A shorter, accurate review beats a long one with noise.
+
+Here is the diff under review:
+[PASTE THE TRIMMED DIFF HERE]
+
+Here are the findings to validate (only these — ignore everything else):
+[PASTE THE FINDINGS BATCH HERE]
+
+For EACH finding, apply this rubric. Read whatever files you need — the referenced file in full, plus its callers and callees — using your tools.
+
+1. Read the full file at the finding's location, not just the diff hunk.
+2. Trace the code path: follow function calls, imports, type definitions, and control flow across files.
+3. Argue the author's side, then refute it. Write the strongest one-line case that this is NOT a real problem (the input can't occur, a caller already guards it, the framework handles it). Then either refute it with specific code evidence, or drop the finding as a likely false positive. A finding you can't defend against its own counterargument does not ship.
+4. Drop the finding if: the issue is already handled elsewhere (validation in a caller, error caught upstream); the code path can't actually be reached as the finding assumes; the finding misreads the logic from missing context; the concern is about unchanged code out of scope for this PR; or a dependency/framework already guarantees the behavior.
+5. Downgrade severity if tracing shows the issue is less impactful than stated (e.g. a "High" race that only affects a debug-only path is "Low" or "Nit").
+
+Return ONLY the findings that survive, each in this exact format, with severity reflecting any downgrade:
+
+**[Severity: Blocker | High | Medium | Low | Warn | Nit]**
+**[Location: file_path:line_number and code_snippet]**
+**Comment:**
+- What is wrong or questionable, why it matters
+- What to change (concrete fix or alternative)
+
+Do not include dropped findings, and do not note that you removed them. If none survive, say so in one line. Write no files.
 ```

@@ -9,6 +9,16 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ### Added
 
+- **Faster review orchestration** — the `review` skill's Phase 3 validation now
+  fans out: when sub-agents return more than 6 findings, it spawns parallel
+  validation sub-agents (one per batch) instead of a single sequential pass,
+  cutting the slowest serial stretch of a large review. Also added optional
+  model-tiering guidance — run the mechanical Scope & Conventions lens on a fast
+  model, keep the reasoning-heavy lenses and validators on the default model
+  (saves cost; latency comes from the parallel validation). Cross-sub-agent
+  prompt caching is intentionally *not* attempted: Claude Code gives each named
+  sub-agent a separate cache, so it isn't controllable from a skill — and
+  review-prep already shrank the per-sub-agent diff prefill.
 - **`klaussy review-prep` + faster review skill** — a deterministic diff
   pre-processor that trims a branch diff to the reviewable files (dropping
   lockfiles, generated/vendored trees, minified/binary blobs, and pure renames)
