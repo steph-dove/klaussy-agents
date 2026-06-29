@@ -64,16 +64,12 @@ def _install_script(
     dest = repo / relpath
     dest.parent.mkdir(parents=True, exist_ok=True)
     content = (
-        resources.files("klaussy")
-        .joinpath(f"templates/hooks/multi/{template_name}")
-        .read_text()
+        resources.files("klaussy").joinpath(f"templates/hooks/multi/{template_name}").read_text()
     )
     content = (
         content.replace('"__KLAUSSY_FORMAT_CMD__"', _python_literal(format_cmd))
         .replace('"__KLAUSSY_LINT_CMD__"', _python_literal(lint_cmd))
-        .replace(
-            '"__KLAUSSY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd)
-        )
+        .replace('"__KLAUSSY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd))
     )
     dest.write_text(content)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -84,9 +80,7 @@ def _install_guidance_script(repo: Path, relpath: str, dialect: str) -> None:
     dest = repo / relpath
     dest.parent.mkdir(parents=True, exist_ok=True)
     content = (
-        resources.files("klaussy")
-        .joinpath("templates/hooks/multi/plan_guidance.py")
-        .read_text()
+        resources.files("klaussy").joinpath("templates/hooks/multi/plan_guidance.py").read_text()
     )
     content = content.replace(
         '"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance())
@@ -105,9 +99,7 @@ def _commit_cmds(repo: Path) -> tuple[str | None, str | None, str | None]:
 
 def _write_json(path: Path, data: dict, *, force: bool, label: str) -> bool:
     if path.exists() and not force:
-        console.print(
-            f"[yellow]⚠ [{label}] {path.name} exists; use --force.[/yellow]"
-        )
+        console.print(f"[yellow]⚠ [{label}] {path.name} exists; use --force.[/yellow]")
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n")
@@ -121,35 +113,45 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".gemini/hooks"
 
     py = _hook_python()
+
+    def _cmd(name: str) -> str:
+        # Gemini runs hook commands from the session cwd (not guaranteed to be
+        # the root), so a bare relative path can fail; $GEMINI_PROJECT_DIR
+        # expands to the project root (documented in the Gemini CLI hooks guide).
+        return f'{py} "$GEMINI_PROJECT_DIR/{hooks_dir}/{name}"'
+
     before: list[dict] = []
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
-        before.append({
-            "matcher": "run_shell_command",
-            "hooks": [{"type": "command",
-                       "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
-                       "timeout": 60000}],
-        })
+        before.append(
+            {
+                "matcher": "run_shell_command",
+                "hooks": [{"type": "command", "command": _cmd(COMMIT_GUARD), "timeout": 60000}],
+            }
+        )
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
-    before.append({
-        "matcher": "run_shell_command",
-        "hooks": [{"type": "command",
-                   "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
-                   "timeout": 60000}],
-    })
+    before.append(
+        {
+            "matcher": "run_shell_command",
+            "hooks": [{"type": "command", "command": _cmd(COMMENT_GUARD), "timeout": 60000}],
+        }
+    )
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
-    before.append({
-        "matcher": "run_shell_command",
-        "hooks": [{"type": "command",
-                   "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}",
-                   "timeout": 60000}],
-    })
+    before.append(
+        {
+            "matcher": "run_shell_command",
+            "hooks": [{"type": "command", "command": _cmd(DEPENDENCY_GUARD), "timeout": 60000}],
+        }
+    )
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
-    read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}",
-                "timeout": 60000}
+    read_cmd = {"type": "command", "command": _cmd(READ_GUARD), "timeout": 60000}
     before.append({"matcher": "read_file", "hooks": [read_cmd]})
 
     settings_path = repo / ".gemini" / "settings.json"
@@ -161,9 +163,7 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     # Gemini can inject context (BeforeTool can't). Gemini has no plan tool, so
     # the guidance lands each turn rather than only on plan entry.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "gemini")
-    guidance_cmd = {"type": "command",
-                    "command": f"{py} {hooks_dir}/{GUIDANCE_GUARD}",
-                    "timeout": 60000}
+    guidance_cmd = {"type": "command", "command": _cmd(GUIDANCE_GUARD), "timeout": 60000}
     settings["hooks"] = {
         "BeforeAgent": [{"hooks": [guidance_cmd]}],
         "BeforeTool": before,
@@ -182,44 +182,46 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
 
     hooks: dict[str, list[dict]] = {}
     # Cursor execs the command path directly; rely on the script's shebang.
+    # The relative path is intentional and safe: Cursor runs project hooks
+    # (.cursor/hooks.json) from the repo root (documented), so no project-dir
+    # prefix is needed — unlike Claude/Gemini/Codex. Do NOT "absolutize" this.
     # failClosed: a crashing/malformed guard blocks the action rather than
     # silently allowing it (the guards are hardened to exit cleanly anyway).
     before_shell: list[dict] = []
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
         before_shell.append(
-            {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command",
-             "failClosed": True}
+            {"command": f"{hooks_dir}/{COMMIT_GUARD}", "type": "command", "failClosed": True}
         )
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
     before_shell.append(
-        {"command": f"{hooks_dir}/{COMMENT_GUARD}", "type": "command",
-         "failClosed": True}
+        {"command": f"{hooks_dir}/{COMMENT_GUARD}", "type": "command", "failClosed": True}
     )
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
     before_shell.append(
-        {"command": f"{hooks_dir}/{DEPENDENCY_GUARD}", "type": "command",
-         "failClosed": True}
+        {"command": f"{hooks_dir}/{DEPENDENCY_GUARD}", "type": "command", "failClosed": True}
     )
     hooks["beforeShellExecution"] = before_shell
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
     hooks["beforeReadFile"] = [
-        {"command": f"{hooks_dir}/{READ_GUARD}", "type": "command",
-         "failClosed": True}
+        {"command": f"{hooks_dir}/{READ_GUARD}", "type": "command", "failClosed": True}
     ]
     # Cursor's beforeSubmitPrompt is block-only; sessionStart is its sole
     # context-injection event, so the guidance lands once per session. Not
     # failClosed — a guidance hiccup must never wedge the session.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "cursor")
-    hooks["sessionStart"] = [
-        {"command": f"{hooks_dir}/{GUIDANCE_GUARD}", "type": "command"}
-    ]
+    hooks["sessionStart"] = [{"command": f"{hooks_dir}/{GUIDANCE_GUARD}", "type": "command"}]
 
-    if _write_json(repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks},
-                   force=force, label=label):
+    if _write_json(
+        repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks}, force=force, label=label
+    ):
         _report(label, bool(fmt or lint or com), read=True, web=False, plan=True)
 
 
@@ -230,40 +232,50 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".codex/hooks"
     py = _hook_python()
 
+    def _cmd(name: str) -> str:
+        # Codex has no project-root env var and runs hook commands from the
+        # session cwd, so a bare relative path is unsafe; `git rev-parse
+        # --show-toplevel` self-resolves the repo root from any subdir
+        # (klaussy-scaffolded repos are git repos).
+        return f'{py} "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
+
     # Codex has no plan tool, but reports permission_mode ("plan") on stdin and
     # can inject additionalContext from UserPromptSubmit — so the guidance script
     # self-gates to plan mode. Wired unconditionally (independent of lint/format).
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "codex")
     hooks_cfg: dict = {
-        "UserPromptSubmit": [{
-            "hooks": [{"type": "command",
-                       "command": f"{py} {hooks_dir}/{GUIDANCE_GUARD}",
-                       "timeout": 60}],
-        }]
+        "UserPromptSubmit": [
+            {
+                "hooks": [{"type": "command", "command": _cmd(GUIDANCE_GUARD), "timeout": 60}],
+            }
+        ]
     }
     bash_hooks: list[dict] = []
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
-        bash_hooks.append({"type": "command",
-                           "command": f"{py} {hooks_dir}/{COMMIT_GUARD}",
-                           "timeout": 60})
+        bash_hooks.append({"type": "command", "command": _cmd(COMMIT_GUARD), "timeout": 60})
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
-    bash_hooks.append({"type": "command",
-                       "command": f"{py} {hooks_dir}/{COMMENT_GUARD}",
-                       "timeout": 60})
+    bash_hooks.append({"type": "command", "command": _cmd(COMMENT_GUARD), "timeout": 60})
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
-    bash_hooks.append({"type": "command",
-                       "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}",
-                       "timeout": 60})
+    bash_hooks.append({"type": "command", "command": _cmd(DEPENDENCY_GUARD), "timeout": 60})
     hooks_cfg["PreToolUse"] = [{"matcher": "Bash", "hooks": bash_hooks}]
 
-    if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg},
-                   force=force, label=label):
-        _report(label, bool(fmt or lint or com), read=False, web=False, plan=True,
-                read_note="Codex has no pre-file-read hook event")
+    if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg}, force=force, label=label):
+        _report(
+            label,
+            bool(fmt or lint or com),
+            read=False,
+            web=False,
+            plan=True,
+            read_note="Codex has no pre-file-read hook event",
+        )
 
 
 def copilot_hooks(repo: Path, *, force: bool) -> None:
@@ -277,49 +289,76 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
     # sessionStart is Copilot's only context-injection event (preToolUse and
     # userPromptSubmitted can't inject), so the guidance lands once per session.
     # Wired unconditionally (independent of lint/format).
+    # Copilot has no project-root env var, but each hook entry takes a `cwd`
+    # field; pin it to "." so the relative bash/powershell commands resolve from
+    # the repo root. The OS-split form rules out a `$(...)`/env-var prefix
+    # (powershell wouldn't honor bash syntax), so `cwd` is the lever.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "copilot")
     hooks_cfg: dict = {
-        "sessionStart": [{
-            "type": "command",
-            "bash": f"python3 {hooks_dir}/{GUIDANCE_GUARD}",
-            "powershell": f"python {hooks_dir}/{GUIDANCE_GUARD}",
-            "timeoutSec": 60,
-        }]
+        "sessionStart": [
+            {
+                "type": "command",
+                "cwd": ".",
+                "bash": f"python3 {hooks_dir}/{GUIDANCE_GUARD}",
+                "powershell": f"python {hooks_dir}/{GUIDANCE_GUARD}",
+                "timeoutSec": 60,
+            }
+        ]
     }
     pre_tool: list[dict] = []
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
-        pre_tool.append({
-            "type": "command",
-            "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
-            "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
-            "timeoutSec": 60,
-        })
+        pre_tool.append(
+            {
+                "type": "command",
+                "cwd": ".",
+                "bash": f"python3 {hooks_dir}/{COMMIT_GUARD}",
+                "powershell": f"python {hooks_dir}/{COMMIT_GUARD}",
+                "timeoutSec": 60,
+            }
+        )
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
-    pre_tool.append({
-        "type": "command",
-        "bash": f"python3 {hooks_dir}/{COMMENT_GUARD}",
-        "powershell": f"python {hooks_dir}/{COMMENT_GUARD}",
-        "timeoutSec": 60,
-    })
+    pre_tool.append(
+        {
+            "type": "command",
+            "cwd": ".",
+            "bash": f"python3 {hooks_dir}/{COMMENT_GUARD}",
+            "powershell": f"python {hooks_dir}/{COMMENT_GUARD}",
+            "timeoutSec": 60,
+        }
+    )
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
-    pre_tool.append({
-        "type": "command",
-        "bash": f"python3 {hooks_dir}/{DEPENDENCY_GUARD}",
-        "powershell": f"python {hooks_dir}/{DEPENDENCY_GUARD}",
-        "timeoutSec": 60,
-    })
+    pre_tool.append(
+        {
+            "type": "command",
+            "cwd": ".",
+            "bash": f"python3 {hooks_dir}/{DEPENDENCY_GUARD}",
+            "powershell": f"python {hooks_dir}/{DEPENDENCY_GUARD}",
+            "timeoutSec": 60,
+        }
+    )
     hooks_cfg["preToolUse"] = pre_tool
 
     config = {"version": 1, "hooks": hooks_cfg}
-    if _write_json(repo / ".github" / "hooks" / "klaussy-guards.json", config,
-                   force=force, label=label):
-        _report(label, bool(fmt or lint or com), read=False, web=False, plan=True,
-                read_note="Copilot preToolUse is fail-closed; read-injection "
-                          "tool args are unconfirmed, so it's omitted")
+    if _write_json(
+        repo / ".github" / "hooks" / "klaussy-guards.json", config, force=force, label=label
+    ):
+        _report(
+            label,
+            bool(fmt or lint or com),
+            read=False,
+            web=False,
+            plan=True,
+            read_note="Copilot preToolUse is fail-closed; read-injection "
+            "tool args are unconfirmed, so it's omitted",
+        )
 
 
 def antigravity_hooks(repo: Path, *, force: bool) -> None:
@@ -346,23 +385,31 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = f"{plugin}/hooks"
     py = _hook_python()
 
+    def _cmd(name: str) -> str:
+        # Antigravity's hook cwd/env contract is UNVERIFIED against primary docs,
+        # so we self-resolve the repo root via `git rev-parse --show-toplevel` —
+        # safe from any cwd, independent of any env var. See the README caveat
+        # (the plugin config path/event names here are also unverified).
+        return f'{py} "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
+
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
-    read_cmd = {"type": "command", "command": f"{py} {hooks_dir}/{READ_GUARD}"}
+    read_cmd = {"type": "command", "command": _cmd(READ_GUARD)}
     pre: list[dict] = [{"matcher": "view_file", "hooks": [read_cmd]}]
     run_command_hooks: list[dict] = []
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
-        run_command_hooks.append({"type": "command",
-                                  "command": f"{py} {hooks_dir}/{COMMIT_GUARD}"})
+        run_command_hooks.append({"type": "command", "command": _cmd(COMMIT_GUARD)})
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
-    run_command_hooks.append({"type": "command",
-                              "command": f"{py} {hooks_dir}/{COMMENT_GUARD}"})
+    run_command_hooks.append({"type": "command", "command": _cmd(COMMENT_GUARD)})
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
-    run_command_hooks.append({"type": "command",
-                              "command": f"{py} {hooks_dir}/{DEPENDENCY_GUARD}"})
+    run_command_hooks.append({"type": "command", "command": _cmd(DEPENDENCY_GUARD)})
     pre.append({"matcher": "run_command", "hooks": run_command_hooks})
     config = {
         "klaussy": {
@@ -399,8 +446,12 @@ def cline_hooks(repo: Path, *, force: bool) -> None:
     # Shared guards driven by the shim.
     if fmt or lint or com:
         _install_script(
-            repo, f"{hooks_dir}/{COMMIT_GUARD}", "commit_guard.py",
-            format_cmd=fmt, lint_cmd=lint, comment_check_cmd=com,
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
         )
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
@@ -437,8 +488,6 @@ def _report(
     wired = ", ".join(parts) if parts else "none"
     console.print(f"[green]✔ [{label}] hooks wired: {wired}[/green]")
     if not commit:
-        console.print(
-            f"[dim][{label}] git-commit guard skipped (no lint/format detected).[/dim]"
-        )
+        console.print(f"[dim][{label}] git-commit guard skipped (no lint/format detected).[/dim]")
     if read_note:
         console.print(f"[dim][{label}] {read_note}.[/dim]")

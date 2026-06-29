@@ -12,25 +12,31 @@ from klaussy.skills import _read_version, _write_version
 
 console = Console()
 
+# Claude Code runs hook commands in the session's current directory, which is
+# NOT guaranteed to be the project root, so a bare relative path can fail to
+# resolve; ${CLAUDE_PROJECT_DIR} always expands to the project root. See
+# https://code.claude.com/docs/en/hooks.md ("Path Placeholders").
+PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
+
 GUARD_SCRIPT_NAME = "read_injection_guard.py"
 GUARD_RELPATH = f".claude/hooks/{GUARD_SCRIPT_NAME}"
-GUARD_COMMAND = f"python3 {GUARD_RELPATH}"
+GUARD_COMMAND = f"python3 {PROJECT_DIR}/{GUARD_RELPATH}"
 
 COMMIT_GUARD_SCRIPT_NAME = "git_commit_guard.py"
 COMMIT_GUARD_RELPATH = f".claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}"
-COMMIT_GUARD_COMMAND = f"python3 {COMMIT_GUARD_RELPATH}"
+COMMIT_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{COMMIT_GUARD_RELPATH}"
 
 COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
 COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
-COMMENT_GUARD_COMMAND = f"python3 {COMMENT_GUARD_RELPATH}"
+COMMENT_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{COMMENT_GUARD_RELPATH}"
 
 DEPENDENCY_GUARD_SCRIPT_NAME = "dependency_guard.py"
 DEPENDENCY_GUARD_RELPATH = f".claude/hooks/{DEPENDENCY_GUARD_SCRIPT_NAME}"
-DEPENDENCY_GUARD_COMMAND = f"python3 {DEPENDENCY_GUARD_RELPATH}"
+DEPENDENCY_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{DEPENDENCY_GUARD_RELPATH}"
 
 PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
-PLAN_GUIDANCE_COMMAND = f"python3 {PLAN_GUIDANCE_RELPATH}"
+PLAN_GUIDANCE_COMMAND = f"python3 {PROJECT_DIR}/{PLAN_GUIDANCE_RELPATH}"
 
 # Placeholder baked into direct tool commands; the commit guard expands it to
 # the staged files at commit time so the gate only judges the change being
@@ -130,9 +136,7 @@ def _install_comment_guard_script(repo: Path) -> Path:
     a plain copy is enough (unlike the commit guard's format/lint sentinels)."""
     dest = repo / COMMENT_GUARD_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
-    source = resources.files("klaussy").joinpath(
-        f"templates/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
-    )
+    source = resources.files("klaussy").joinpath(f"templates/hooks/{COMMENT_GUARD_SCRIPT_NAME}")
     dest.write_text(source.read_text())
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -175,9 +179,7 @@ def _install_commit_guard_script(
     content = source.read_text()
     content = content.replace('"__KLAUSSY_FORMAT_CMD__"', _python_literal(format_cmd))
     content = content.replace('"__KLAUSSY_LINT_CMD__"', _python_literal(lint_cmd))
-    content = content.replace(
-        '"__KLAUSSY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd)
-    )
+    content = content.replace('"__KLAUSSY_COMMENT_CHECK_CMD__"', _python_literal(comment_check_cmd))
     dest.write_text(content)
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -188,13 +190,9 @@ def _install_plan_guidance_script(repo: Path, dialect: str) -> Path:
     """Render the pre-plan guidance injector with text + dialect baked in."""
     dest = repo / PLAN_GUIDANCE_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
-    source = resources.files("klaussy").joinpath(
-        "templates/hooks/multi/plan_guidance.py"
-    )
+    source = resources.files("klaussy").joinpath("templates/hooks/multi/plan_guidance.py")
     content = source.read_text()
-    content = content.replace(
-        '"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance())
-    )
+    content = content.replace('"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance()))
     content = content.replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
     dest.write_text(content)
     mode = dest.stat().st_mode
@@ -284,6 +282,7 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # named dependency until the agent confirms it. No project-specific command,
     # so always installed.
     _install_dependency_guard_script(repo)
+
     def _entry(matcher: str, command: str) -> dict:
         return {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
 
@@ -327,23 +326,13 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
             f"[green]✔ Added {added} hook(s) to {settings_file.relative_to(repo)}[/green]"
         )
     else:
-        console.print(
-            f"[dim]Hooks already up to date in {settings_file.relative_to(repo)}.[/dim]"
-        )
+        console.print(f"[dim]Hooks already up to date in {settings_file.relative_to(repo)}.[/dim]")
     console.print(f"[green]✔ Installed read-injection guard at {GUARD_RELPATH}[/green]")
-    console.print(
-        f"[green]✔ Installed pre-plan guidance hook at {PLAN_GUIDANCE_RELPATH}[/green]"
-    )
-    console.print(
-        f"[green]✔ Installed dependency gate at {DEPENDENCY_GUARD_RELPATH}[/green]"
-    )
+    console.print(f"[green]✔ Installed pre-plan guidance hook at {PLAN_GUIDANCE_RELPATH}[/green]")
+    console.print(f"[green]✔ Installed dependency gate at {DEPENDENCY_GUARD_RELPATH}[/green]")
     if has_commit_guard:
-        console.print(
-            f"[green]✔ Installed git-commit guard at {COMMIT_GUARD_RELPATH}[/green]"
-        )
+        console.print(f"[green]✔ Installed git-commit guard at {COMMIT_GUARD_RELPATH}[/green]")
     else:
-        console.print(
-            "[dim]Skipped git-commit guard (no lint/format commands detected).[/dim]"
-        )
+        console.print("[dim]Skipped git-commit guard (no lint/format commands detected).[/dim]")
 
     return settings_file
