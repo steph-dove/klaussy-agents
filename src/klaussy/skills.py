@@ -45,36 +45,53 @@ HUMANIZE_BLOCK = "\n".join(
         "",
         "- **No em-dashes or en-dashes** (`—` / `–`) in prose. Use a comma"
         " or rewrite. This is the single biggest AI tell.",
-        "- **No filler openers.** Cut \"It's worth noting that\", \"It's important to"
-        " note that\", \"I noticed that\", \"I wanted to point out that\", \"Please"
-        " note that\", \"Just to mention\", \"Worth noting\", \"Note that\". State"
+        '- **No filler openers.** Cut "It\'s worth noting that", "It\'s important to'
+        ' note that", "I noticed that", "I wanted to point out that", "Please'
+        ' note that", "Just to mention", "Worth noting", "Note that". State'
         " the point directly.",
-        "- **No chatbot scaffolding.** No \"Let me know if...\", \"Hope this helps\","
-        " \"Feel free to...\", \"Happy to help\", \"Let me know your thoughts\".",
-        "- **Tighten hedges.** \"in order to\" → \"to\"; \"could potentially\""
-        " → \"could\"; \"may potentially\" → \"may\". Drop stacked"
+        '- **No chatbot scaffolding.** No "Let me know if...", "Hope this helps",'
+        ' "Feel free to...", "Happy to help", "Let me know your thoughts".',
+        '- **Tighten hedges.** "in order to" → "to"; "could potentially"'
+        ' → "could"; "may potentially" → "may". Drop stacked'
         " qualifiers.",
-        "- **No emoji, no exclamatory enthusiasm, no \"Certainly\"/\"Great"
-        " question\".**",
+        '- **No emoji, no exclamatory enthusiasm, no "Certainly"/"Great question".**',
         "- **Don't let trimming tip into terse.** Cutting filler shouldn't make"
         " prose read as curt or dismissive. Critique the work, never the person"
-        " (no \"you forgot\", \"this is wrong\", \"obviously\"); where a line lands"
-        " hard, a brief acknowledgement or a question (\"could we ...?\", \"one"
-        " risk is ...\") takes the edge off. A light touch only, not filler praise"
-        " or \"great job\" boilerplate.",
+        ' (no "you forgot", "this is wrong", "obviously"); where a line lands'
+        ' hard, a brief acknowledgement or a question ("could we ...?", "one'
+        ' risk is ...") takes the edge off. A light touch only, not filler praise'
+        ' or "great job" boilerplate.',
         "- **Don't mirror the thread's tone.** When you reply to an existing"
         " comment, review note, or message, read it for substance but not for"
         " temperature: neutralize any rudeness or bluntness in it before you"
         " draft. Hostile or curt input must not prime a hostile or curt reply,"
         " answer as if the other person had phrased it civilly.",
-        "- **Be short, then cut more.** Say it in the fewest words that carry the"
-        " substance, then drop what's left. Lead with the point; don't pad to"
-        " sound thorough or stack throat-clearing ahead of it. A reply in a"
-        " thread is usually one sentence; a single review comment one to five."
-        " If it runs longer, cut it, don't summarize it.",
+        "- **Be short, then cut more.** Lead with the point. Keep the decision and"
+        " the one fact that justifies it, then stop. A reply in a thread is usually"
+        " one sentence; a single review comment one to five. Don't pad to sound"
+        " thorough or stack throat-clearing ahead of the point.",
+        "- **Cut detail, not just words.** The verbose tell isn't long words, it's"
+        " over-explaining. Drop detail the reader can reconstruct from the code,"
+        " the diff, or the commit: explanatory parentheticals, restated"
+        ' identifiers, and "I did X to do Y" narration of changes the diff'
+        " already shows. Keep the load-bearing fact; drop what's merely supporting."
+        " This is the one place humanizing may drop content, never reverse or"
+        " invent meaning, but you need not preserve every clause.",
         "- Vary sentence shape; don't open every line the same way. Never reword"
         " code, identifiers, or anything inside backticks or fences. Humanize prose"
         " only.",
+        "",
+        "**Same decision, half the words, dropping detail the reader can reconstruct:**",
+        "",
+        "> Verbose: Good call, done. attachment.reason already embeds the decline"
+        " reason for declined envelopes (built in checkEnvelopeStatus as {name}"
+        " declined on {date} - {declinedReason}), so I dropped the new"
+        " declinedReason signer field and reverted NotificationService to use the"
+        " existing reason field. Pushed in 1e9e938404.",
+        "",
+        "> Human: Good call. `attachment.reason` already carries the decline"
+        " reason, so I dropped the new field and reverted NotificationService."
+        " Pushed in 1e9e938404.",
     ]
 )
 
@@ -156,9 +173,7 @@ def _migrate_legacy_commands(repo: Path) -> None:
 
     for path in removed:
         console.print(f"[dim]  Removed legacy {path.relative_to(repo)}[/dim]")
-    console.print(
-        f"[green]✔ Migrated {len(removed)} legacy command(s) → skills.[/green]"
-    )
+    console.print(f"[green]✔ Migrated {len(removed)} legacy command(s) → skills.[/green]")
 
 
 def scaffold_skills(
@@ -177,9 +192,7 @@ def scaffold_skills(
 
     existing_version = _read_version(skills_dir)
     if existing_version == __version__ and not force:
-        console.print(
-            f"[dim]Skills already up to date (v{__version__}), skipping.[/dim]"
-        )
+        console.print(f"[dim]Skills already up to date (v{__version__}), skipping.[/dim]")
         return []
 
     created: list[Path] = []
@@ -210,11 +223,7 @@ def scaffold_skills(
             # it also receives repo-specific check enrichment via `klaussy
             # checklist`). Sibling files like sub-agents.md still come from the
             # built-in templates.
-            if (
-                skill == "review"
-                and filename == "SKILL.md"
-                and review_template is not None
-            ):
+            if skill == "review" and filename == "SKILL.md" and review_template is not None:
                 content = review_template.read_text()
             else:
                 content = template_file.read_text()
@@ -222,9 +231,7 @@ def scaffold_skills(
             content = _substitute(content)
 
             if target.exists() and target.read_text() == content and not force:
-                console.print(
-                    f"[dim]  {target.relative_to(repo)} unchanged, skipping.[/dim]"
-                )
+                console.print(f"[dim]  {target.relative_to(repo)} unchanged, skipping.[/dim]")
                 continue
 
             target.write_text(content)
