@@ -136,7 +136,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.11.0** (faster parallel review validation, `klaussy review-prep` diff trimming, `slop-coded` skill).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.12.0** (hook scripts resolve from project root, tighter `humanize` output).
 
 ---
 
