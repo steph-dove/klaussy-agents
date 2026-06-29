@@ -2,7 +2,7 @@
 
 Thanks for your interest in improving klaussy! It's a Python CLI that scaffolds
 conventions, skills, and hooks into repos for Claude Code, Gemini, Cursor,
-Codex, Copilot, and Antigravity.
+Codex, Copilot, Antigravity, Cline, and Aider.
 
 ## Getting started
 

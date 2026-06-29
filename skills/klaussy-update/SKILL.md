@@ -1,13 +1,13 @@
 ---
 name: klaussy-update
-description: Use when the user wants to refresh klaussy-generated boilerplate (skills, settings, hooks, CLAUDE.md) after upgrading klaussy itself. Re-runs the scaffold against the latest templates so this repo picks up new skills, prompt revisions, and convention rules.
+description: Use when the user wants to refresh klaussy-generated boilerplate (per-agent conventions, skills, settings, hooks) across every scaffolded agent after upgrading klaussy itself. Re-runs the scaffold against the latest templates so this repo picks up new skills, prompt revisions, and convention rules.
 argument-hint: "[--skip-enrich]"
 allowed-tools: Read Bash(pipx *) Bash(klaussy *) Bash(pip *) Bash(git *)
 ---
 
 # Klaussy update
 
-Refresh this repository's klaussy-generated boilerplate to match the latest klaussy version.
+Refresh this repository's klaussy-generated boilerplate to match the latest klaussy version, for every agent klaussy previously scaffolded (Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, Aider).
 
 ## Steps
 
@@ -22,10 +22,10 @@ Refresh this repository's klaussy-generated boilerplate to match the latest klau
    klaussy init --force --base-branch <detected> $ARGUMENTS
    ```
 
-5. **Diff the result.** Run `git diff CLAUDE.md .claude/` and summarize the substantive changes for the user:
+5. **Diff the result.** Run `git diff` over the generated files for every scaffolded agent — Claude (`CLAUDE.md`, `.claude/`) plus any of `GEMINI.md`/`.gemini/`, `AGENTS.md` (Codex/Antigravity), `.cursor/`, `.github/copilot-instructions.md`/`.github/skills/`, `.clinerules/`, `CONVENTIONS.md` (Aider) that exist — and summarize the substantive changes for the user:
    - New skills added or removed
    - Prompt body changes in `<repo>-plan` / `<repo>-review` / etc.
-   - New / changed rule files under `.claude/rules/`
+   - New / changed rule files (e.g. under `.claude/rules/`)
    - Settings or hook changes
    This is the user's chance to review before committing the refresh.
 
