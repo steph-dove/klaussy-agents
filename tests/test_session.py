@@ -33,6 +33,8 @@ def test_scaffolds_session_and_protocol(tmp_path: Path):
 
 def test_records_current_branch(tmp_path: Path):
     _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.email", "t@t.co")
+    _git(tmp_path, "config", "user.name", "t")
     _git(tmp_path, "commit", "--allow-empty", "-m", "init")
     _git(tmp_path, "checkout", "-b", "feature/x")
     scaffold_session(repo=tmp_path)
