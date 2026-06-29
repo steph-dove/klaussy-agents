@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.12.0] - 2026-06-29
+
+### Fixed
+
+- **Hook scripts resolve from the project root across all agents** — installed
+  guard hooks now locate their scripts relative to the project root rather than
+  the current working directory, so they fire correctly regardless of where the
+  agent is invoked from. Because skill/hook scaffolding is version-gated on
+  `.klaussy-version`, existing installs only pick this up on a re-run after the
+  version bump (or with `--force`).
+
+### Changed
+
+- **`humanize` cuts over-explanation, not just surface AI tells** — the humanize
+  skill now also trims redundant scaffolding and over-explanation rather than
+  only stripping em-dashes and filler openers, producing tighter prose. The
+  deterministic scrubber backstop is unchanged.
+
 ## [0.11.0] - 2026-06-28
 
 ### Added
