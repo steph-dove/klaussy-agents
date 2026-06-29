@@ -1,6 +1,6 @@
 {
   "name": "klaussy",
-  "version": "0.2.0",
+  "version": "0.11.0",
   "description": "Claude Code boilerplate generator — scaffolds CLAUDE.md (path-scoped), namespaced .claude/skills/<repo>-<skill>/, settings, hooks, and PR template. Includes plugin-level klaussy-init and klaussy-update skills plus an MCP server.",
   "author": {
     "name": "Stephanie Dover",

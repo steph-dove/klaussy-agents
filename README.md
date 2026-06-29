@@ -7,7 +7,7 @@
 
 > **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, Google Antigravity, Cline, and Aider.
 
-Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **seven major AI coding environments**—matching each agent's native file formats and capability profiles.
+Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **eight major AI coding environments**—matching each agent's native file formats and capability profiles.
 
 ---
 
@@ -136,7 +136,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.10.0** (dependency gate hook, `adr-generator` + `security-audit` skills, shared cross-agent session state).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.11.0** (faster parallel review validation, `klaussy review-prep` diff trimming, `slop-coded` skill).
 
 ---
 
