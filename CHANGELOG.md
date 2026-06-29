@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **`slop-coded` skill** — the joke inverse of `humanize`. Takes clean human
+  prose and inflates it into maximal AI slop (em-dashes, filler openers, the
+  "it's not X — it's Y" reframe, "and that's the whole point", emoji bullets,
+  the *delve/tapestry/testament* lexicon). For demos and stress-testing the
+  humanizer, not real deliverables. Preserves facts and never touches code.
+
 ## [0.10.0]
 
 ### Added
