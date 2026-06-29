@@ -9,6 +9,14 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ### Added
 
+- **`klaussy review-prep` + faster review skill** — a deterministic diff
+  pre-processor that trims a branch diff to the reviewable files (dropping
+  lockfiles, generated/vendored trees, minified/binary blobs, and pure renames)
+  and emits an explicit manifest of what it excluded. The `review` skill's
+  Phase 1 now sources its diff from `review-prep` (falling back to `git diff`
+  when the CLI isn't on PATH) and triages on the trimmed line count, so the
+  model reads far fewer tokens on noisy PRs. On a representative diff this cut
+  the input from 631 to 11 lines (~98%).
 - **`slop-coded` skill** — the joke inverse of `humanize`. Takes clean human
   prose and inflates it into maximal AI slop (em-dashes, filler openers, the
   "it's not X — it's Y" reframe, "and that's the whole point", emoji bullets,

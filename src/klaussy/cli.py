@@ -16,6 +16,7 @@ from klaussy.comment_lint import analyze as analyze_comments
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
+from klaussy.review_prep import prepare_review, render_dict, render_markdown
 
 app = typer.Typer(name="klaussy", help="Multi-agent repo boilerplate generator.")
 console = Console()
@@ -310,6 +311,32 @@ def comment_lint(
         console.print(finding.render())
     if findings:
         raise typer.Exit(1)
+
+
+@app.command(name="review-prep")
+def review_prep(
+    base: str | None = typer.Option(
+        None, "--base", "-b", help="Base branch/ref. Auto-detected (dev/main/master) if omitted."
+    ),
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+    as_json: bool = typer.Option(
+        False, "--json", help="Emit structured JSON instead of the markdown payload."
+    ),
+) -> None:
+    """Trim a branch diff to the reviewable files before the review skill reads it.
+
+    Drops lockfiles, generated/vendored trees, minified/binary blobs, and pure
+    renames, then prints the trimmed diff plus an explicit manifest of what was
+    excluded (so nothing is hidden from the reviewer). Designed to be the diff
+    source the review skill consumes — fewer tokens in, faster review.
+    """
+    payload = prepare_review(repo=repo, base_branch=base)
+    if as_json:
+        import json
+
+        sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
+    else:
+        sys.stdout.write(render_markdown(payload))
 
 
 def main() -> None:
