@@ -26,6 +26,7 @@ SKILL_NAMES = [
     "new-worktree",
     "adr-generator",
     "security-audit",
+    "slop-coded",
 ]
 
 VERSION_FILE = ".klaussy-version"
