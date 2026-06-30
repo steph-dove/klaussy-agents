@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import re
+import subprocess
 import tokenize
 from dataclasses import dataclass
 from pathlib import Path
@@ -178,6 +179,55 @@ def _header_lines(prose: list[tuple[int, str]], first_code: int) -> set[int]:
     return header
 
 
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def changed_lines(path: str) -> set[int] | None:
+    """Working-tree line numbers added/changed vs HEAD for `path`.
+
+    Returns a set of 1-based line numbers that differ from HEAD, for scoping
+    findings to the diff in flight. Returns None — meaning "treat the whole
+    file as changed" — when the diff can't be trusted to under-report: git is
+    unavailable, the file is untracked/new (no HEAD version), or git errors.
+    An empty set means the file is tracked but has no changes vs HEAD.
+
+    Line numbers are read from `git diff HEAD` hunk headers, which index the
+    working-tree side — the same text `analyze()` reads from disk.
+    """
+    try:
+        diff = subprocess.run(
+            ["git", "diff", "HEAD", "--unified=0", "--no-color", "--", path],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    if diff.returncode != 0:
+        return None
+    if not diff.stdout.strip():
+        # No diff: either an unchanged tracked file (→ empty set, nothing to
+        # flag) or an untracked file with no HEAD side (→ whole file is new).
+        try:
+            tracked = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", "--", path],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return None
+        return set() if tracked.returncode == 0 else None
+
+    out: set[int] = set()
+    for line in diff.stdout.splitlines():
+        m = _HUNK_RE.match(line)
+        if not m:
+            continue
+        start = int(m.group(1))
+        count = 1 if m.group(2) is None else int(m.group(2))
+        out.update(range(start, start + count))
+    return out
+
+
 def _findings(path: str, text: str, records: list[_Record]) -> list[Finding]:
     findings: list[Finding] = []
     prose = [(ln, txt) for ln, full, txt in records if full and txt and not _is_directive(txt)]
@@ -217,8 +267,18 @@ def _findings(path: str, text: str, records: list[_Record]) -> list[Finding]:
     return findings
 
 
-def analyze(path: str, text: str) -> list[Finding]:
-    """Return verbose-comment findings for one file's text. Empty when clean."""
+def _overlaps(finding: Finding, scope: set[int]) -> bool:
+    return any(ln in scope for ln in range(finding.start, finding.end + 1))
+
+
+def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding]:
+    """Return verbose-comment findings for one file's text. Empty when clean.
+
+    When `scope` is a set of line numbers, only findings that overlap those
+    lines are returned — used to limit the check to the diff in flight so
+    pre-existing comments elsewhere in the file don't block a commit. `None`
+    (the default) reports across the whole file.
+    """
     ext = Path(path).suffix.lower()
     if ext in _PY_EXT:
         records = _python_comments(text)
@@ -230,4 +290,7 @@ def analyze(path: str, text: str) -> list[Finding]:
         records = _slash_comments(text)
     else:
         return []
-    return _findings(path, text, records)
+    findings = _findings(path, text, records)
+    if scope is not None:
+        findings = [f for f in findings if _overlaps(f, scope)]
+    return findings

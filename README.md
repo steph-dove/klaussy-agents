@@ -136,7 +136,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.12.0** (hook scripts resolve from project root, tighter `humanize` output).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.12.1** (verbose-comment precommit check scoped to the diff).
 
 ---
 

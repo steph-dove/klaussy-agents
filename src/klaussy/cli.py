@@ -13,6 +13,7 @@ from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klaussy.checklist import generate_checklist
 from klaussy.claude_md import run_init
 from klaussy.comment_lint import analyze as analyze_comments
+from klaussy.comment_lint import changed_lines
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
@@ -291,6 +292,11 @@ def comment_lint(
     files: list[Path] = typer.Argument(
         ..., help="Source files to scan for over-long comment blocks."
     ),
+    diff: bool = typer.Option(
+        False,
+        "--diff",
+        help="Only flag comments overlapping lines changed vs HEAD (used by the precommit guard).",
+    ),
 ) -> None:
     """Flag verbose comments (block-only); exit 1 if any are found.
 
@@ -298,6 +304,9 @@ def comment_lint(
     catch narration comments ruff can't. It only reports — stripping a flagged
     comment to the bare minimum is left to the author. Unreadable files and
     unsupported languages are skipped silently.
+
+    With --diff, findings are scoped to lines that differ from HEAD, so
+    pre-existing comments elsewhere in a changed file don't block the commit.
     """
     findings = []
     for path in files:
@@ -305,7 +314,8 @@ def comment_lint(
             text = path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
-        findings.extend(analyze_comments(str(path), text))
+        scope = changed_lines(str(path)) if diff else None
+        findings.extend(analyze_comments(str(path), text, scope))
 
     for finding in findings:
         console.print(finding.render())
