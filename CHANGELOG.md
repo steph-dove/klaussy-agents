@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.12.1] - 2026-06-29
+
+### Fixed
+
+- **Verbose-comment precommit check only scans the diff** — `klaussy
+  comment-lint` gained a `--diff` flag (now used by the commit guards) that
+  scopes findings to lines changed vs `HEAD`. Previously the check read each
+  changed file in full, so a long pre-existing comment block anywhere in a
+  touched file blocked the commit even when the diff never went near it.
+  New/untracked files are still scanned in full. Because hook scaffolding is
+  version-gated on `.klaussy-version`, existing installs pick this up on a
+  re-run after the version bump (or with `--force`).
+
 ## [0.12.0] - 2026-06-29
 
 ### Fixed

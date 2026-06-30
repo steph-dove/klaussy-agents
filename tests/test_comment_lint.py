@@ -1,10 +1,11 @@
 """Tests for the deterministic verbose-comment detector and its guard wiring."""
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 from klaussy import hooks as hooks_mod
-from klaussy.comment_lint import COMMENT_RUN_MAX, COMMENT_WORD_MAX, analyze
+from klaussy.comment_lint import COMMENT_RUN_MAX, COMMENT_WORD_MAX, analyze, changed_lines
 
 TEMPLATES = Path(hooks_mod.__file__).parent / "templates" / "hooks"
 
@@ -172,6 +173,77 @@ def test_render_format_single_and_range():
     assert "strip to the bare minimum" in rendered
 
 
+# --- diff scoping ----------------------------------------------------------
+
+
+_BLOCK = (
+    "x = 1\n"
+    "# this function takes the user input and validates it\n"
+    "# against the schema, then normalizes the casing because\n"
+    "# downstream code assumes lowercase, and finally returns\n"
+    "# the cleaned value to the caller for further processing\n"
+    "y = 2\n"
+)
+
+
+def test_scope_keeps_overlapping_finding():
+    # The block spans lines 2-5; a changed line inside it keeps the finding.
+    assert len(analyze("foo.py", _BLOCK, scope={4})) == 1
+
+
+def test_scope_drops_finding_outside_diff():
+    # No changed line touches the 2-5 block, so it's filtered out.
+    assert analyze("foo.py", _BLOCK, scope={1, 6}) == []
+
+
+def test_empty_scope_drops_everything():
+    assert analyze("foo.py", _BLOCK, scope=set()) == []
+
+
+def test_none_scope_reports_whole_file():
+    assert len(analyze("foo.py", _BLOCK, scope=None)) == 1
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def _init_repo(repo: Path) -> None:
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+
+
+def test_changed_lines_reports_only_added_lines(tmp_path, monkeypatch):
+    repo = tmp_path
+    _init_repo(repo)
+    (repo / "f.py").write_text("a = 1\nb = 2\nc = 3\n")
+    _git(repo, "add", "f.py")
+    _git(repo, "commit", "-qm", "init")
+    (repo / "f.py").write_text("a = 1\nb = 2\nc = 3\n# new comment\n")
+    monkeypatch.chdir(repo)
+    assert changed_lines("f.py") == {4}
+
+
+def test_changed_lines_untracked_file_is_whole_file(tmp_path, monkeypatch):
+    repo = tmp_path
+    _init_repo(repo)
+    (repo / "new.py").write_text("x = 1\n")
+    monkeypatch.chdir(repo)
+    # No HEAD side — scope None means "report across the whole file".
+    assert changed_lines("new.py") is None
+
+
+def test_changed_lines_unchanged_tracked_file_is_empty(tmp_path, monkeypatch):
+    repo = tmp_path
+    _init_repo(repo)
+    (repo / "f.py").write_text("a = 1\n")
+    _git(repo, "add", "f.py")
+    _git(repo, "commit", "-qm", "init")
+    monkeypatch.chdir(repo)
+    assert changed_lines("f.py") == set()
+
+
 # --- guard wiring ----------------------------------------------------------
 
 
@@ -189,7 +261,7 @@ def test_commit_guards_run_the_verbose_check():
         ("multi/commit_guard.py", "_multi_commit_guard"),
     ):
         mod = _load_guard(relpath, name)
-        assert mod.VERBOSE_COMMENT_CMD == "klaussy comment-lint __KLAUSSY_PATHS__"
+        assert mod.VERBOSE_COMMENT_CMD == "klaussy comment-lint --diff __KLAUSSY_PATHS__"
         # PATHS placeholder resolves to the staged files, like the other checks.
         resolved = mod._resolve(mod.VERBOSE_COMMENT_CMD, ["a.py", "b.py"])
-        assert resolved == "klaussy comment-lint a.py b.py"
+        assert resolved == "klaussy comment-lint --diff a.py b.py"
