@@ -1,0 +1,4 @@
+# examples/ holds generated `klaussy init` output kept in the repo for reference
+# only — it is not part of the package. Pruned so it never lands in the sdist
+# (the wheel already excludes it: packages are discovered under src/).
+prune examples

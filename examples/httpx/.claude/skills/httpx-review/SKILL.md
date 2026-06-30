@@ -118,17 +118,24 @@ You are a senior/principal-level engineer reviewing a pull request. Treat this a
 - for `httpx/**/*.py`: Manual validation (ValueError/TypeError): Validate inputs and parameters: Use Manual validation (ValueError/TypeError) for input validation. 17/17 validation patterns use this approach..
 - for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.
 
+### Verification Commands
+Ensure these pass before approving:
+- `requirements.txt`
+- `scripts/check`
+- `network`
+- `mypy`
+
 ### Known Pitfalls
 Flag if any of these are violated:
 - 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
-- `[tool.coverage.run]` enforces `--fail-under=100`: `scripts/test` fails if any line in `httpx/` or `tests/` isn't covered. Genuinely unreachable branches (e.g. the `NotImplementedError` stubs in `_transports/base.py`) are marked `# pragma: no cover` rather than left uncovered.
-- `pytest` sets `filterwarnings = ["error", ...]`: any warning raised during a test — including a new `DeprecationWarning` you introduce — becomes a hard test failure unless it's added to the `filterwarnings` allowlist in `pyproject.toml`.
-- `mypy` runs in `strict = true` mode against both `httpx` and `tests`; only `tests.*` gets a relaxed override (`disallow_untyped_defs = false`). New code under `httpx/` must be fully annotated.
-- `ruff` ignores `B904` (raise-without-`from`-inside-`except`) and `B028` (no-explicit-`stacklevel`) repo-wide, and `__init__.py` is exempted from `F403`/`F405` since it intentionally re-exports via `from ._api import *`-style imports — don't "fix" these locally.
-- `scripts/check`/`scripts/lint`/`scripts/test` auto-prefix commands with `venv/bin/` whenever a `venv/` directory exists; running bare `pytest`/`mypy`/`ruff` outside that venv can silently use a different interpreter/dependency set than CI does.
-- `scripts/sync-version` (run as part of `scripts/check`) fails if the version in `CHANGELOG.md` doesn't match `httpx/__version__.py` — bump both together when cutting a release.
-- `Client`/`AsyncClient`'s `verify=<str>` and `cert=` arguments are deprecated since v0.28.0 and raise warnings on use — combined with `filterwarnings = ["error"]`, exercising them in a test fails that test rather than just warning.
-- `response.stream` must be explicitly consumed or closed (`response.read()`, or a `try/finally` around `handle_request`/`handle_async_request`) per the docstring in `httpx/_transports/base.py` — otherwise the underlying connection leaks.
+- New public symbols must be added to `__all__` in `httpx/__init__.py` *and* exported with `*` from their source module's own `__all__`, or `import httpx` won't expose them even though the module-level import works.
+- `scripts/coverage` fails the build below 100% line coverage — untested branches need either a test or `# pragma: no cover` (66 existing usages in `httpx/`), don't add code paths that can't be exercised by the test suite.
+- `ruff` has `B904` (raise-without-from-inside-except) and `B028` (no-explicit-stacklevel) deliberately disabled in `pyproject.toml` — don't assume `raise X from Y` is enforced everywhere; check `_exceptions.py`/`_decoders.py` for the actual exception-chaining convention instead.
+- `mypy` is `strict = true` for `httpx/` but relaxed for `tests/*` (`disallow_untyped_defs = false`) — code under `httpx/` needs full annotations, test helpers don't.
+- `pytest` runs with `filterwarnings = ["error", ...]` (see `pyproject.toml`) — any unfiltered `DeprecationWarning`/`RuntimeWarning` raised during tests becomes a hard failure, not just noise in the output.
+- Tests requiring network access are marked `@pytest.mark.network`; some third-party/offline CI environments disable networking and deselect on this marker — don't assume a failing un-marked test is a flake if it secretly needs the network.
+- `scripts/install` behaves differently under CI (`$GITHUB_ACTIONS` set → installs directly, no `venv/`) vs. local (creates `venv/`) — other scripts detect this via `[ -d 'venv' ]`, so running scripts after a partial/manual install can silently use the wrong interpreter.
+- The `verify` (string form) and `cert` `Client`/`request` arguments are deprecated since v0.28.0 and emit warnings — combined with `filterwarnings = ["error", ...]` in tests, using them in test code will break the suite, not just warn.
 
 ### Tone & standards — pick a delivery mode, keep the substance:
 
