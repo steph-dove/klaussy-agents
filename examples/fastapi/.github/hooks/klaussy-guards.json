@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 .github/hooks/klaussy_plan_guidance.py",
+        "powershell": "python .github/hooks/klaussy_plan_guidance.py",
+        "timeoutSec": 60
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 .github/hooks/klaussy_commit_guard.py",
+        "powershell": "python .github/hooks/klaussy_commit_guard.py",
+        "timeoutSec": 60
+      },
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 .github/hooks/klaussy_comment_guard.py",
+        "powershell": "python .github/hooks/klaussy_comment_guard.py",
+        "timeoutSec": 60
+      },
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 .github/hooks/klaussy_dependency_guard.py",
+        "powershell": "python .github/hooks/klaussy_dependency_guard.py",
+        "timeoutSec": 60
+      }
+    ]
+  }
+}

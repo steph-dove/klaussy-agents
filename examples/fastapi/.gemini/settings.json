@@ -1,0 +1,89 @@
+{
+  "tools": {
+    "allowed": [
+      "run_shell_command(git)",
+      "run_shell_command(python)",
+      "run_shell_command(pytest)",
+      "run_shell_command(ruff)",
+      "run_shell_command(mypy)",
+      "run_shell_command(pip)",
+      "run_shell_command(uv)"
+    ]
+  },
+  "general": {
+    "defaultApprovalMode": "default"
+  },
+  "context": {
+    "fileFiltering": {
+      "respectGitIgnore": true,
+      "respectGeminiIgnore": true
+    }
+  },
+  "hooks": {
+    "BeforeAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_plan_guidance.py\"",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_commit_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      },
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_comment_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      },
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_dependency_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      },
+      {
+        "matcher": "read_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "web_fetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}

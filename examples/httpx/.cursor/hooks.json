@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/klaussy_commit_guard.py",
+        "type": "command",
+        "failClosed": true
+      },
+      {
+        "command": ".cursor/hooks/klaussy_comment_guard.py",
+        "type": "command",
+        "failClosed": true
+      },
+      {
+        "command": ".cursor/hooks/klaussy_dependency_guard.py",
+        "type": "command",
+        "failClosed": true
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": ".cursor/hooks/klaussy_read_guard.py",
+        "type": "command",
+        "failClosed": true
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/klaussy_plan_guidance.py",
+        "type": "command"
+      }
+    ]
+  }
+}
