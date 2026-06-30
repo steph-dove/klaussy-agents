@@ -9,6 +9,8 @@
 
 Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **eight major AI coding environments**—matching each agent's native file formats and capability profiles.
 
+> **📣 Out of stealth.** `klaussy` has been six months in the making — developed in private and hardened by a hands-on group of testers wiring it into their own repos and daily agent workflows. After months of iteration and real-world use, it's now open to everyone.
+
 ---
 
 ## ⚡ Quick Start
