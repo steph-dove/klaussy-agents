@@ -1,0 +1,8 @@
+# klaussy: keep secrets out of the agent's reach
+.env
+.env.*
+credentials*
+secrets*
+*.pem
+*.key
+**/service-account*.json

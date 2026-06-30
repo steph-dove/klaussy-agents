@@ -1,0 +1,14 @@
+{
+  "terminal": {
+    "allowList": [
+      "git",
+      "python",
+      "pytest",
+      "ruff",
+      "mypy",
+      "pip",
+      "uv"
+    ],
+    "denyList": []
+  }
+}

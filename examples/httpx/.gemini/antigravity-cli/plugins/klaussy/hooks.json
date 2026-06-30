@@ -1,0 +1,43 @@
+{
+  "klaussy": {
+    "PreToolUse": [
+      {
+        "matcher": "view_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.gemini/antigravity-cli/plugins/klaussy/hooks/klaussy_read_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.gemini/antigravity-cli/plugins/klaussy/hooks/klaussy_commit_guard.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.gemini/antigravity-cli/plugins/klaussy/hooks/klaussy_comment_guard.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.gemini/antigravity-cli/plugins/klaussy/hooks/klaussy_dependency_guard.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "read_url_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.gemini/antigravity-cli/plugins/klaussy/hooks/klaussy_read_guard.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
