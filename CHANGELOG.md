@@ -5,6 +5,36 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.12.2] - 2026-06-30
+
+### Fixed
+
+- **Commit guard honors `git commit --no-verify`** — `--no-verify` (and the `-n`
+  short form, including combined clusters like `-an`/`-nm`) now bypasses the
+  guard entirely: it runs no checks and emits no output. Previously the guard
+  intercepted every `git commit` regardless, so an explicit hook opt-out was
+  ignored and the guard's output could flood an agent's context. Applies to both
+  the Claude and cross-agent guard templates.
+- **Commit guard output is terse** — the guard no longer echoes each resolved
+  command (with its full staged-file list) before running it, nor prints a
+  per-tool "could not run" line when a checker isn't installed; a missing tool
+  now allows the commit silently. On a real failure it prints a single line that
+  points at the failing tool's own output and at `--no-verify`, instead of
+  repeating the whole command and path list. This keeps a blocked commit from
+  flooding an agent's context.
+- **Commit guard runs each formatter/linter only on the file types it
+  understands** — the guard previously passed every staged path to `ruff`, so a
+  `.md`/`.json`/`.toml` committed alongside Python made ruff fail to parse it and
+  wrongly block the commit. Each command's `__KLAUSSY_PATHS__` is now scoped to
+  the staged files matching its tool (ruff → `.py`/`.pyi`, eslint → JS/TS, …);
+  when nothing staged is applicable the command is skipped entirely. Tools that
+  already self-filter (`prettier --ignore-unknown`, `klaussy comment-lint`) are
+  unaffected. Both the Claude and cross-agent guard templates are fixed.
+
+Because hook scaffolding is version-gated on `.klaussy-version`, existing
+installs pick up both fixes on a re-run after the version bump (or with
+`--force`).
+
 ## [0.12.1] - 2026-06-29
 
 ### Fixed
