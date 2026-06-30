@@ -205,17 +205,21 @@ For each finding, be specific about the failure mode (the exact input or state t
 - for `tests/**/*.py`: Mocking with pytest monkeypatch fixture: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
 - for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2202/2261 test functions. naming style for all test functions.
 
+### Verification Commands
+Ensure these pass before approving:
+- `scripts/test.sh`
+- `prek`
+
 ### Known Pitfalls
 Flag if any of these are violated:
 - 20 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 - CI workflow `pre-commit.yml` contains steps allowed to fail (`continue-on-error: true`).
-- `B008` (function calls in argument defaults) is explicitly disabled in `ruff.lint.ignore` — intentional, since FastAPI's whole DI pattern relies on `def endpoint(x = Depends(get_x))`, which that rule would otherwise flag everywhere.
-- `pyproject.toml`'s `[tool.pytest] filterwarnings = ["error"]` turns every warning into a test failure — a new deprecation warning anywhere in the dependency chain can break unrelated tests.
-- Tests require `PYTHONPATH=./docs_src` (set in `scripts/test.sh`) so the tutorial example modules in `docs_src/` are importable by `tests/test_tutorial/`; running `pytest` directly without this env var fails with import errors for those tests.
-- `tests/` uses `pytest-xdist --dist loadgroup`, so tests relying on shared/global state should be assigned to the same xdist group, or they can flake under parallel execution.
-- Coverage data is written to `coverage/.coverage` (not the default `.coverage`) per `[tool.coverage.run] data_file` — tools expecting the default path won't find it.
-- A handful of `docs_src/` tutorial files are pinned to legacy Pydantic-v1-migration examples (`docs_src/pydantic_v1_in_v2/*`) and are deliberately excluded from coverage (`[tool.coverage.run] omit`) — don't "fix" their coverage gaps without checking why they're excluded.
-- `[tool.ruff.lint.per-file-ignores]` in `pyproject.toml` disables specific ruff rules (e.g. `B904`, `F821`, `B006`) on individual `docs_src/` tutorial files because the tutorial intentionally demonstrates a pattern ruff would otherwise flag — don't blanket-fix these without checking the tutorial's intent first.
+- Running `pytest` directly (without `scripts/test.sh`) skips the `PYTHONPATH=./docs_src` export — any test importing `docs_src.*` example modules fails with `ModuleNotFoundError`.
+- Tests live in two places, both run by default in `scripts/test.sh`: `tests/` (library behavior, 496 files) and `scripts/tests/` (tooling/scripts tests) — a bare `pytest` invocation only picks up `tests/`.
+- `ruff` ignores `E501` (line length, deferred to formatting) and `B008` (function calls in argument defaults) in `[tool.ruff.lint]` — `B008` is intentionally suppressed because FastAPI's whole DI pattern relies on `Depends(...)`/`Query(...)` as default argument values, which `flake8-bugbear` would otherwise flag as a bug.
+- `[tool.coverage.run] omit` in `pyproject.toml` explicitly excludes several `docs_src/*` files as "temporary code example" / leftover Pydantic v1 migration code — don't chase 100% coverage on those paths.
+- `mypy fastapi` passing locally does not mean the whole repo type-checks cleanly: strict mode only applies to `fastapi/`, and `tests/`/`docs_src/` have deliberately relaxed override rules.
+- `fastapi/routing.py` and `fastapi/applications.py` are very large (6.2k and 4.8k lines) with heavy `@overload` duplication across route-decorator parameters (for IDE autocompletion) — adding a new endpoint-decorator parameter typically means updating multiple overload signatures in both files, not just one function body.
 
 If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
 ```
@@ -301,17 +305,21 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 - for `tests/**/*.py`: Mocking with pytest monkeypatch fixture: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
 - for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2202/2261 test functions. naming style for all test functions.
 
+### Verification Commands
+Ensure these pass before approving:
+- `scripts/test.sh`
+- `prek`
+
 ### Known Pitfalls
 Flag if any of these are violated:
 - 20 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 - CI workflow `pre-commit.yml` contains steps allowed to fail (`continue-on-error: true`).
-- `B008` (function calls in argument defaults) is explicitly disabled in `ruff.lint.ignore` — intentional, since FastAPI's whole DI pattern relies on `def endpoint(x = Depends(get_x))`, which that rule would otherwise flag everywhere.
-- `pyproject.toml`'s `[tool.pytest] filterwarnings = ["error"]` turns every warning into a test failure — a new deprecation warning anywhere in the dependency chain can break unrelated tests.
-- Tests require `PYTHONPATH=./docs_src` (set in `scripts/test.sh`) so the tutorial example modules in `docs_src/` are importable by `tests/test_tutorial/`; running `pytest` directly without this env var fails with import errors for those tests.
-- `tests/` uses `pytest-xdist --dist loadgroup`, so tests relying on shared/global state should be assigned to the same xdist group, or they can flake under parallel execution.
-- Coverage data is written to `coverage/.coverage` (not the default `.coverage`) per `[tool.coverage.run] data_file` — tools expecting the default path won't find it.
-- A handful of `docs_src/` tutorial files are pinned to legacy Pydantic-v1-migration examples (`docs_src/pydantic_v1_in_v2/*`) and are deliberately excluded from coverage (`[tool.coverage.run] omit`) — don't "fix" their coverage gaps without checking why they're excluded.
-- `[tool.ruff.lint.per-file-ignores]` in `pyproject.toml` disables specific ruff rules (e.g. `B904`, `F821`, `B006`) on individual `docs_src/` tutorial files because the tutorial intentionally demonstrates a pattern ruff would otherwise flag — don't blanket-fix these without checking the tutorial's intent first.` / `### Write like a person, not a chatbot
+- Running `pytest` directly (without `scripts/test.sh`) skips the `PYTHONPATH=./docs_src` export — any test importing `docs_src.*` example modules fails with `ModuleNotFoundError`.
+- Tests live in two places, both run by default in `scripts/test.sh`: `tests/` (library behavior, 496 files) and `scripts/tests/` (tooling/scripts tests) — a bare `pytest` invocation only picks up `tests/`.
+- `ruff` ignores `E501` (line length, deferred to formatting) and `B008` (function calls in argument defaults) in `[tool.ruff.lint]` — `B008` is intentionally suppressed because FastAPI's whole DI pattern relies on `Depends(...)`/`Query(...)` as default argument values, which `flake8-bugbear` would otherwise flag as a bug.
+- `[tool.coverage.run] omit` in `pyproject.toml` explicitly excludes several `docs_src/*` files as "temporary code example" / leftover Pydantic v1 migration code — don't chase 100% coverage on those paths.
+- `mypy fastapi` passing locally does not mean the whole repo type-checks cleanly: strict mode only applies to `fastapi/`, and `tests/`/`docs_src/` have deliberately relaxed override rules.
+- `fastapi/routing.py` and `fastapi/applications.py` are very large (6.2k and 4.8k lines) with heavy `@overload` duplication across route-decorator parameters (for IDE autocompletion) — adding a new endpoint-decorator parameter typically means updating multiple overload signatures in both files, not just one function body.` / `### Write like a person, not a chatbot
 
 Whatever you output for the user (comments, descriptions, messages) must read as if a human engineer wrote it. These rules mirror klaussy's deterministic humanizer (klaussy-desktop `humanize-comment.js`):
 
