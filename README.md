@@ -5,9 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents.svg?style=social)](https://github.com/steph-dove/klaussy-agents/stargazers)
 
-> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, Google Antigravity, Cline, and Aider.
+> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, Google Antigravity, Cline, Aider, and OpenCode.
 
-Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **eight major AI coding environments**—matching each agent's native file formats and capability profiles.
+Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **nine major AI coding environments**—matching each agent's native file formats and capability profiles.
 
 > **📣 Out of stealth.** `klaussy` has been six months in the making — developed in private and hardened by a hands-on group of testers wiring it into their own repos and daily agent workflows. After months of iteration and real-world use, it's now open to everyone.
 
@@ -39,6 +39,7 @@ klaussy init
 *   **📜 Codex CLI**: Structured `AGENTS.md` root-and-nesting rules, generic skills, and `.codex/config.toml` sandbox configurations.
 *   **🧬 Cline**: `.clinerules/` Markdown rules with `paths:` glob activation, event-named `.clinerules/hooks/` guards (commit, read/web-injection, plan guidance), and `.clineignore` read blocks.
 *   **🛩️ Aider**: Flat `CONVENTIONS.md` wired in via `.aider.conf.yml`'s `read:` key, `auto-lint`/`lint-cmd` + `test-cmd` gating, and `.aiderignore` read blocks. Model-agnostic — point it at any model, including a local Ollama one. (No skills/hooks: aider has neither mechanism.)
+*   **🔓 OpenCode**: Root `AGENTS.md` conventions plus modular `.opencode/rules/*.md` path rules wired via `opencode.json`'s `instructions` glob, `.opencode/skills/`, last-match-wins `permission` read/bash rules in `opencode.json`, and a Bun plugin (`.opencode/plugins/klaussy.js`) that bridges tool hooks to the shared Python guards.
 
 ---
 
@@ -138,7 +139,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.12.1** (verbose-comment precommit check scoped to the diff).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.13.0** (adds the OpenCode backend — klaussy's ninth supported agent).
 
 ---
 

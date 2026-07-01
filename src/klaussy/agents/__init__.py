@@ -2,9 +2,9 @@
 
 klaussy generates Claude Code boilerplate and translates it into the native
 formats of other AI coding agents (Gemini CLI, Cursor, Codex, GitHub Copilot,
-Google Antigravity, Cline), most of which now read the open Agent Skills
-`SKILL.md` spec. Aider is the exception: it has no skills/hooks mechanism, so it
-gets a flat `CONVENTIONS.md` wired into `.aider.conf.yml` instead.
+Google Antigravity, Cline, opencode), most of which now read the open Agent
+Skills `SKILL.md` spec. Aider is the exception: it has no skills/hooks mechanism,
+so it gets a flat `CONVENTIONS.md` wired into `.aider.conf.yml` instead.
 """
 
 from __future__ import annotations
@@ -34,8 +34,7 @@ def resolve_agents(spec: str | None, *, all_agents: bool = False) -> list[str]:
     unknown = [name for name in requested if name not in BACKENDS]
     if unknown:
         raise ValueError(
-            f"Unknown agent(s): {', '.join(unknown)}. "
-            f"Available: {', '.join(ALL_AGENTS)}."
+            f"Unknown agent(s): {', '.join(unknown)}. Available: {', '.join(ALL_AGENTS)}."
         )
     # Registry order, de-duplicated.
     return [key for key in ALL_AGENTS if key in set(requested)]

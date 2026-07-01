@@ -39,6 +39,13 @@ class CapabilityProfile:
     `Agent`/`subagent_type` (or `ExitPlanMode`) wording to its own equivalent,
     falling back to sequential only if it genuinely has none.
 
+    `subagent_mechanism` / `plan_mechanism`, when set, replace that generic
+    "use your equivalent, else go sequential" banner with an affirmative,
+    agent-specific instruction — for an agent known to have real parallel
+    sub-agents (e.g. opencode's `@`-mention subagents) or a real plan mode
+    (opencode's Plan agent), so the skill fans out for real instead of hedging.
+    Left None for agents whose exact mechanism we don't want to assert.
+
     `dynamic_shell` is True when the agent executes ```! blocks at load time
     (Claude, Gemini); when False they're rewritten to plain run-instructions.
     """
@@ -51,6 +58,8 @@ class CapabilityProfile:
     plan_mode: bool
     keep_allowed_tools: bool
     keep_disable_invocation: bool
+    subagent_mechanism: str | None = None
+    plan_mechanism: str | None = None
 
 
 @dataclass
@@ -79,7 +88,7 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
     if end == -1:
         return {}, text
     raw = text[3:end].strip("\n")
-    body = text[end + 4:].lstrip("\n")
+    body = text[end + 4 :].lstrip("\n")
 
     fm: dict[str, str] = {}
     for line in raw.splitlines():
@@ -146,8 +155,7 @@ def build_skill_payloads(
                 name=fm.get("name", f"{namespace}-{skill}"),
                 description=fm.get("description", ""),
                 allowed_tools=fm.get("allowed-tools"),
-                disable_invocation=fm.get("disable-model-invocation", "").lower()
-                == "true",
+                disable_invocation=fm.get("disable-model-invocation", "").lower() == "true",
                 body=body,
                 aux_files=aux_files,
             )
@@ -202,7 +210,7 @@ def read_canonical_conventions(repo: Path) -> ConventionsDoc | None:
             if end == -1:
                 continue
             frontmatter = text[3:end]
-            body = text[end + 4:].lstrip("\n")
+            body = text[end + 4 :].lstrip("\n")
             globs = re.findall(r'-\s*"([^"]+)"', frontmatter)
             if not globs:
                 globs = re.findall(r"-\s*'([^']+)'", frontmatter)

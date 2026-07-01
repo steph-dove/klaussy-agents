@@ -30,6 +30,7 @@ from klaussy.agents.hooks import (
     copilot_hooks,
     cursor_hooks,
     gemini_hooks,
+    opencode_hooks,
 )
 from klaussy.checklist import generate_checklist
 from klaussy.hooks import read_pre_plan_guidance, scaffold_hooks
@@ -232,9 +233,7 @@ class ClaudeBackend:
             ),
             (
                 "[claude] review enrichment",
-                lambda: generate_checklist(
-                    repo=repo, force=True, base_branch=base_branch
-                ),
+                lambda: generate_checklist(repo=repo, force=True, base_branch=base_branch),
             ),
             ("[claude] settings", lambda: generate_settings(repo=repo, force=force)),
             ("[claude] hooks", lambda: scaffold_hooks(repo=repo, force=force)),
@@ -318,9 +317,7 @@ class GenericBackend:
         if path.exists() and not force and path.read_text() == content:
             return
         if path.exists() and not force:
-            console.print(
-                f"[yellow]⚠ [{self.label}] {path.name} exists; use --force.[/yellow]"
-            )
+            console.print(f"[yellow]⚠ [{self.label}] {path.name} exists; use --force.[/yellow]")
             return
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
@@ -527,8 +524,8 @@ class CodexBackend(GenericBackend):
             "# NOTE: Codex ignores approval_policy and sandbox_mode in a\n"
             "# project-local .codex/config.toml for safety. Set them in your user\n"
             "# config (~/.codex/config.toml) or via CLI flags. Recommended:\n"
-            "#   approval_policy = \"on-request\"\n"
-            "#   sandbox_mode    = \"workspace-write\"\n"
+            '#   approval_policy = "on-request"\n'
+            '#   sandbox_mode    = "workspace-write"\n'
             "# Or run: codex -a on-request -s workspace-write\n"
         )
         self._write(
@@ -577,7 +574,7 @@ class CopilotBackend(GenericBackend):
         # Path-scoped rules: .github/instructions/<stem>.instructions.md with applyTo.
         for rule in doc.rules:
             apply_to = ", ".join(rule.globs)
-            frontmatter = f"---\napplyTo: \"{apply_to}\"\n---\n\n"
+            frontmatter = f'---\napplyTo: "{apply_to}"\n---\n\n'
             self._write(
                 repo / ".github" / "instructions" / f"{rule.stem}.instructions.md",
                 frontmatter + rule.body.rstrip() + "\n",
@@ -819,6 +816,117 @@ class AiderBackend(GenericBackend):
         )
 
 
+class OpenCodeBackend(GenericBackend):
+    """opencode — the open-source terminal agent (AGENTS.md + SKILL.md native).
+
+    Conventions: project-wide content goes to root `AGENTS.md`; path-scoped rules
+    become modular `.opencode/rules/` files (opencode has no nested-rule
+    auto-discovery, so they load only via the `instructions` glob in root
+    `opencode.json`). Skills use the standard SKILL.md spec under
+    `.opencode/skills/`. Settings live in a single root `opencode.json` whose
+    last-match-wins `permission` rules put the broad default first and specific
+    allow/deny after. Hooks ride a bridge plugin that shells out to the shared
+    Python guards, since opencode's hook mechanism is an in-process Bun plugin
+    rather than a shell command (see `opencode_hooks`).
+    """
+
+    key = "opencode"
+    label = "opencode"
+    profile = CapabilityProfile(
+        key="opencode",
+        label="opencode",
+        skills_root=".opencode/skills",
+        dynamic_shell=False,
+        # subagents/plan_mode stay False (opencode's syntax differs from Claude's,
+        # so the translation banner is still needed), but the mechanism strings
+        # below make that banner name opencode's real subagents + Plan agent.
+        subagents=False,
+        plan_mode=False,
+        keep_allowed_tools=False,
+        keep_disable_invocation=False,
+        subagent_mechanism=(
+            "use opencode's subagents: `@`-mention one (built-in `@general`, "
+            "`@explore`, `@scout`, or a project-defined subagent) or let the "
+            "primary agent invoke them automatically by their description. They "
+            "run in parallel child sessions, so the fan-out is real — launch all "
+            "the lenses/validators at once rather than applying them sequentially."
+        ),
+        plan_mechanism=(
+            "switch to opencode's Plan agent — a restricted mode where file edits "
+            "and bash are gated to `ask` — to analyze and plan without touching "
+            "files, then switch back to a build agent to implement."
+        ),
+    )
+
+    def emit_conventions(self, repo: Path, *, force: bool) -> None:
+        doc = read_canonical_conventions(repo)
+        if doc is None:
+            self._warn_no_conventions()
+            return
+        # Project-wide conventions: root AGENTS.md (opencode's native file).
+        self._write(
+            repo / "AGENTS.md",
+            doc.project_wide.rstrip() + "\n",
+            force=force,
+            what="AGENTS.md",
+        )
+        # Path-scoped rules: no nested-rule auto-discovery, so these load only via
+        # the `instructions` glob wired in emit_settings. Each is headed by the
+        # glob it scopes (loaded unconditionally; the heading documents intent).
+        rules_dir = repo / ".opencode" / "rules"
+        for rule in doc.rules:
+            self._write(
+                rules_dir / f"{rule.stem}.md",
+                _nested_rule_markdown(rule),
+                force=force,
+                what=f".opencode/rules/{rule.stem}.md",
+            )
+        # Pre-plan guardrails: opencode has no context-injection hook event, so
+        # (as with Antigravity's .antigravityrules) the guidance rides an
+        # always-loaded .opencode/rules/ file the `instructions` glob picks up.
+        self._write(
+            rules_dir / "klaussy-pre-plan-guidance.md",
+            read_pre_plan_guidance(),
+            force=force,
+            what=".opencode/rules/klaussy-pre-plan-guidance.md",
+        )
+
+    def emit_settings(self, repo: Path, *, force: bool) -> None:
+        stack = _detect_stack(repo)
+
+        # opencode evaluates permission patterns last-match-wins, so the broad "*"
+        # default MUST come first and specific rules after it; a trailing "*" would
+        # otherwise override every allow/deny below it (e.g. re-allowing secrets).
+        read_rules: dict[str, str] = {"*": "allow"}
+        for pattern in SENSITIVE_PATTERNS:
+            read_rules[pattern] = "deny"
+
+        bash_rules: dict[str, str] = {"*": "ask"}
+        for prefix in _shell_prefixes(stack):
+            bash_rules[prefix] = "allow"
+            bash_rules[f"{prefix} *"] = "allow"
+
+        config = {
+            "$schema": "https://opencode.ai/config.json",
+            # opencode loads path-scoped rule files only when listed here; the
+            # glob is harmless when `.opencode/rules/` is empty or absent.
+            "instructions": [".opencode/rules/*.md"],
+            "permission": {"read": read_rules, "bash": bash_rules},
+        }
+
+        content = json.dumps(config, indent=2) + "\n"
+        # opencode discovers config at the repo root, NOT inside .opencode/.
+        self._write(
+            repo / "opencode.json",
+            content,
+            force=force,
+            what="opencode.json",
+        )
+
+    def emit_hooks(self, repo: Path, *, force: bool) -> None:
+        opencode_hooks(repo, force=force)
+
+
 BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
     b.key: b
     for b in (
@@ -830,5 +938,6 @@ BACKENDS: dict[str, ClaudeBackend | GenericBackend] = {
         AntigravityBackend(),
         ClineBackend(),
         AiderBackend(),
+        OpenCodeBackend(),
     )
 }

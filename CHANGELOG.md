@@ -5,6 +5,32 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.13.0] - 2026-07-01
+
+### Added
+
+- **OpenCode backend** — klaussy's ninth supported agent. Project-wide
+  conventions land in a root `AGENTS.md`; path-scoped rules become modular
+  `.opencode/rules/*.md` files wired in via the `instructions` glob in a root
+  `opencode.json` (OpenCode has no nested-rule auto-discovery). Skills use the
+  standard `SKILL.md` spec under `.opencode/skills/`. `opencode.json` also
+  carries last-match-wins `permission` read/bash rules — the broad default first,
+  specific allow/deny after — with `read` denies covering the sensitive
+  patterns. Because OpenCode's hook mechanism is an in-process Bun plugin rather
+  than a shell command, a committed `.opencode/plugins/klaussy.js` bridges tool
+  hooks to the shared Python guards under `.opencode/hooks/`.
+- **OpenCode pre-plan guardrails** — OpenCode has no context-injection hook
+  event, so (as with Antigravity's `.antigravityrules`) klaussy's pre-plan
+  guidance rides an always-loaded `.opencode/rules/klaussy-pre-plan-guidance.md`
+  instructions file instead of a hook, bringing OpenCode's guardrail coverage to
+  Claude parity.
+- **OpenCode-aware subagent/plan-mode skill banners** — `CapabilityProfile`
+  gained optional `subagent_mechanism` / `plan_mechanism` fields. OpenCode sets
+  them so skills that fan out (e.g. `review`) get an affirmative banner naming
+  OpenCode's real parallel subagents (`@`-mention `@general`/`@explore`/`@scout`)
+  and its Plan agent, instead of the generic "use your equivalent, else go
+  sequential" note the other non-Claude backends receive.
+
 ## [0.12.2] - 2026-06-30
 
 ### Fixed
