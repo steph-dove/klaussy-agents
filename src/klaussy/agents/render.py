@@ -52,26 +52,40 @@ def _capability_banner(body: str, profile: CapabilityProfile) -> str:
     """
     notes: list[str] = []
     if not profile.subagents and _SUBAGENT_HINT.search(body):
-        notes.append(
-            "This skill orchestrates parallel sub-agents using Claude's `Agent` "
-            "tool / `subagent_type` syntax. Most coding agents now have their own "
-            "parallel sub-agent or task mechanism (e.g. Cursor's `Task`, Codex's "
-            "`spawn_agent`, Gemini subagents, Copilot's `task`) — use yours and "
-            "translate the wording. If it truly has none, apply each lens or angle "
-            "yourself, sequentially, and combine the findings."
-        )
+        if profile.subagent_mechanism:
+            notes.append(
+                "This skill orchestrates parallel sub-agents using Claude's "
+                "`Agent` tool / `subagent_type` syntax. On "
+                f"{profile.label}, {profile.subagent_mechanism}"
+            )
+        else:
+            notes.append(
+                "This skill orchestrates parallel sub-agents using Claude's `Agent` "
+                "tool / `subagent_type` syntax. Most coding agents now have their own "
+                "parallel sub-agent or task mechanism (e.g. Cursor's `Task`, Codex's "
+                "`spawn_agent`, Gemini subagents, Copilot's `task`) — use yours and "
+                "translate the wording. If it truly has none, apply each lens or angle "
+                "yourself, sequentially, and combine the findings."
+            )
     if not profile.plan_mode and _PLAN_MODE_HINT.search(body):
-        notes.append(
-            "Where it references \"plan mode\" or `ExitPlanMode`, use your agent's "
-            "own plan/approval mode if it has one; otherwise present your plan and "
-            "wait for explicit approval before editing any files."
-        )
+        if profile.plan_mechanism:
+            notes.append(
+                f'Where it references "plan mode" or `ExitPlanMode`, {profile.plan_mechanism}'
+            )
+        else:
+            notes.append(
+                'Where it references "plan mode" or `ExitPlanMode`, use your agent\'s '
+                "own plan/approval mode if it has one; otherwise present your plan and "
+                "wait for explicit approval before editing any files."
+            )
     if not notes:
         return ""
     body = "\n".join(f"- {n}" for n in notes)
-    return f"> **Adapted for {profile.label}.**\n>\n" + "\n".join(
-        f"> {line}" for line in body.splitlines()
-    ) + "\n\n"
+    return (
+        f"> **Adapted for {profile.label}.**\n>\n"
+        + "\n".join(f"> {line}" for line in body.splitlines())
+        + "\n\n"
+    )
 
 
 def adapt_body(body: str, profile: CapabilityProfile) -> str:

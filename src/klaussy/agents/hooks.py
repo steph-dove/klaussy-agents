@@ -466,6 +466,65 @@ def cline_hooks(repo: Path, *, force: bool) -> None:
     _report(label, bool(fmt or lint or com), read=True, web=True, plan=True)
 
 
+def _install_static(repo: Path, relpath: str, template_name: str) -> None:
+    """Copy a static template (no sentinels, not made executable) into the repo.
+
+    Used for the opencode bridge plugin: a generated, klaussy-owned file like the
+    guard scripts, so it's overwritten on every run (re-run to refresh).
+    """
+    dest = repo / relpath
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        resources.files("klaussy").joinpath(f"templates/hooks/multi/{template_name}").read_text()
+    )
+    dest.write_text(content)
+
+
+def opencode_hooks(repo: Path, *, force: bool) -> None:
+    """opencode: a committed Bun plugin bridges tool hooks to the shared guards.
+
+    opencode's hook mechanism is an in-process plugin (`.opencode/plugins/*.js`),
+    not a shell-command hook, so the guards can't be wired declaratively the way
+    every other backend does. Instead klaussy installs the shared Python guards
+    under `.opencode/hooks/` plus a thin plugin (`.opencode/plugins/klaussy.js`)
+    that, on `tool.execute.before`, shells out to them and throws — opencode's
+    documented block mechanism — when a guard exits 2. `bash` calls run the
+    commit/comment/dependency guards; `read` calls run the read-injection guard;
+    `webfetch` results are scanned best-effort in `tool.execute.after`.
+
+    `force` is accepted for signature parity with the other backends; the guards
+    and plugin are generated klaussy-owned files, always refreshed on re-run.
+    """
+    label = "opencode"
+    fmt, lint, com = _commit_cmds(repo)
+    hooks_dir = ".opencode/hooks"
+
+    if fmt or lint or com:
+        _install_script(
+            repo,
+            f"{hooks_dir}/{COMMIT_GUARD}",
+            "commit_guard.py",
+            format_cmd=fmt,
+            lint_cmd=lint,
+            comment_check_cmd=com,
+        )
+    _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
+    _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
+    _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")
+    _install_static(repo, ".opencode/plugins/klaussy.js", "opencode_plugin.js")
+
+    _report(
+        label,
+        bool(fmt or lint or com),
+        read=True,
+        web=True,
+        read_note="opencode has no context-injection hook event, so plan-guidance "
+        "rides an always-loaded instructions rule instead (written by "
+        "emit_conventions), not a hook; webfetch scanning is best-effort (its "
+        "output shape is undocumented)",
+    )
+
+
 def _report(
     label: str,
     commit: bool,
