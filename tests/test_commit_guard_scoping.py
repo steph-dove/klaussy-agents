@@ -150,3 +150,58 @@ def test_blocked_message_handles_unknown_tool(guard):
     msg = guard._blocked_message("klaussy comment-lint --diff a.py")
     assert "--no-verify" in msg
     assert "a.py" not in msg
+
+
+# --- conventional-commit message extraction --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("git commit -m 'feat: x'", ["feat: x"]),
+        ("git commit -mfeat: x", ["feat:"]),  # attached value stops at the space
+        ("git commit --message 'fix: y'", ["fix: y"]),
+        ("git commit --message=fix:y", ["fix:y"]),
+        ("git commit -am 'chore: z'", ["chore: z"]),  # combined -a -m, value next token
+        ("git commit -m 'feat: a' -m body", ["feat: a", "body"]),  # subject is first
+        ("git commit --amend", []),  # editor commit: no inline message
+        ("git commit", []),
+    ],
+)
+def test_commit_messages_extraction(guard, command, expected):
+    assert guard._commit_messages(command) == expected
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "feat: add thing",
+        "fix(parser): handle empty input",
+        "refactor!: drop legacy path",
+        "docs: update readme",
+        "chore(deps): bump ruff",
+    ],
+)
+def test_conventional_re_accepts(guard, subject):
+    assert guard.CONVENTIONAL_RE.match(subject)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "add thing",  # no type
+        "feat add thing",  # missing colon
+        "feature: add thing",  # not an allowed type
+        "Fix: add thing",  # wrong case
+        "feat:",  # empty subject
+    ],
+)
+def test_conventional_re_rejects(guard, subject):
+    assert guard.CONVENTIONAL_RE.match(subject) is None
+
+
+def test_bad_commit_message_notice_is_actionable(guard):
+    msg = guard._bad_commit_message("add thing")
+    assert "Conventional Commits" in msg
+    assert "--no-verify" in msg
+    assert "add thing" in msg  # echoes the offending subject

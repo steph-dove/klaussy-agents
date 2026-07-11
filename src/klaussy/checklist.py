@@ -13,11 +13,7 @@ console = Console()
 
 def _read_review_template() -> str:
     """Read the review skill template."""
-    return (
-        resources.files("klaussy")
-        .joinpath("templates/skills/review/SKILL.md")
-        .read_text()
-    )
+    return resources.files("klaussy").joinpath("templates/skills/review/SKILL.md").read_text()
 
 
 def _resolve_claude_md(repo: Path) -> Path | None:
@@ -49,9 +45,18 @@ def _parse_claude_md(claude_md: Path) -> dict[str, list[str]]:
     }
 
     current_section = ""
+    in_fence = False
     for line in content.splitlines():
         stripped = line.strip()
         lower = stripped.lower()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            # Capture fenced `## Commands` lines as candidates; _build_command_checks filters.
+            if current_section == "commands" and stripped and not stripped.startswith("#"):
+                sections["commands"].append(stripped)
+            continue
         if lower.startswith("## conventions"):
             current_section = "conventions"
         elif lower.startswith("## commands"):
@@ -87,7 +92,7 @@ def _parse_rules_dir(rules_dir: Path) -> list[str]:
         if end == -1:
             continue
         frontmatter = text[3:end]
-        body = text[end + 4:]
+        body = text[end + 4 :]
 
         path_matches = re.findall(r'-\s*"([^"]+)"', frontmatter)
         if not path_matches:
@@ -123,16 +128,117 @@ def _build_convention_checks(conventions: list[str]) -> str:
     return "\n".join(lines)
 
 
+# Substrings marking a command as a pre-merge verification gate (lint, format,
+# type-check, or test). Anything else in the Commands block — install, build,
+# run-the-CLI — isn't a check a reviewer runs to vet a diff, so it's dropped.
+_VERIFY_SIGNALS = (
+    "lint",
+    "format",
+    "fmt",
+    "ruff",
+    "eslint",
+    "prettier",
+    "biome",
+    "mypy",
+    "pyright",
+    "tsc",
+    "typecheck",
+    "type-check",
+    "pytest",
+    "jest",
+    "vitest",
+    "test",
+    "clippy",
+    "vet",
+    "staticcheck",
+)
+
+# Tools meaningful as a bare invocation (no args) — `pytest` alone is a real
+# check, but `ruff` alone is not (it needs `check`/`format`). Used to reject
+# single-word junk (e.g. a `` `ruff` `` mention pulled from a Notes bullet).
+_STANDALONE_VERIFIERS = frozenset(
+    {
+        "pytest",
+        "tox",
+        "mypy",
+        "pyright",
+        "tsc",
+        "jest",
+        "vitest",
+        "flake8",
+        "pylint",
+        "black",
+        "isort",
+        "staticcheck",
+        "biome",
+    }
+)
+
+# Slashless whole-tree path args to strip (slashed dirs like `src/` are caught below);
+# excludes bare `test`/`tests`, which collide with the `test` subcommand of go/cargo/npm.
+_REPO_PATH_TOKENS = frozenset({".", "./..."})
+
+
+def _strip_repo_paths(command: str) -> str:
+    """Drop trailing repo-tree path args so the command isn't pinned repo-wide.
+
+    `ruff check src/ tests/` → `ruff check`; `go test ./...` → `go test`. Only
+    trailing path-shaped tokens are removed — flags and their values (e.g.
+    `--check`, `--max-warnings 0`) are left intact.
+    """
+    tokens = command.split()
+    while tokens:
+        last = tokens[-1]
+        if last in _REPO_PATH_TOKENS or "/" in last or "*" in last:
+            tokens.pop()
+        else:
+            break
+    return " ".join(tokens)
+
+
 def _build_command_checks(commands: list[str]) -> str:
-    """Turn command items into verification checks."""
-    if not commands:
+    """Turn the Commands block into diff-scoped verification checks.
+
+    Keeps only lint/format/type-check/test commands (an install or build step
+    isn't a reviewer's gate) and strips repo-wide path args, so the reviewer runs
+    each against the changed files rather than the whole tree. A repo-wide run
+    floods the review with pre-existing violations in untouched files, which is
+    exactly what makes an agent skip the check.
+    """
+    seen: set[str] = set()
+    checks: list[str] = []
+    for raw in commands:
+        if raw.lstrip().startswith("- "):
+            # Bullet line: trust only the backticked command span. A bullet with
+            # no code span is prose ("No mypy configured — ...") and not a command.
+            code_match = re.search(r"`(.+?)`", raw)
+            if not code_match:
+                continue
+            command = code_match.group(1)
+        else:
+            # Fenced code line: the line itself is the command.
+            command = raw
+        command = command.strip().strip("`")
+        if not any(sig in command.lower() for sig in _VERIFY_SIGNALS):
+            continue
+        command = _strip_repo_paths(command)
+        if not command or command in seen:
+            continue
+        # Reject a bare tool name that isn't runnable on its own (e.g. `ruff`).
+        if " " not in command and command not in _STANDALONE_VERIFIERS:
+            continue
+        seen.add(command)
+        checks.append(f"- `{command}`")
+    if not checks:
         return ""
-    lines = ["### Verification Commands", "Ensure these pass before approving:"]
-    for cmd in commands:
-        label = re.sub(r"^\-\s*", "", cmd)
-        code_match = re.search(r"`(.+?)`", label)
-        if code_match:
-            lines.append(f"- `{code_match.group(1)}`")
+    lines = [
+        "### Verification Commands",
+        "Run these against the files this PR changed — not the whole repo. A "
+        "repo-wide run buries the review in pre-existing violations from "
+        "untouched files. Append the changed paths to each command (or use the "
+        "tool's diff-aware mode); ignore findings outside this PR's diff:",
+        *checks,
+    ]
     return "\n".join(lines)
 
 
