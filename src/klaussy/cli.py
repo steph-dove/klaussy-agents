@@ -18,6 +18,7 @@ from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
+from klaussy.secret_scan import scan_paths as scan_secrets
 
 app = typer.Typer(name="klaussy", help="Multi-agent repo boilerplate generator.")
 console = Console()
@@ -317,6 +318,29 @@ def comment_lint(
         scope = changed_lines(str(path)) if diff else None
         findings.extend(analyze_comments(str(path), text, scope))
 
+    for finding in findings:
+        console.print(finding.render())
+    if findings:
+        raise typer.Exit(1)
+
+
+@app.command(name="secret-scan")
+def secret_scan(
+    files: list[Path] = typer.Argument(..., help="Files to scan for hardcoded secrets."),
+    diff: bool = typer.Option(
+        False,
+        "--diff",
+        help="Only flag secrets on lines changed vs HEAD (used by the commit guard).",
+    ),
+) -> None:
+    """Flag hardcoded secrets on changed lines (block-only); exit 1 if any are found.
+
+    The deterministic secret gate the commit guard runs alongside format/lint. It
+    reports `file:line` and the kind of credential; removing it is left to the
+    author. With --diff, findings are scoped to lines that differ from HEAD, so a
+    pre-existing value elsewhere in a touched file doesn't block the commit.
+    """
+    findings = scan_secrets([str(f) for f in files], diff=diff)
     for finding in findings:
         console.print(finding.render())
     if findings:

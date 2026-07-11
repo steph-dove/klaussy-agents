@@ -66,3 +66,8 @@ GEMINI.md
 .github/hooks/
 .github/instructions/
 .github/skills/
+.aider.conf.yml
+.aiderignore
+.clineignore
+.clinerules/
+CONVENTIONS.md

@@ -38,6 +38,10 @@ PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
 PLAN_GUIDANCE_COMMAND = f"python3 {PROJECT_DIR}/{PLAN_GUIDANCE_RELPATH}"
 
+SELF_REVIEW_GUARD_SCRIPT_NAME = "self_review_guard.py"
+SELF_REVIEW_GUARD_RELPATH = f".claude/hooks/{SELF_REVIEW_GUARD_SCRIPT_NAME}"
+SELF_REVIEW_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{SELF_REVIEW_GUARD_RELPATH}"
+
 # Placeholder baked into direct tool commands; the commit guard expands it to
 # the staged files at commit time so the gate only judges the change being
 # committed. Must match PATHS_TOKEN in the commit-guard templates.
@@ -197,6 +201,18 @@ def _install_plan_guidance_script(repo: Path, dialect: str) -> Path:
     dest.write_text(content)
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _install_self_review_guard_script(repo: Path, dialect: str) -> Path:
+    """Render the self-review stop hook with the output dialect baked in."""
+    dest = repo / SELF_REVIEW_GUARD_RELPATH
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    source = resources.files("klaussy").joinpath("templates/hooks/multi/self_review_guard.py")
+    content = source.read_text().replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
+    dest.write_text(content)
+    mode = dest.stat().st_mode
+    dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return dest
     return dest
 
 
@@ -282,6 +298,9 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # named dependency until the agent confirms it. No project-specific command,
     # so always installed.
     _install_dependency_guard_script(repo)
+    # Self-review stop hook: on Stop, if the tree has uncommitted code, ask for one
+    # review pass before finishing. Loop-safe (once per session/HEAD); always installed.
+    _install_self_review_guard_script(repo, "claude")
 
     def _entry(matcher: str, command: str) -> dict:
         return {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
@@ -293,6 +312,10 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
         _entry("Bash", DEPENDENCY_GUARD_COMMAND),
     ]
     desired_post: list[dict] = [_entry("WebFetch", GUARD_COMMAND)]
+    # Stop takes no matcher (Claude ignores one if present).
+    desired_stop: list[dict] = [
+        {"hooks": [{"type": "command", "command": SELF_REVIEW_GUARD_COMMAND}]}
+    ]
 
     # Git-commit guard (PreToolUse on Bash) detects `git commit` invocations and
     # runs the project's format + lint first. Only when the repo has a command to run.
@@ -307,15 +330,21 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
         desired_pre.append(_entry("Bash", COMMIT_GUARD_COMMAND))
 
     if force or not existing_hooks:
-        settings["hooks"] = {"PreToolUse": desired_pre, "PostToolUse": desired_post}
-        added = len(desired_pre) + len(desired_post)
+        settings["hooks"] = {
+            "PreToolUse": desired_pre,
+            "PostToolUse": desired_post,
+            "Stop": desired_stop,
+        }
+        added = len(desired_pre) + len(desired_post) + len(desired_stop)
     else:
         pre, added_pre = _merge_managed_hooks(existing_hooks.get("PreToolUse", []), desired_pre)
         post, added_post = _merge_managed_hooks(existing_hooks.get("PostToolUse", []), desired_post)
+        stop, added_stop = _merge_managed_hooks(existing_hooks.get("Stop", []), desired_stop)
         existing_hooks["PreToolUse"] = pre
         existing_hooks["PostToolUse"] = post
+        existing_hooks["Stop"] = stop
         settings["hooks"] = existing_hooks
-        added = added_pre + added_post
+        added = added_pre + added_post + added_stop
 
     settings_file.parent.mkdir(parents=True, exist_ok=True)
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
@@ -330,6 +359,9 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     console.print(f"[green]✔ Installed read-injection guard at {GUARD_RELPATH}[/green]")
     console.print(f"[green]✔ Installed pre-plan guidance hook at {PLAN_GUIDANCE_RELPATH}[/green]")
     console.print(f"[green]✔ Installed dependency gate at {DEPENDENCY_GUARD_RELPATH}[/green]")
+    console.print(
+        f"[green]✔ Installed self-review stop hook at {SELF_REVIEW_GUARD_RELPATH}[/green]"
+    )
     if has_commit_guard:
         console.print(f"[green]✔ Installed git-commit guard at {COMMIT_GUARD_RELPATH}[/green]")
     else:

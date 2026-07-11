@@ -11,6 +11,31 @@ import { fileURLToPath } from "node:url"
 const HOOKS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "hooks")
 const PYTHON = process.platform === "win32" ? "python" : "python3"
 
+// Self-review nudge on session.idle (opencode's completion event). Static
+// directive mirrors the {{REPO}}-self-review skill; sessions already nudged are
+// tracked in-process to prevent an idle -> prompt -> idle loop.
+const SELF_REVIEW_DIRECTIVE =
+  "Before you finish, do one self-review pass over your uncommitted changes: " +
+  "confirm you reused existing code instead of reinventing it, preferred the " +
+  "standard library and existing dependencies over new packages or hand-rolled " +
+  "code, kept comments to a single WHY-line (no narration or restating the code), " +
+  "left no dead code or debug prints, and covered the change with tests that pass. " +
+  "Fix anything that falls short, then finish. If it already holds, say so briefly and stop."
+const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|vue|svelte|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|sql)$/i
+const nudgedSessions = new Set()
+
+// True if unstaged or staged changes touch a source file. Fail-safe: any git
+// error reports "no changes" so the nudge simply doesn't fire.
+function hasUncommittedCode(cwd) {
+  for (const args of [["diff", "--name-only"], ["diff", "--name-only", "--cached"]]) {
+    const r = spawnSync("git", args, { cwd, encoding: "utf8" })
+    if (r.status === 0 && r.stdout) {
+      if (r.stdout.split("\n").some((f) => CODE_EXT.test(f.trim()))) return true
+    }
+  }
+  return false
+}
+
 // Run one guard with a synthesized payload. Fail-open: a missing interpreter,
 // missing guard, or signal-killed process never blocks the tool — the guards
 // themselves take the same stance (a guard bug must not wedge the agent).
@@ -26,11 +51,29 @@ function runGuard(scriptName, payload, cwd) {
   return { blocked: result.status === 2, message: (result.stderr || "").trim() }
 }
 
-export const klaussy = async ({ directory, worktree }) => {
+export const klaussy = async ({ client, directory, worktree }) => {
   // Run guards from the repo root so their git lookups resolve.
   const cwd = worktree || directory
 
   return {
+    // session.idle is opencode's completion event; the contract can't return text, so
+    // on uncommitted code we re-prompt one self-review via the client, once per session.
+    event: async ({ event }) => {
+      if (event?.type !== "session.idle") return
+      const sessionID = event?.properties?.sessionID || event?.sessionID
+      if (!sessionID || nudgedSessions.has(sessionID)) return
+      if (!hasUncommittedCode(cwd)) return
+      nudgedSessions.add(sessionID)
+      try {
+        await client.session.prompt({
+          path: { id: sessionID },
+          body: { parts: [{ type: "text", text: SELF_REVIEW_DIRECTIVE }] },
+        })
+      } catch {
+        // Fail-open: never let a nudge failure disrupt the session.
+      }
+    },
+
     "tool.execute.before": async (input, output) => {
       const tool = input?.tool
       const args = output?.args || {}
