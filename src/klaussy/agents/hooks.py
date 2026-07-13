@@ -40,10 +40,12 @@ def _hook_python() -> str:
     """Python interpreter token for hook commands on the scaffolding OS.
 
     python.org Windows installs expose `python`, not `python3`; macOS/Linux
-    reliably have `python3`. Agents that run a shell-string hook command (Gemini,
-    Codex) get the right token for the OS klaussy runs on. Mixed-OS teams: see
-    the README cross-platform note. Copilot uses an explicit bash/powershell
-    split, and Cursor execs the script via its shebang, so neither needs this.
+    reliably have `python3`. Only Antigravity still uses this — its shell hook
+    execution isn't documented, so we can't verify the `klaussy-hook` launcher
+    there and fall back to a scaffold-OS token (see the README "Cross-Platform
+    Support" note). Claude and Gemini invoke the OS-agnostic `klaussy-hook`
+    launcher; Codex ships a per-OS `command`/`commandWindows` pair; Copilot uses
+    a bash/powershell split. None of those need this.
     """
     return "python" if sys.platform == "win32" else "python3"
 
@@ -127,13 +129,16 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".gemini/hooks"
 
-    py = _hook_python()
-
     def _cmd(name: str) -> str:
-        # Gemini runs hook commands from the session cwd (not guaranteed to be
-        # the root), so a bare relative path can fail; $GEMINI_PROJECT_DIR
-        # expands to the project root (documented in the Gemini CLI hooks guide).
-        return f'{py} "$GEMINI_PROJECT_DIR/{hooks_dir}/{name}"'
+        # Invoke via klaussy's `klaussy-hook` launcher rather than a Python token:
+        # Gemini's hook config is a single command string with no per-OS field,
+        # and `python3`/`python` don't both resolve across OSes, so a token would
+        # freeze to the scaffolding machine. `klaussy-hook` is a pip console
+        # script on PATH everywhere and runs the guard under klaussy's own
+        # interpreter. Gemini expands $GEMINI_PROJECT_DIR itself before the shell
+        # (documented), so the path resolves from any cwd on both bash and
+        # PowerShell.
+        return f'klaussy-hook "$GEMINI_PROJECT_DIR/{hooks_dir}/{name}"'
 
     before: list[dict] = []
     if fmt or lint or com:

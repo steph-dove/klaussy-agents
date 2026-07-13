@@ -32,6 +32,7 @@ Issues = "https://github.com/steph-dove/klaussy-agents/issues"
 [project.scripts]
 klaussy = "klaussy.cli:main"
 klaussy-mcp = "klaussy.mcp_server:main"
+klaussy-hook = "klaussy._hooklauncher:main"
 
 [project.optional-dependencies]
 mcp = ["mcp[cli]>=1.0.0"]

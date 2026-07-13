@@ -2,7 +2,6 @@
 
 import json
 import stat
-import sys
 from importlib import resources
 from pathlib import Path
 
@@ -19,36 +18,41 @@ console = Console()
 # https://code.claude.com/docs/en/hooks.md ("Path Placeholders").
 PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
 
-# Interpreter token for the hook command. python.org Windows installs expose
-# `python`, not `python3`; macOS/Linux reliably have `python3` — so a hardcoded
-# `python3` makes every Claude hook silently no-op on a Windows checkout. Mirror
-# agents.hooks._hook_python(). The script path is quoted in each command below so
-# a project dir containing spaces still resolves once ${CLAUDE_PROJECT_DIR} expands.
-HOOK_PY = "python" if sys.platform == "win32" else "python3"
+# Hook commands invoke the guard through klaussy's `klaussy-hook` launcher rather
+# than naming a Python interpreter directly. `python3` is absent on a stock
+# python.org Windows install and `python` isn't guaranteed on Linux/macOS, and
+# Claude's hook config has no per-OS command field to choose between them — so a
+# hardcoded token would break whenever the run OS differs from the scaffold OS.
+# `klaussy-hook` is a pip console script (on PATH as `klaussy-hook`/`.exe`), so it
+# resolves on every OS and runs the guard under klaussy's own interpreter. The
+# path is quoted so a project dir with spaces survives ${CLAUDE_PROJECT_DIR}.
+def _cmd(relpath: str) -> str:
+    return f'klaussy-hook "{PROJECT_DIR}/{relpath}"'
+
 
 GUARD_SCRIPT_NAME = "read_injection_guard.py"
 GUARD_RELPATH = f".claude/hooks/{GUARD_SCRIPT_NAME}"
-GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{GUARD_RELPATH}"'
+GUARD_COMMAND = _cmd(GUARD_RELPATH)
 
 COMMIT_GUARD_SCRIPT_NAME = "git_commit_guard.py"
 COMMIT_GUARD_RELPATH = f".claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}"
-COMMIT_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{COMMIT_GUARD_RELPATH}"'
+COMMIT_GUARD_COMMAND = _cmd(COMMIT_GUARD_RELPATH)
 
 COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
 COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
-COMMENT_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{COMMENT_GUARD_RELPATH}"'
+COMMENT_GUARD_COMMAND = _cmd(COMMENT_GUARD_RELPATH)
 
 DEPENDENCY_GUARD_SCRIPT_NAME = "dependency_guard.py"
 DEPENDENCY_GUARD_RELPATH = f".claude/hooks/{DEPENDENCY_GUARD_SCRIPT_NAME}"
-DEPENDENCY_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{DEPENDENCY_GUARD_RELPATH}"'
+DEPENDENCY_GUARD_COMMAND = _cmd(DEPENDENCY_GUARD_RELPATH)
 
 PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
-PLAN_GUIDANCE_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{PLAN_GUIDANCE_RELPATH}"'
+PLAN_GUIDANCE_COMMAND = _cmd(PLAN_GUIDANCE_RELPATH)
 
 SELF_REVIEW_GUARD_SCRIPT_NAME = "self_review_guard.py"
 SELF_REVIEW_GUARD_RELPATH = f".claude/hooks/{SELF_REVIEW_GUARD_SCRIPT_NAME}"
-SELF_REVIEW_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{SELF_REVIEW_GUARD_RELPATH}"'
+SELF_REVIEW_GUARD_COMMAND = _cmd(SELF_REVIEW_GUARD_RELPATH)
 
 # Placeholder baked into direct tool commands; the commit guard expands it to
 # the staged files at commit time so the gate only judges the change being

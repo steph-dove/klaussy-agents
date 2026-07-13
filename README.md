@@ -110,24 +110,23 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 ## 🖥️ Cross-Platform Support
 
-klaussy runs on **macOS, Linux, and Windows**. The guard scripts it installs are pure-stdlib Python that read stdin as UTF-8 (so a Windows `cp1252` locale never chokes on an em-dash) and resolve tools via `PATH` honoring Windows `PATHEXT` (so `.cmd` shims like `npm`/`eslint` run). The guard *logic* is portable on every agent.
+klaussy runs on **macOS, Linux, and Windows**, and its hooks are built so you never have to think about the OS. The guard scripts read stdin as UTF-8 (so a Windows `cp1252` locale never chokes on an em-dash) and resolve tools via `PATH` honoring Windows `PATHEXT` (so `.cmd` shims like `npm`/`eslint` run).
 
-What varies is whether a **single committed hook config** can launch the right Python interpreter for a teammate on a different OS — `python3` exists on macOS/Linux but not a stock python.org Windows install, which has `python`/`py`. This depends on each agent's hook format:
+The tricky part is that a committed hook command can't portably name a Python interpreter — `python3` is absent on a stock python.org Windows install, and `python` isn't guaranteed on Linux/macOS. So the guards are launched through **`klaussy-hook`**, a pip console script installed on `PATH` on every OS (`klaussy-hook.exe` on Windows) that runs the guard under klaussy's own interpreter. The committed command names no interpreter at all, so it works the same regardless of which machine scaffolded the repo — no per-OS config, nothing to adjust. (`klaussy` is already needed at runtime by the comment and commit guards, so this adds nothing to install.)
 
-| Agent | Runs on Windows | Mixed-OS committed config | Mechanism |
+| Agent | Runs on Windows | Same config on any OS | Mechanism |
 | :--- | :---: | :---: | :--- |
+| **Claude Code** | ✅ | ✅ | `klaussy-hook` launcher (PATH-resolved) |
+| **Gemini CLI** | ✅ | ✅ | `klaussy-hook` launcher; Gemini self-expands `$GEMINI_PROJECT_DIR` |
 | **GitHub Copilot** | ✅ | ✅ | native per-OS `bash` / `powershell` split |
 | **OpenCode** | ✅ | ✅ | Bun plugin resolves the interpreter at runtime |
 | **Codex CLI** | ✅ | ✅ | per-OS override: `command` (`python3`) + `commandWindows` (`py -3`) |
-| **Claude Code** | ✅ | ⚠️ | OS-aware token + quoted `${CLAUDE_PROJECT_DIR}`; no per-OS command field exists, so the interpreter is fixed at scaffold time |
-| **Gemini CLI** | ✅ | ⚠️ | self-expands `$GEMINI_PROJECT_DIR`; no per-OS field, so the interpreter is fixed at scaffold time |
 | **Cursor** | ⚠️ | ⚠️ | docs don't specify the Windows shell or interpreter for hook commands |
 | **Antigravity** | ⚠️ | ⚠️ | shell hook execution isn't documented; treat Windows as unverified |
 | **Cline** | ❌ | — | Cline hooks are **macOS/Linux only** by spec; the guards are simply inert on Windows |
 | **Aider** | ✅ | ✅ | no hook mechanism — nothing OS-specific to reconcile |
 
-- **Single-OS teams: everything works.** The ⚠️ marks apply only to a repo scaffolded on one OS and then used by a teammate on another.
-- ⚠️ **Claude / Gemini** still run on Windows — the interpreter token is just chosen from the *scaffolding* machine, so a mixed-OS team may need to adjust it (their configs have no per-OS field to do this automatically).
+- **Cursor / Antigravity** run guards via the interpreter/shebang their docs describe; their Windows hook execution isn't documented, so treat it as best-effort until confirmed.
 - Codex's Windows variant resolves the repo root via the same `git rev-parse` the POSIX command uses; it assumes a POSIX-compatible or PowerShell hook shell.
 
 ---

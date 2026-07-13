@@ -88,21 +88,20 @@ def test_hooks_scaffolds_guards(repo: Path):
     assert (repo / ".claude" / "hooks" / "comment_guard.py").exists()
 
 
-def test_claude_hook_commands_are_os_aware_and_quoted():
-    # A hardcoded `python3` no-ops on a Windows checkout (python.org exposes
-    # `python`); and an unquoted path breaks when the project dir has spaces.
-    import sys
-
+def test_claude_hook_commands_use_launcher():
+    # No Python interpreter token in the committed command: `python3` no-ops on a
+    # Windows checkout and `python` isn't guaranteed on Linux/macOS, and Claude's
+    # config has no per-OS field to choose. `klaussy-hook` resolves on PATH on
+    # every OS, so the hook works regardless of the scaffolding machine.
     from klaussy import hooks
 
-    expected_py = "python" if sys.platform == "win32" else "python3"
-    assert hooks.HOOK_PY == expected_py
     for command in (
         hooks.GUARD_COMMAND,
         hooks.COMMIT_GUARD_COMMAND,
         hooks.SELF_REVIEW_GUARD_COMMAND,
     ):
-        assert command.startswith(f'{expected_py} "')  # OS-aware interpreter
+        assert command.startswith('klaussy-hook "')
+        assert "python3" not in command and "python " not in command
         assert command.endswith('.py"')  # script path is quoted (spaces-safe)
 
 

@@ -29,6 +29,17 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   review, fixing and resolving) and stops at the merge button.
 - **Additional bundled skills** — `address-review`, `deps`, `document`, and
   `release`, joining the canonical `SKILL_NAMES` list.
+- **`klaussy-hook` launcher for OS-agnostic hooks.** A committed hook command
+  can't portably name a Python interpreter (`python3` is absent on stock Windows;
+  `python` isn't guaranteed on Linux/macOS), and Claude/Gemini hook configs have
+  no per-OS field. The new `klaussy-hook` console script — installed on `PATH` by
+  pip on every OS — runs the guard under klaussy's own interpreter, so the
+  committed command names no interpreter and works regardless of which machine
+  scaffolded the repo, with nothing for the user to adjust. Claude and Gemini
+  hooks now invoke it; Codex keeps its per-OS `commandWindows` (`py -3`) override,
+  and Copilot/OpenCode keep their existing OS-agnostic mechanisms. See the README
+  "Cross-Platform Support" matrix (Cline hooks remain macOS/Linux-only by spec;
+  Cursor and Antigravity Windows execution is undocumented).
 
 ### Changed
 
@@ -44,14 +55,8 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   (the very input the comment guard exists to catch). The commit guard resolves
   tools via `shutil.which` (honoring Windows `PATHEXT`) and runs `.cmd`/`.bat`
   shims through `cmd.exe`, so `npm`/`eslint`/`prettier` gating works on Windows
-  instead of silently passing. Claude hook commands use an OS-aware interpreter
-  token (`python` on Windows, `python3` elsewhere) with a quoted
-  `${CLAUDE_PROJECT_DIR}` path, fixing hooks that previously no-op'd on a Windows
-  checkout. Codex hooks gain a per-OS `commandWindows` (`py -3`) override. The
-  `new-worktree` and `humanize` skills no longer instruct the agent to run
-  POSIX-only shell idioms verbatim. See the README "Cross-Platform Support"
-  matrix for the per-agent story (Cline hooks remain macOS/Linux-only by spec;
-  Cursor and Antigravity Windows execution is undocumented).
+  instead of silently passing. The `new-worktree` and `humanize` skills no longer
+  instruct the agent to run POSIX-only shell idioms verbatim.
 
 ## [0.13.0] - 2026-07-01
 
