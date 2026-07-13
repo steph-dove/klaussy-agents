@@ -92,6 +92,8 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 *Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
 
+<sub>🥚 And `<repo>-slop-coded` — the evil twin of `humanize` that turns clean prose into maximal AI slop. For laughs and stress-testing the scrubber; never run it on a real deliverable.</sub>
+
 ---
 
 ## ⚙️ How it Works under the Hood
