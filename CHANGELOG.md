@@ -20,6 +20,13 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   review of your own uncommitted diff against a fixed checklist (reuse, stdlib,
   comments, dead code, tests, scope) before declaring an implementation done,
   with a companion guard that nudges the agent to run it.
+- **`<repo>-qa` skill** — captures PR-ready QA evidence sized to the change:
+  screenshots for UI, exercised endpoints and e2e for backend, command output
+  for a CLI, tests for a library. Artifacts land in a `Downloads/<repo>-<branch>`
+  folder the user can open.
+- **`<repo>-rest-of-the-owl` skill** — runs the full development loop from a task
+  definition (plan → implement → review → QA → humanized PR → poll CI and code
+  review, fixing and resolving) and stops at the merge button.
 - **Additional bundled skills** — `address-review`, `deps`, `document`, and
   `release`, joining the canonical `SKILL_NAMES` list.
 
@@ -28,6 +35,23 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 - **Pre-plan guidance and commit guard refinements** — updated plan-step
   guardrails and commit-guard behavior; example scaffolds regenerated across all
   supported agents.
+
+### Fixed
+
+- **Cross-platform (macOS / Linux / Windows) hardening of hooks and skills.**
+  Guard scripts now read stdin as UTF-8 instead of the process locale encoding,
+  so a Windows `cp1252` locale no longer fail-opens on em-dashes/smart quotes
+  (the very input the comment guard exists to catch). The commit guard resolves
+  tools via `shutil.which` (honoring Windows `PATHEXT`) and runs `.cmd`/`.bat`
+  shims through `cmd.exe`, so `npm`/`eslint`/`prettier` gating works on Windows
+  instead of silently passing. Claude hook commands use an OS-aware interpreter
+  token (`python` on Windows, `python3` elsewhere) with a quoted
+  `${CLAUDE_PROJECT_DIR}` path, fixing hooks that previously no-op'd on a Windows
+  checkout. Codex hooks gain a per-OS `commandWindows` (`py -3`) override. The
+  `new-worktree` and `humanize` skills no longer instruct the agent to run
+  POSIX-only shell idioms verbatim. See the README "Cross-Platform Support"
+  matrix for the per-agent story (Cline hooks remain macOS/Linux-only by spec;
+  Cursor and Antigravity Windows execution is undocumented).
 
 ## [0.13.0] - 2026-07-01
 

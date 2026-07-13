@@ -256,14 +256,28 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     label = "Codex CLI"
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".codex/hooks"
-    py = _hook_python()
-
     def _cmd(name: str) -> str:
         # Codex has no project-root env var and runs hook commands from the
         # session cwd, so a bare relative path is unsafe; `git rev-parse
         # --show-toplevel` self-resolves the repo root from any subdir
         # (klaussy-scaffolded repos are git repos).
-        return f'{py} "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
+        return f'python3 "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
+
+    def _cmd_win(name: str) -> str:
+        # Codex's documented per-OS override: `commandWindows` runs instead of
+        # `command` on Windows. `py -3` is the launcher stock python.org Windows
+        # installs expose (there is no `python3`). Because Codex chooses per the
+        # CONSUMER's OS at run time, `command` stays POSIX and this stays Windows
+        # regardless of the scaffolding OS — so a mixed-OS team is covered.
+        return f'py -3 "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
+
+    def _entry(name: str) -> dict:
+        return {
+            "type": "command",
+            "command": _cmd(name),
+            "commandWindows": _cmd_win(name),
+            "timeout": 60,
+        }
 
     # Codex has no plan tool, but reports permission_mode ("plan") on stdin and
     # can inject additionalContext from UserPromptSubmit — so the guidance script
@@ -272,7 +286,7 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     hooks_cfg: dict = {
         "UserPromptSubmit": [
             {
-                "hooks": [{"type": "command", "command": _cmd(GUIDANCE_GUARD), "timeout": 60}],
+                "hooks": [_entry(GUIDANCE_GUARD)],
             }
         ]
     }
@@ -286,19 +300,17 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
             lint_cmd=lint,
             comment_check_cmd=com,
         )
-        bash_hooks.append({"type": "command", "command": _cmd(COMMIT_GUARD), "timeout": 60})
+        bash_hooks.append(_entry(COMMIT_GUARD))
     _install_script(repo, f"{hooks_dir}/{COMMENT_GUARD}", "comment_guard.py")
-    bash_hooks.append({"type": "command", "command": _cmd(COMMENT_GUARD), "timeout": 60})
+    bash_hooks.append(_entry(COMMENT_GUARD))
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
-    bash_hooks.append({"type": "command", "command": _cmd(DEPENDENCY_GUARD), "timeout": 60})
+    bash_hooks.append(_entry(DEPENDENCY_GUARD))
     hooks_cfg["PreToolUse"] = [{"matcher": "Bash", "hooks": bash_hooks}]
     # Codex `Stop` "fires when the agent stops responding"; the guard blocks via
     # decision:"block"+reason to request a self-review pass (loop-guarded by
     # stop_hook_active, which Codex reports on stdin).
     _install_self_review_script(repo, f"{hooks_dir}/{SELF_REVIEW_GUARD}", "codex")
-    hooks_cfg["Stop"] = [
-        {"hooks": [{"type": "command", "command": _cmd(SELF_REVIEW_GUARD), "timeout": 60}]}
-    ]
+    hooks_cfg["Stop"] = [{"hooks": [_entry(SELF_REVIEW_GUARD)]}]
 
     if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg}, force=force, label=label):
         _report(

@@ -108,6 +108,30 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 ---
 
+## 🖥️ Cross-Platform Support
+
+klaussy runs on **macOS, Linux, and Windows**. The guard scripts it installs are pure-stdlib Python that read stdin as UTF-8 (so a Windows `cp1252` locale never chokes on an em-dash) and resolve tools via `PATH` honoring Windows `PATHEXT` (so `.cmd` shims like `npm`/`eslint` run). The guard *logic* is portable on every agent.
+
+What varies is whether a **single committed hook config** can launch the right Python interpreter for a teammate on a different OS — `python3` exists on macOS/Linux but not a stock python.org Windows install, which has `python`/`py`. This depends on each agent's hook format:
+
+| Agent | Runs on Windows | Mixed-OS committed config | Mechanism |
+| :--- | :---: | :---: | :--- |
+| **GitHub Copilot** | ✅ | ✅ | native per-OS `bash` / `powershell` split |
+| **OpenCode** | ✅ | ✅ | Bun plugin resolves the interpreter at runtime |
+| **Codex CLI** | ✅ | ✅ | per-OS override: `command` (`python3`) + `commandWindows` (`py -3`) |
+| **Claude Code** | ✅ | ⚠️ | OS-aware token + quoted `${CLAUDE_PROJECT_DIR}`; no per-OS command field exists, so the interpreter is fixed at scaffold time |
+| **Gemini CLI** | ✅ | ⚠️ | self-expands `$GEMINI_PROJECT_DIR`; no per-OS field, so the interpreter is fixed at scaffold time |
+| **Cursor** | ⚠️ | ⚠️ | docs don't specify the Windows shell or interpreter for hook commands |
+| **Antigravity** | ⚠️ | ⚠️ | shell hook execution isn't documented; treat Windows as unverified |
+| **Cline** | ❌ | — | Cline hooks are **macOS/Linux only** by spec; the guards are simply inert on Windows |
+| **Aider** | ✅ | ✅ | no hook mechanism — nothing OS-specific to reconcile |
+
+- **Single-OS teams: everything works.** The ⚠️ marks apply only to a repo scaffolded on one OS and then used by a teammate on another.
+- ⚠️ **Claude / Gemini** still run on Windows — the interpreter token is just chosen from the *scaffolding* machine, so a mixed-OS team may need to adjust it (their configs have no per-OS field to do this automatically).
+- Codex's Windows variant resolves the repo root via the same `git rev-parse` the POSIX command uses; it assumes a POSIX-compatible or PowerShell hook shell.
+
+---
+
 ## 🔧 Installation & Usage
 
 ### As a CLI
