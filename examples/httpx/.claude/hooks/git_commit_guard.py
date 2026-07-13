@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -245,7 +246,23 @@ def _run(cmd: str) -> int:
     quiet on every commit (verbose per-command chatter floods an agent's
     context, especially with many staged files)."""
     try:
-        return subprocess.run(shlex.split(cmd)).returncode
+        tokens = shlex.split(cmd)
+    except ValueError:
+        return 0
+    if not tokens:
+        return 0
+    # Resolve via PATH first so Windows PATHEXT is honored — a `ruff.exe` or
+    # Node shim `eslint.cmd` is found instead of fail-opening the gate. A
+    # .cmd/.bat shim isn't a real executable image, so it must run via cmd.exe.
+    exe = shutil.which(tokens[0])
+    if exe is None:
+        return 0  # tool not installed — can't judge the diff, so allow silently
+    if sys.platform == "win32" and exe.lower().endswith((".cmd", ".bat")):
+        argv = ["cmd", "/c", exe, *tokens[1:]]
+    else:
+        argv = [exe, *tokens[1:]]
+    try:
+        return subprocess.run(argv).returncode
     except (OSError, ValueError):
         return 0
 
@@ -263,7 +280,8 @@ def _blocked_message(cmd: str) -> str:
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
+        _raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        payload = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
     except (json.JSONDecodeError, ValueError):
         return 0
 

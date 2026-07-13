@@ -114,7 +114,6 @@ You are a senior/principal-level engineer reviewing a pull request. Treat this a
 - Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 41 with statements (27 sync, 14 async). Types: file_io (9).).
 - Distributed test files: Test files spread across 2 directories. 496 total test files.
 - High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 481/485 functions have at least one type annotation..
-- for `.cursor/hooks/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `fastapi/**/*.py`: URL-based API versioning: Use URL path versioning (e.g., /v1/, /api/v2/).
 - for `fastapi/**/*.py`: Data class style: Pydantic for API + dataclasses for internal: Use Pydantic for API schemas (63) and dataclasses for internal DTOs (10). Good separation.
 - for `fastapi/**/*.py`: Background jobs with FastAPI BackgroundTasks: Use FastAPI BackgroundTasks for background task processing.

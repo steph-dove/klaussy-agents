@@ -7,7 +7,7 @@ Create a new git worktree for the task the user described.
 
 1. Read CLAUDE.md to understand the project structure and branching conventions.
 2. Create a short, descriptive branch name based on the task (e.g. `fix/login-redirect`, `feat/add-search`).
-3. Run `git worktree add ../$(basename $PWD)-<branch-name> -b <branch-name> master` to create the worktree from the configured base branch (the trailing start-point keeps the new branch from inheriting whatever branch the user is currently checked out on).
+3. Take the current repository's folder name (you already know the working directory — don't compute it with a shell substitution like `$(basename $PWD)`, which isn't portable to Windows shells), then run `git worktree add ../<repo-folder>-<branch-name> -b <branch-name> master` to create the worktree from the configured base branch (the trailing start-point keeps the new branch from inheriting whatever branch the user is currently checked out on).
 4. Confirm the worktree was created successfully with `git worktree list`.
 5. Tell the user the full path to the new worktree so they can open it.
 

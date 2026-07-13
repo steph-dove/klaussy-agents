@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/read_injection_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/read_injection_guard.py\""
           }
         ]
       },
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/plan_guidance.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/plan_guidance.py\""
           }
         ]
       },
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/comment_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/comment_guard.py\""
           }
         ]
       },
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/dependency_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/dependency_guard.py\""
           }
         ]
       },
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/git_commit_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/git_commit_guard.py\""
           }
         ]
       }
@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/read_injection_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/read_injection_guard.py\""
           }
         ]
       }
@@ -80,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/self_review_guard.py"
+            "command": "klaussy-hook \"${CLAUDE_PROJECT_DIR}/.claude/hooks/self_review_guard.py\""
           }
         ]
       }

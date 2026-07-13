@@ -152,28 +152,6 @@ Env vars of note: `GITHUB_ACTIONS` (skips the venv-creation and check/coverage s
 
 ## Path-scoped rules
 
-### Applies to: `.cursor/hooks/**/*.py`
-
-# Rules for `.cursor/hooks/**/*.py`
-
-## Conventions
-
-- **High type annotation coverage**: Standardize on typing: Type annotations are commonly used in this codebase. 442/442 functions have at least one type annotation..
-  *Example context from `.cursor/hooks/klaussy_plan_guidance.py` (lines 79-89):*
-  ```python
-          # signal, so guidance is injected on every prompt.
-          return {"cancel": False, "contextModification": GUIDANCE}
-      return None
-  
-  
-  def main() -> int:
-      try:
-          out = _emit(DIALECT, _payload())
-          if out is not None:
-              print(json.dumps(out))
-      except Exception as exc:  # never crash — injecting nothing is always safe
-  ```
-
 ### Applies to: `httpx/**/*.py`
 
 # Rules for `httpx/**/*.py`

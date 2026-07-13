@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_plan_guidance.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_plan_guidance.py\"",
             "timeout": 60000
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_commit_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_commit_guard.py\"",
             "timeout": 60000
           }
         ]
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_comment_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_comment_guard.py\"",
             "timeout": 60000
           }
         ]
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_dependency_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_dependency_guard.py\"",
             "timeout": 60000
           }
         ]
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
             "timeout": 60000
           }
         ]
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_self_review_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_self_review_guard.py\"",
             "timeout": 60000
           }
         ]
@@ -90,7 +90,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
+            "command": "klaussy-hook \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_read_guard.py\"",
             "timeout": 60000
           }
         ]

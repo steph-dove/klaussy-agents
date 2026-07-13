@@ -185,7 +185,6 @@ For each finding, be specific about the failure mode (the exact input or state t
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
 - Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 29 with statements. Types: file_io (5), http_client (5).).
 - Single test directory: tests/: All tests in 'tests/' directory.
-- for `.cursor/hooks/**/*.py`: High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 442/442 functions have at least one type annotation..
 - for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
 - for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
 - for `httpx/**/*.py`: Custom decorator pattern: @click.option: Use custom decorator @click.option (17 usages).
@@ -274,7 +273,6 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
 - Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 29 with statements. Types: file_io (5), http_client (5).).
 - Single test directory: tests/: All tests in 'tests/' directory.
-- for `.cursor/hooks/**/*.py`: High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 442/442 functions have at least one type annotation..
 - for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
 - for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
 - for `httpx/**/*.py`: Custom decorator pattern: @click.option: Use custom decorator @click.option (17 usages).

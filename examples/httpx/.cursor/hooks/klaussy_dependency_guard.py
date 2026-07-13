@@ -121,7 +121,8 @@ def _added_packages(command: str) -> list[str]:
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
+        _raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        payload = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
         if not isinstance(payload, dict):
             return 0
         command = _extract_command(payload)

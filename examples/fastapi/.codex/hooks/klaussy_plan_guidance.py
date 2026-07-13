@@ -31,7 +31,8 @@ DIALECT: str = 'codex'
 def _payload() -> dict:
     """Read the hook's stdin JSON, tolerating empty or malformed input."""
     try:
-        data = json.load(sys.stdin)
+        _raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        data = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}

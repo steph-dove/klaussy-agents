@@ -6,6 +6,7 @@
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_plan_guidance.py\"",
+            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_plan_guidance.py\"",
             "timeout": 60
           }
         ]
@@ -18,16 +19,19 @@
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_commit_guard.py\"",
+            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_commit_guard.py\"",
             "timeout": 60
           },
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_comment_guard.py\"",
+            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_comment_guard.py\"",
             "timeout": 60
           },
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_dependency_guard.py\"",
+            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_dependency_guard.py\"",
             "timeout": 60
           }
         ]
@@ -39,6 +43,7 @@
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_self_review_guard.py\"",
+            "commandWindows": "py -3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_self_review_guard.py\"",
             "timeout": 60
           }
         ]

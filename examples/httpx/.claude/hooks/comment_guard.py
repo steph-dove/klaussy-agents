@@ -60,7 +60,8 @@ def _humanize(text: str) -> str | None:
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
+        _raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        payload = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
     except (json.JSONDecodeError, ValueError):
         return 0
 
