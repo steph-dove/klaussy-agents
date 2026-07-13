@@ -88,6 +88,24 @@ def test_hooks_scaffolds_guards(repo: Path):
     assert (repo / ".claude" / "hooks" / "comment_guard.py").exists()
 
 
+def test_claude_hook_commands_are_os_aware_and_quoted():
+    # A hardcoded `python3` no-ops on a Windows checkout (python.org exposes
+    # `python`); and an unquoted path breaks when the project dir has spaces.
+    import sys
+
+    from klaussy import hooks
+
+    expected_py = "python" if sys.platform == "win32" else "python3"
+    assert hooks.HOOK_PY == expected_py
+    for command in (
+        hooks.GUARD_COMMAND,
+        hooks.COMMIT_GUARD_COMMAND,
+        hooks.SELF_REVIEW_GUARD_COMMAND,
+    ):
+        assert command.startswith(f'{expected_py} "')  # OS-aware interpreter
+        assert command.endswith('.py"')  # script path is quoted (spaces-safe)
+
+
 def test_github_creates_then_skips(repo: Path):
     path = toolkit.github(repo)
     assert path is not None and path.exists()

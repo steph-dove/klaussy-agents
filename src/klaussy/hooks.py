@@ -2,6 +2,7 @@
 
 import json
 import stat
+import sys
 from importlib import resources
 from pathlib import Path
 
@@ -18,29 +19,36 @@ console = Console()
 # https://code.claude.com/docs/en/hooks.md ("Path Placeholders").
 PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
 
+# Interpreter token for the hook command. python.org Windows installs expose
+# `python`, not `python3`; macOS/Linux reliably have `python3` — so a hardcoded
+# `python3` makes every Claude hook silently no-op on a Windows checkout. Mirror
+# agents.hooks._hook_python(). The script path is quoted in each command below so
+# a project dir containing spaces still resolves once ${CLAUDE_PROJECT_DIR} expands.
+HOOK_PY = "python" if sys.platform == "win32" else "python3"
+
 GUARD_SCRIPT_NAME = "read_injection_guard.py"
 GUARD_RELPATH = f".claude/hooks/{GUARD_SCRIPT_NAME}"
-GUARD_COMMAND = f"python3 {PROJECT_DIR}/{GUARD_RELPATH}"
+GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{GUARD_RELPATH}"'
 
 COMMIT_GUARD_SCRIPT_NAME = "git_commit_guard.py"
 COMMIT_GUARD_RELPATH = f".claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}"
-COMMIT_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{COMMIT_GUARD_RELPATH}"
+COMMIT_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{COMMIT_GUARD_RELPATH}"'
 
 COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
 COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
-COMMENT_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{COMMENT_GUARD_RELPATH}"
+COMMENT_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{COMMENT_GUARD_RELPATH}"'
 
 DEPENDENCY_GUARD_SCRIPT_NAME = "dependency_guard.py"
 DEPENDENCY_GUARD_RELPATH = f".claude/hooks/{DEPENDENCY_GUARD_SCRIPT_NAME}"
-DEPENDENCY_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{DEPENDENCY_GUARD_RELPATH}"
+DEPENDENCY_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{DEPENDENCY_GUARD_RELPATH}"'
 
 PLAN_GUIDANCE_SCRIPT_NAME = "plan_guidance.py"
 PLAN_GUIDANCE_RELPATH = f".claude/hooks/{PLAN_GUIDANCE_SCRIPT_NAME}"
-PLAN_GUIDANCE_COMMAND = f"python3 {PROJECT_DIR}/{PLAN_GUIDANCE_RELPATH}"
+PLAN_GUIDANCE_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{PLAN_GUIDANCE_RELPATH}"'
 
 SELF_REVIEW_GUARD_SCRIPT_NAME = "self_review_guard.py"
 SELF_REVIEW_GUARD_RELPATH = f".claude/hooks/{SELF_REVIEW_GUARD_SCRIPT_NAME}"
-SELF_REVIEW_GUARD_COMMAND = f"python3 {PROJECT_DIR}/{SELF_REVIEW_GUARD_RELPATH}"
+SELF_REVIEW_GUARD_COMMAND = f'{HOOK_PY} "{PROJECT_DIR}/{SELF_REVIEW_GUARD_RELPATH}"'
 
 # Placeholder baked into direct tool commands; the commit guard expands it to
 # the staged files at commit time so the gate only judges the change being
