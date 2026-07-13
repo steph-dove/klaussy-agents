@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-rest-of-the-owl
-description: Use when the user hands you a task definition and wants the ENTIRE development loop run end-to-end — plan, implement, review and fix, open a humanized PR, then poll CI and code review, fixing and resolving until the PR is green and clean. Does everything except merge. Long-running and autonomous; the human keeps the merge button.
+description: Use when the user hands you a task definition and wants the ENTIRE development loop run end-to-end — plan, implement, review and fix, QA the change with evidence appropriate to it, open a humanized PR, then poll CI and code review, fixing and resolving until the PR is green and clean. Does everything except merge. Long-running and autonomous; the human keeps the merge button.
 allowed-tools: Read Grep Glob Bash Edit Write TodoWrite Agent
 ---
 
@@ -34,18 +34,22 @@ Follow **`{{REPO}}-implement`**. Work the plan in small batches, keeping the sui
 
 Follow **`{{REPO}}-review`** against the working diff (`git diff {{BASE_BRANCH}}...HEAD`). Fix every finding you agree with; for ones you don't, note why. Re-run the suite. Then follow **`{{REPO}}-self-review`** as a last pass so the diff doesn't read as AI-written. Do not open the PR until this phase is clean.
 
-## Phase 4 — Open the PR (humanized)
+## Phase 4 — QA the change
+
+Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. Keep the artifacts it saves under `.qa/` — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+
+## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `{{BASE_BRANCH}}`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure.
+2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (note that `gh pr create` can't upload images, so link the `.qa/` paths and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
 3. Run the body through **`{{REPO}}-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
 4. Open the PR with `gh pr create` (base `{{BASE_BRANCH}}`). Capture the PR number/URL and report it.
 
-## Phase 5 — Re-review the PR and fix
+## Phase 6 — Re-review the PR and fix
 
 Now that the diff is a real PR, review it once more with **`{{REPO}}-review`** (a PR at rest reads differently than an uncommitted diff — integration seams and the change as a whole surface here). Fix findings, commit, push.
 
-## Phase 6 — Poll CI and fix failures
+## Phase 7 — Poll CI and fix failures
 
 Watch the checks until they reach a terminal state:
 
@@ -55,7 +59,7 @@ gh pr checks <number> --watch
 
 For each failing check, pull its logs (`gh run view <run-id> --log-failed`), diagnose the *real* cause, fix it, commit, push, and re-watch. A flaky check gets one re-run before you treat it as a genuine failure — don't loop forever re-running a green-on-retry check, and don't paper over a real failure by disabling the test. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
 
-## Phase 7 — Poll for code review and resolve
+## Phase 8 — Poll for code review and resolve
 
 Once CI is green, wait for review to land (human or bot). Poll on a sane cadence — check, wait, check — rather than hammering the API:
 
@@ -64,11 +68,11 @@ gh pr view <number> --json reviews,reviewDecision,comments
 gh api repos/{owner}/{repo}/pulls/<number>/comments   # inline review threads
 ```
 
-For the feedback that arrives, follow **`{{REPO}}-address-review`**: triage each comment, apply the changes it warrants, draft a reply, and resolve the thread once handled. Push fixes, which re-triggers CI — loop back to Phase 6 if anything goes red.
+For the feedback that arrives, follow **`{{REPO}}-address-review`**: triage each comment, apply the changes it warrants, draft a reply, and resolve the thread once handled. Push fixes, which re-triggers CI — loop back to Phase 7 if anything goes red.
 
 **Bounded wait.** Reviews depend on a human showing up, so do not poll indefinitely. If no new review activity arrives after a reasonable window (say, several polls over ~15 minutes, or immediately if the user tells you to wrap up), stop polling and hand back with a summary. Resume later when the user says review has landed.
 
-## Phase 8 — Land the owl (but don't merge)
+## Phase 9 — Land the owl (but don't merge)
 
 When CI is green and all review threads are resolved, stop. Report: the PR link, its check status, which review comments you addressed and how, and the one thing left — the user's merge. Mark all TodoWrite tasks complete.
 

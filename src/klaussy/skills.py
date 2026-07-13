@@ -19,6 +19,7 @@ SKILL_NAMES = [
     "refactor",
     "test",
     "run",
+    "qa",
     "self-review",
     "fix",
     "pr",
