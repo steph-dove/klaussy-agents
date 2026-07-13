@@ -33,6 +33,7 @@ SKILL_NAMES = [
     "adr-generator",
     "security-audit",
     "slop-coded",
+    "rest-of-the-owl",
 ]
 
 VERSION_FILE = ".klaussy-version"
