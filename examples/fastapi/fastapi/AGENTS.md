@@ -58,15 +58,6 @@
       `response_class=EventSourceResponse`, each `ServerSentEvent` is encoded
       into the [SSE wire format](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)
   ```
-- **lowercase constant naming**: Name constants using lowercase style.
-  *Example context from `fastapi/params.py` (lines 18-22):*
-  ```python
-  
-  class ParamTypes(Enum):
-      query = "query"
-      header = "header"
-      path = "path"
-  ```
 - **Enum usage: Enum**: Use Python enums for categorical values. Found 4 enum class(es).
   *Example context from `fastapi/params.py` (lines 14-24):*
   ```python
