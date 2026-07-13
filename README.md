@@ -78,6 +78,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 | **`<repo>-plan`** | Multi-phase planning and execution. | 📋 **Plan Gate:** Writes a detailed `plan.md` checklist and halts, waiting for your explicit approval before modifying files. |
 | **`<repo>-precommit`** | Last-mile review of staged changes. | 🔍 **5-Lens Safety check:** Reviews changed lines only for silent failures, leaked secrets, debug leftovers, and verbose comments. |
 | **`<repo>-humanize`** | Prose and documentation cleaner. | ✍️ **AI-Tell Scrubber:** Runs the deterministic `klaussy humanize` regex engine to strip chatbot scaffolding and formalisms. |
+| **`<repo>-run`** | Launches and drives your app to watch a change work end-to-end. | 🚦 **Real-App Smoke Test:** Reads the run command from `CLAUDE.md`, backgrounds long-running servers until they're ready, then exercises the actual flow and reports what it saw — never patches code to make it start. |
 
 *Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, and `new-worktree`.*
 
@@ -139,7 +140,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.13.0** (adds the OpenCode backend — klaussy's ninth supported agent).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.14.0** (adds the `run` and `self-review` skills, plus `address-review`, `deps`, `document`, and `release`).
 
 ---
 

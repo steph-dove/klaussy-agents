@@ -5,6 +5,30 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.14.0] - 2026-07-13
+
+### Added
+
+- **`<repo>-run` skill** — launches and drives the project's app so you can watch
+  a change work end-to-end instead of trusting tests alone. It reads the run
+  command from `CLAUDE.md`'s **Commands** section (falling back to stack defaults
+  for Python/Node/Go/Rust when none is named), backgrounds long-running servers
+  and waits for their ready signal before driving them, then reports the actual
+  output. It refuses to patch code to make the app start — a broken app is a bug
+  for the debug skill, not something to work around here.
+- **`<repo>-self-review` skill + `self_review_guard.py` hook** — a last-pass
+  review of your own uncommitted diff against a fixed checklist (reuse, stdlib,
+  comments, dead code, tests, scope) before declaring an implementation done,
+  with a companion guard that nudges the agent to run it.
+- **Additional bundled skills** — `address-review`, `deps`, `document`, and
+  `release`, joining the canonical `SKILL_NAMES` list.
+
+### Changed
+
+- **Pre-plan guidance and commit guard refinements** — updated plan-step
+  guardrails and commit-guard behavior; example scaffolds regenerated across all
+  supported agents.
+
 ## [0.13.0] - 2026-07-01
 
 ### Added
