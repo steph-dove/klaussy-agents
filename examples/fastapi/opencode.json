@@ -1,0 +1,35 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".opencode/rules/*.md"
+  ],
+  "permission": {
+    "read": {
+      "*": "allow",
+      ".env": "deny",
+      ".env.*": "deny",
+      "credentials*": "deny",
+      "secrets*": "deny",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "**/service-account*.json": "deny"
+    },
+    "bash": {
+      "*": "ask",
+      "git": "allow",
+      "git *": "allow",
+      "python": "allow",
+      "python *": "allow",
+      "pytest": "allow",
+      "pytest *": "allow",
+      "ruff": "allow",
+      "ruff *": "allow",
+      "mypy": "allow",
+      "mypy *": "allow",
+      "pip": "allow",
+      "pip *": "allow",
+      "uv": "allow",
+      "uv *": "allow"
+    }
+  }
+}

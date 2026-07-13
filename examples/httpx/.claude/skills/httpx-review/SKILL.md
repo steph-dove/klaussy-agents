@@ -101,8 +101,9 @@ You are a senior/principal-level engineer reviewing a pull request. Treat this a
 11. **Scope** — Identify the primary intent of the PR. Flag changes unrelated to that intent with **Warn** severity.
 
 ### Repo Conventions
-- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_config.py`.
+- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_client.py`.
 - Config access patterns: Manage environment configuration: Config access: 12 direct env accesses..
+- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
 - PR template: PR template present.
 - Python import path (flat-layout): flat-layout: `import httpx`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
@@ -119,23 +120,13 @@ You are a senior/principal-level engineer reviewing a pull request. Treat this a
 - for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.
 
 ### Verification Commands
-Ensure these pass before approving:
-- `requirements.txt`
-- `scripts/check`
-- `network`
-- `mypy`
+Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
+- `pytest`
 
 ### Known Pitfalls
 Flag if any of these are violated:
 - 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
-- New public symbols must be added to `__all__` in `httpx/__init__.py` *and* exported with `*` from their source module's own `__all__`, or `import httpx` won't expose them even though the module-level import works.
-- `scripts/coverage` fails the build below 100% line coverage — untested branches need either a test or `# pragma: no cover` (66 existing usages in `httpx/`), don't add code paths that can't be exercised by the test suite.
-- `ruff` has `B904` (raise-without-from-inside-except) and `B028` (no-explicit-stacklevel) deliberately disabled in `pyproject.toml` — don't assume `raise X from Y` is enforced everywhere; check `_exceptions.py`/`_decoders.py` for the actual exception-chaining convention instead.
-- `mypy` is `strict = true` for `httpx/` but relaxed for `tests/*` (`disallow_untyped_defs = false`) — code under `httpx/` needs full annotations, test helpers don't.
-- `pytest` runs with `filterwarnings = ["error", ...]` (see `pyproject.toml`) — any unfiltered `DeprecationWarning`/`RuntimeWarning` raised during tests becomes a hard failure, not just noise in the output.
-- Tests requiring network access are marked `@pytest.mark.network`; some third-party/offline CI environments disable networking and deselect on this marker — don't assume a failing un-marked test is a flake if it secretly needs the network.
-- `scripts/install` behaves differently under CI (`$GITHUB_ACTIONS` set → installs directly, no `venv/`) vs. local (creates `venv/`) — other scripts detect this via `[ -d 'venv' ]`, so running scripts after a partial/manual install can silently use the wrong interpreter.
-- The `verify` (string form) and `cert` `Client`/`request` arguments are deprecated since v0.28.0 and emit warnings — combined with `filterwarnings = ["error", ...]` in tests, using them in test code will break the suite, not just warn.
+- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
 
 ### Tone & standards — pick a delivery mode, keep the substance:
 

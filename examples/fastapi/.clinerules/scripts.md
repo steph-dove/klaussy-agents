@@ -7,7 +7,7 @@ paths:
 
 ## Conventions
 
-- **Context manager usage**: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 33 with statements (22 sync, 11 async). Types: file_io (4).).
+- **Context manager usage**: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 36 with statements (22 sync, 14 async). Types: file_io (4).).
   *Example context from `scripts/docs.py` (lines 853-859):*
   ```python
       in_code_block4 = False

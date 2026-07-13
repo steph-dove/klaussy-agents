@@ -32,6 +32,15 @@
         "powershell": "python .github/hooks/klaussy_dependency_guard.py",
         "timeoutSec": 60
       }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 .github/hooks/klaussy_self_review_guard.py",
+        "powershell": "python .github/hooks/klaussy_self_review_guard.py",
+        "timeoutSec": 60
+      }
     ]
   }
 }
