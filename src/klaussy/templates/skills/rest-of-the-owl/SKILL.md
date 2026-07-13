@@ -36,12 +36,12 @@ Follow **`{{REPO}}-review`** against the working diff (`git diff {{BASE_BRANCH}}
 
 ## Phase 4 — QA the change
 
-Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. Keep the artifacts it saves under `.qa/` — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to `~/Downloads/<repo>-<branch>/` where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
 
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `{{BASE_BRANCH}}`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (note that `gh pr create` can't upload images, so link the `.qa/` paths and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
+2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (note that `gh pr create` can't upload images, so point at the `~/Downloads/<repo>-<branch>/` folder and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
 3. Run the body through **`{{REPO}}-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
 4. Open the PR with `gh pr create` (base `{{BASE_BRANCH}}`). Capture the PR number/URL and report it.
 

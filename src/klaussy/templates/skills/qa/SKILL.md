@@ -21,7 +21,7 @@ QA the current change and capture evidence a reviewer can trust. The point is to
    - **CLI / tool** → run the representative commands that exercise the change (not just `--help`); capture stdout, stderr, and exit codes.
    - **Library / SDK** → run the unit tests plus a small usage snippet that calls the changed API.
    - **Docs / config / infra only** → there's nothing to observe at runtime. Say so and stop — don't manufacture QA.
-4. **Save the artifacts** to a predictable, gitignored spot — screenshots as PNGs under `.qa/` at the repo root, captured command/HTTP output as text alongside them. Add `.qa/` to `.gitignore` if it isn't already; these are evidence, not source. Reference everything by path.
+4. **Save the artifacts where the user can actually open them** — a folder in their Downloads named for the repo and branch: `~/Downloads/<repo>-<branch>/` (e.g. `~/Downloads/myapp-feature-login/`). Get the names with `basename "$(git rev-parse --show-toplevel)"` and `git rev-parse --abbrev-ref HEAD`, and replace any `/` in the branch with `-` so it's a valid single folder. Write screenshots as PNGs and captured command/HTTP output as text into that folder, `mkdir -p` it first. Keep artifacts out of the repo tree — they're evidence for a human to view, not source to commit. Report the absolute folder path so the user can find it.
 5. **Write a QA summary** suited to drop into a PR's Test Plan / QA section: which surfaces changed, what QA ran for each, the evidence (screenshot paths, captured output, test results), pass/fail, and anything you could NOT cover and why. Lead with the result, keep it tight.
 
 ## Rules
