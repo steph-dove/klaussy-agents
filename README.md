@@ -65,6 +65,14 @@ klaussy init
 > [!NOTE]
 > Automatically triggers your project's linting and formatting stack before allowing the agent to commit, keeping your Git history green.
 
+### 5. Dependency Speed Bump (`dependency_guard.py`)
+> [!NOTE]
+> Catches package-manager commands that add a *new named* dependency (`pip install requests`, `npm install lodash`, `poetry add x`, …) and blocks once, asking the agent to confirm the package is actually needed and not coverable by the stdlib or an existing dep. Ignores manifest syncs (`npm ci`, `pip install -r`, `uv sync`) that add nothing new.
+
+### 6. Self-Review Nudge (`self_review_guard.py`)
+> [!NOTE]
+> Prompts the agent to run a last-pass self-review of its own diff before declaring an implementation done, closing the loop with the `<repo>-self-review` skill.
+
 ---
 
 ## 🚀 Advanced Repository-Scoped Skills
@@ -79,8 +87,10 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 | **`<repo>-precommit`** | Last-mile review of staged changes. | 🔍 **5-Lens Safety check:** Reviews changed lines only for silent failures, leaked secrets, debug leftovers, and verbose comments. |
 | **`<repo>-humanize`** | Prose and documentation cleaner. | ✍️ **AI-Tell Scrubber:** Runs the deterministic `klaussy humanize` regex engine to strip chatbot scaffolding and formalisms. |
 | **`<repo>-run`** | Launches and drives your app to watch a change work end-to-end. | 🚦 **Real-App Smoke Test:** Reads the run command from `CLAUDE.md`, backgrounds long-running servers until they're ready, then exercises the actual flow and reports what it saw — never patches code to make it start. |
+| **`<repo>-security-audit`** | Focused security pass over the current change. | 🔐 **Threat-Lens Diff Scan:** Applies only the security lenses to the branch diff — leaked secrets, injection & SSRF, broken access control, unsafe deserialization, and vulnerable deps. Narrower and deeper than review; reports findings without refactoring. |
+| **`<repo>-self-review`** | Last-pass review of your own diff before "done". | 🪞 **AI-Tell Catcher:** Checks the uncommitted change against a fixed list — reuse, stdlib, comments, dead code, tests, scope — catching what makes a diff read as AI-written before a human ever sees it. A companion hook nudges the agent to run it. |
 
-*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, and `new-worktree`.*
+*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
 
 ---
 
