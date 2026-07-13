@@ -88,7 +88,8 @@ CODE_EXTS = (
 
 def _payload() -> dict:
     try:
-        data = json.load(sys.stdin)
+        _raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+        data = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}

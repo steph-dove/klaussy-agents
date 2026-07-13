@@ -112,3 +112,27 @@ def test_main_reads_each_agent_payload_shape(guard, payload, monkeypatch):
 def test_main_never_crashes_on_garbage(guard, monkeypatch):
     rc, _ = _run(guard, ["not", "a", "dict"], monkeypatch)
     assert rc == 0
+
+
+class _FakeStdin:
+    """Stand-in for a real stdin: exposes a bytes `.buffer` like sys.stdin does.
+
+    The StringIO the other tests use has no `.buffer`, so it exercises the str
+    fallback path. This exercises the byte path the guards actually hit at
+    runtime — where an em-dash arrives as UTF-8 bytes, not decoded text.
+    """
+
+    def __init__(self, raw: bytes):
+        self.buffer = io.BytesIO(raw)
+
+
+def test_main_decodes_utf8_stdin(guard, monkeypatch):
+    # Non-ASCII bytes (em-dash + CJK) would raise UnicodeDecodeError under a
+    # Windows cp1252 locale with the old json.load(sys.stdin); the guard must
+    # decode UTF-8 from stdin.buffer and still block the new dependency.
+    payload = {"tool_input": {"command": "pip install requests"}, "note": "em—dash 包子"}
+    monkeypatch.setattr("sys.stdin", _FakeStdin(json.dumps(payload).encode("utf-8")))
+    err = io.StringIO()
+    monkeypatch.setattr("sys.stderr", err)
+    assert guard.main() == 2
+    assert "requests" in err.getvalue()

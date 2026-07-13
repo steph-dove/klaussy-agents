@@ -205,3 +205,45 @@ def test_bad_commit_message_notice_is_actionable(guard):
     assert "Conventional Commits" in msg
     assert "--no-verify" in msg
     assert "add thing" in msg  # echoes the offending subject
+
+
+# --- _run resolves the executable via PATH (Windows .cmd/.exe safety) -------
+
+
+def test_run_missing_tool_allows(guard, monkeypatch):
+    # An uninstalled tool can't judge the diff, so the commit is allowed silently
+    # (previously via a caught FileNotFoundError; now via an explicit which miss).
+    monkeypatch.setattr(guard.shutil, "which", lambda _name: None)
+    assert guard._run("definitely-not-a-real-tool --fix x.py") == 0
+
+
+def test_run_resolves_executable_and_returns_code(guard, monkeypatch):
+    seen = {}
+
+    def fake_run(argv, *a, **k):
+        seen["argv"] = argv
+        return type("R", (), {"returncode": 7})()
+
+    monkeypatch.setattr(guard.shutil, "which", lambda name: "/opt/tools/" + name)
+    monkeypatch.setattr(guard.subprocess, "run", fake_run)
+    assert guard._run("ruff format x.py") == 7
+    # The bare name is replaced by the PATH-resolved path before running.
+    assert seen["argv"] == ["/opt/tools/ruff", "format", "x.py"]
+
+
+def test_run_wraps_windows_cmd_shim(guard, monkeypatch):
+    # On Windows a Node entrypoint resolves to a .cmd shim, which CreateProcess
+    # can't launch directly — it must go through cmd.exe.
+    seen = {}
+
+    def fake_run(argv, *a, **k):
+        seen["argv"] = argv
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr(guard.sys, "platform", "win32")
+    monkeypatch.setattr(guard.shutil, "which", lambda name: "C:\\tools\\" + name + ".cmd")
+    monkeypatch.setattr(guard.subprocess, "run", fake_run)
+    assert guard._run("npx eslint --fix x.js") == 0
+    assert seen["argv"][:2] == ["cmd", "/c"]
+    assert seen["argv"][2] == "C:\\tools\\npx.cmd"
+    assert seen["argv"][3:] == ["eslint", "--fix", "x.js"]

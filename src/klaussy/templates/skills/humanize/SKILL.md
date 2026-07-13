@@ -18,7 +18,7 @@ If `$ARGUMENTS` is empty, humanize the prose the user pasted into the conversati
 2. **Rewrite by the rules above.** This is the judgment pass: kill filler openers, drop chatbot scaffolding, replace em/en dashes, tighten hedges, vary sentence shape. Only touch prose, never code, identifiers, or anything inside backticks or fences.
 3. **Run the deterministic backstop.** klaussy ships a code-preserving scrubber that guarantees the high-confidence tells are gone regardless of the rewrite. This is the post-processing step, always run it last:
    - **Files:** `klaussy humanize <file>... --write` (rewrites in place; prints which files changed).
-   - **Pasted text:** pipe the rewritten text through it, e.g. `printf '%s' "$text" | klaussy humanize`, and use that output.
+   - **Pasted text:** pipe the rewritten text into `klaussy humanize` on stdin and use its output (on macOS/Linux, e.g. `printf '%s' "$text" | klaussy humanize`; on Windows use the shell's own piping — the point is stdin in, humanized text out).
    - If the `klaussy` CLI isn't on PATH, run it via `python -m klaussy humanize ...`. If neither resolves, say the deterministic backstop was unavailable and that only the rewrite was applied.
 4. **Report** what changed: for files, the list the scrubber reported; for text, show the humanized result.
 
