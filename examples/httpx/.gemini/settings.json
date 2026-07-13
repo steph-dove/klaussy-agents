@@ -73,6 +73,17 @@
         ]
       }
     ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$GEMINI_PROJECT_DIR/.gemini/hooks/klaussy_self_review_guard.py\"",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
     "AfterTool": [
       {
         "matcher": "web_fetch",

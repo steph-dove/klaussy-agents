@@ -177,49 +177,59 @@ For each finding, be specific about the failure mode (the exact input or state t
 
 ### Project Conventions
 ### Repo Conventions
-- File change hotspots: Frequently modified: `release-notes.md`, `test.yml`, `__init__.py`.
+- File change hotspots: Frequently modified: `release-notes.md`, `uv.lock`, `notify-translations.yml`.
 - Config access patterns: Manage environment configuration: Use `pydantic_settings` for env config.
 - Gitmoji commits: Gitmoji commit messages.
+- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
+- PR template: Sections: Summary, Changes, Test Plan, Checklist.
 - Response envelope classes: Use response envelope classes (5 found).
 - Cursor-based pagination: Use cursor-based pagination. 8 cursor/after/before usages.
 - Caching: functools.lru_cache: Use functools.lru_cache for caching.
 - Python import path (flat-layout): flat-layout: `import fastapi`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
+- Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 41 with statements (27 sync, 14 async). Types: file_io (9).).
 - Distributed test files: Test files spread across 2 directories. 496 total test files.
-- High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 434/438 functions have at least one type annotation..
+- High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 481/485 functions have at least one type annotation..
+- for `.cursor/hooks/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `fastapi/**/*.py`: URL-based API versioning: Use URL path versioning (e.g., /v1/, /api/v2/).
 - for `fastapi/**/*.py`: Data class style: Pydantic for API + dataclasses for internal: Use Pydantic for API schemas (63) and dataclasses for internal DTOs (10). Good separation.
 - for `fastapi/**/*.py`: Background jobs with FastAPI BackgroundTasks: Use FastAPI BackgroundTasks for background task processing.
 - for `fastapi/**/*.py`: Data classes: Pydantic models: Use Pydantic models for structured data. 85/103 structured classes use this pattern.
-- for `fastapi/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `fastapi/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 4 enum class(es).
 - for `fastapi/**/*.py`: Custom decorator pattern: @deprecated: Use custom decorator @deprecated (4 usages). Also uses: @asynccontextmanager.
 - for `fastapi/**/*.py`: Limited exception chaining: Preserve exception context: use `raise X from Y` or `raise X from None`.
 - for `fastapi/**/*.py`: Mixed validation approaches: Validate inputs and parameters: Use multiple validation approaches: Pydantic validation, Manual validation (ValueError/TypeError), Decorator-based validation..
-- for `scripts/**/*.py`: Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 33 with statements (22 sync, 11 async). Types: file_io (4).).
 - for `scripts/**/*.py`: Structured configuration with Pydantic Settings: Use Pydantic BaseSettings for configuration management.
 - for `tests/**/*.py`: FastAPI-style session dependency injection: Use get_db() dependency pattern with Depends() for session lifecycle.
 - for `tests/**/*.py`: HTTP errors raised in service layer: HTTPException is frequently raised outside the API layer.
 - for `tests/**/*.py`: Semi-centralized exception handling: Exception handlers are spread across 2 modules.
 - for `tests/**/*.py`: OAuth2 authentication: Use OAuth2 for authentication. OAuth2 usages: 13.
 - for `tests/**/*.py`: Mocking with pytest monkeypatch fixture: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
-- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2202/2261 test functions. naming style for all test functions.
+- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2213/2272 test functions. naming style for all test functions.
 
 ### Verification Commands
-Ensure these pass before approving:
-- `scripts/test.sh`
-- `prek`
+Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
+- `PYTHONPATH=./docs_src pytest -n auto --dist loadgroup tests`
+- `pytest`
+- `PYTHONPATH=./docs_src pytest tests/test_dependency_cache.py -k test_normal_read_body`
+- `bash scripts/test-cov.sh # test.sh + --cov --cov-context=test`
+- `bash scripts/test-cov-html.sh # + term-missing and HTML report`
+- `mypy fastapi`
+- `ruff check fastapi tests docs_src scripts`
+- `ruff format fastapi tests --check`
+- `ruff check fastapi tests docs_src scripts --fix`
+- `ruff format fastapi tests docs_src scripts`
 
 ### Known Pitfalls
 Flag if any of these are violated:
 - 20 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 - CI workflow `pre-commit.yml` contains steps allowed to fail (`continue-on-error: true`).
-- Running `pytest` directly (without `scripts/test.sh`) skips the `PYTHONPATH=./docs_src` export — any test importing `docs_src.*` example modules fails with `ModuleNotFoundError`.
-- Tests live in two places, both run by default in `scripts/test.sh`: `tests/` (library behavior, 496 files) and `scripts/tests/` (tooling/scripts tests) — a bare `pytest` invocation only picks up `tests/`.
-- `ruff` ignores `E501` (line length, deferred to formatting) and `B008` (function calls in argument defaults) in `[tool.ruff.lint]` — `B008` is intentionally suppressed because FastAPI's whole DI pattern relies on `Depends(...)`/`Query(...)` as default argument values, which `flake8-bugbear` would otherwise flag as a bug.
-- `[tool.coverage.run] omit` in `pyproject.toml` explicitly excludes several `docs_src/*` files as "temporary code example" / leftover Pydantic v1 migration code — don't chase 100% coverage on those paths.
-- `mypy fastapi` passing locally does not mean the whole repo type-checks cleanly: strict mode only applies to `fastapi/`, and `tests/`/`docs_src/` have deliberately relaxed override rules.
-- `fastapi/routing.py` and `fastapi/applications.py` are very large (6.2k and 4.8k lines) with heavy `@overload` duplication across route-decorator parameters (for IDE autocompletion) — adding a new endpoint-decorator parameter typically means updating multiple overload signatures in both files, not just one function body.
+- `docs_src/` is not inert sample code — `scripts/test.sh` sets `PYTHONPATH=./docs_src` and `tests/` imports modules from it directly. Breaking a `docs_src/` tutorial file breaks the test suite, and running `pytest` directly without that `PYTHONPATH` (i.e. without going through `scripts/test.sh`) fails on those imports.
+- `[tool.pytest].filterwarnings = ["error"]` — any warning raised during a test run (including one raised by a dependency) becomes a hard test failure. Code that trips a `DeprecationWarning` or similar will fail CI even if its assertions pass.
+- `ruff` has several intentional rule exclusions: `E501` (line length, unenforced), `B008` (function calls in argument defaults — required by FastAPI's own `Depends()`/`Query()`/etc. pattern, so don't "fix" this in code that mirrors that API), and `C901` (complexity). There's also a long per-file `ignore` list for specific `docs_src/` tutorials (e.g. `F821`, `B904`, `B006`) where the tutorial intentionally shows incomplete or simplified code.
+- `mypy` runs in `strict = true` mode against `fastapi/` only; `docs_src.*` has relaxed overrides (`disallow_incomplete_defs = false`, `disallow_untyped_defs = false`, `disallow_untyped_calls = false`) since tutorials are intentionally partial — don't assume the same strictness applies there.
+- Tests are parallelized with `pytest-xdist` using `--dist loadgroup` (`scripts/test.sh`) — tests relying on shared mutable global state or execution order can pass locally with a plain `pytest` invocation but fail or flake under the parallel runner.
+- `mypy` has a targeted override disabling `warn_unused_ignores` for `fastapi/concurrency.py`, which manages compat shims across `anyio`/asyncio versions where `# type: ignore` comments are only needed on some versions/platforms.
 
 If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
 ```
@@ -277,49 +287,59 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 - **Dynamic context injection** — `` !`<command>` `` inline form or ` ```! ` fenced blocks inside SKILL.md bodies. Documented at `code.claude.com/docs/en/skills.md` under "Inject dynamic context". The shell command runs at skill-load time and its output replaces the placeholder. Flag only if the command leaks secrets, hits an external service unintentionally, or runs something destructive — never flag the syntax itself.
 - **`$ARGUMENTS` / `$N` / `${CLAUDE_SESSION_ID}` / `${CLAUDE_SKILL_DIR}` substitution** in SKILL.md bodies. Documented in the skills frontmatter spec under "Available string substitutions". When a skill is auto-triggered without args, `$ARGUMENTS` resolves to empty — that is by design, not a defect.
 - **`fastapi` / `master` / `### Repo Conventions
-- File change hotspots: Frequently modified: `release-notes.md`, `test.yml`, `__init__.py`.
+- File change hotspots: Frequently modified: `release-notes.md`, `uv.lock`, `notify-translations.yml`.
 - Config access patterns: Manage environment configuration: Use `pydantic_settings` for env config.
 - Gitmoji commits: Gitmoji commit messages.
+- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
+- PR template: Sections: Summary, Changes, Test Plan, Checklist.
 - Response envelope classes: Use response envelope classes (5 found).
 - Cursor-based pagination: Use cursor-based pagination. 8 cursor/after/before usages.
 - Caching: functools.lru_cache: Use functools.lru_cache for caching.
 - Python import path (flat-layout): flat-layout: `import fastapi`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
+- Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 41 with statements (27 sync, 14 async). Types: file_io (9).).
 - Distributed test files: Test files spread across 2 directories. 496 total test files.
-- High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 434/438 functions have at least one type annotation..
+- High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 481/485 functions have at least one type annotation..
+- for `.cursor/hooks/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `fastapi/**/*.py`: URL-based API versioning: Use URL path versioning (e.g., /v1/, /api/v2/).
 - for `fastapi/**/*.py`: Data class style: Pydantic for API + dataclasses for internal: Use Pydantic for API schemas (63) and dataclasses for internal DTOs (10). Good separation.
 - for `fastapi/**/*.py`: Background jobs with FastAPI BackgroundTasks: Use FastAPI BackgroundTasks for background task processing.
 - for `fastapi/**/*.py`: Data classes: Pydantic models: Use Pydantic models for structured data. 85/103 structured classes use this pattern.
-- for `fastapi/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `fastapi/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 4 enum class(es).
 - for `fastapi/**/*.py`: Custom decorator pattern: @deprecated: Use custom decorator @deprecated (4 usages). Also uses: @asynccontextmanager.
 - for `fastapi/**/*.py`: Limited exception chaining: Preserve exception context: use `raise X from Y` or `raise X from None`.
 - for `fastapi/**/*.py`: Mixed validation approaches: Validate inputs and parameters: Use multiple validation approaches: Pydantic validation, Manual validation (ValueError/TypeError), Decorator-based validation..
-- for `scripts/**/*.py`: Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 33 with statements (22 sync, 11 async). Types: file_io (4).).
 - for `scripts/**/*.py`: Structured configuration with Pydantic Settings: Use Pydantic BaseSettings for configuration management.
 - for `tests/**/*.py`: FastAPI-style session dependency injection: Use get_db() dependency pattern with Depends() for session lifecycle.
 - for `tests/**/*.py`: HTTP errors raised in service layer: HTTPException is frequently raised outside the API layer.
 - for `tests/**/*.py`: Semi-centralized exception handling: Exception handlers are spread across 2 modules.
 - for `tests/**/*.py`: OAuth2 authentication: Use OAuth2 for authentication. OAuth2 usages: 13.
 - for `tests/**/*.py`: Mocking with pytest monkeypatch fixture: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
-- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2202/2261 test functions. naming style for all test functions.
+- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 2213/2272 test functions. naming style for all test functions.
 
 ### Verification Commands
-Ensure these pass before approving:
-- `scripts/test.sh`
-- `prek`
+Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
+- `PYTHONPATH=./docs_src pytest -n auto --dist loadgroup tests`
+- `pytest`
+- `PYTHONPATH=./docs_src pytest tests/test_dependency_cache.py -k test_normal_read_body`
+- `bash scripts/test-cov.sh # test.sh + --cov --cov-context=test`
+- `bash scripts/test-cov-html.sh # + term-missing and HTML report`
+- `mypy fastapi`
+- `ruff check fastapi tests docs_src scripts`
+- `ruff format fastapi tests --check`
+- `ruff check fastapi tests docs_src scripts --fix`
+- `ruff format fastapi tests docs_src scripts`
 
 ### Known Pitfalls
 Flag if any of these are violated:
 - 20 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 - CI workflow `pre-commit.yml` contains steps allowed to fail (`continue-on-error: true`).
-- Running `pytest` directly (without `scripts/test.sh`) skips the `PYTHONPATH=./docs_src` export — any test importing `docs_src.*` example modules fails with `ModuleNotFoundError`.
-- Tests live in two places, both run by default in `scripts/test.sh`: `tests/` (library behavior, 496 files) and `scripts/tests/` (tooling/scripts tests) — a bare `pytest` invocation only picks up `tests/`.
-- `ruff` ignores `E501` (line length, deferred to formatting) and `B008` (function calls in argument defaults) in `[tool.ruff.lint]` — `B008` is intentionally suppressed because FastAPI's whole DI pattern relies on `Depends(...)`/`Query(...)` as default argument values, which `flake8-bugbear` would otherwise flag as a bug.
-- `[tool.coverage.run] omit` in `pyproject.toml` explicitly excludes several `docs_src/*` files as "temporary code example" / leftover Pydantic v1 migration code — don't chase 100% coverage on those paths.
-- `mypy fastapi` passing locally does not mean the whole repo type-checks cleanly: strict mode only applies to `fastapi/`, and `tests/`/`docs_src/` have deliberately relaxed override rules.
-- `fastapi/routing.py` and `fastapi/applications.py` are very large (6.2k and 4.8k lines) with heavy `@overload` duplication across route-decorator parameters (for IDE autocompletion) — adding a new endpoint-decorator parameter typically means updating multiple overload signatures in both files, not just one function body.` / `### Write like a person, not a chatbot
+- `docs_src/` is not inert sample code — `scripts/test.sh` sets `PYTHONPATH=./docs_src` and `tests/` imports modules from it directly. Breaking a `docs_src/` tutorial file breaks the test suite, and running `pytest` directly without that `PYTHONPATH` (i.e. without going through `scripts/test.sh`) fails on those imports.
+- `[tool.pytest].filterwarnings = ["error"]` — any warning raised during a test run (including one raised by a dependency) becomes a hard test failure. Code that trips a `DeprecationWarning` or similar will fail CI even if its assertions pass.
+- `ruff` has several intentional rule exclusions: `E501` (line length, unenforced), `B008` (function calls in argument defaults — required by FastAPI's own `Depends()`/`Query()`/etc. pattern, so don't "fix" this in code that mirrors that API), and `C901` (complexity). There's also a long per-file `ignore` list for specific `docs_src/` tutorials (e.g. `F821`, `B904`, `B006`) where the tutorial intentionally shows incomplete or simplified code.
+- `mypy` runs in `strict = true` mode against `fastapi/` only; `docs_src.*` has relaxed overrides (`disallow_incomplete_defs = false`, `disallow_untyped_defs = false`, `disallow_untyped_calls = false`) since tutorials are intentionally partial — don't assume the same strictness applies there.
+- Tests are parallelized with `pytest-xdist` using `--dist loadgroup` (`scripts/test.sh`) — tests relying on shared mutable global state or execution order can pass locally with a plain `pytest` invocation but fail or flake under the parallel runner.
+- `mypy` has a targeted override disabling `warn_unused_ignores` for `fastapi/concurrency.py`, which manages compat shims across `anyio`/asyncio versions where `# type: ignore` comments are only needed on some versions/platforms.` / `### Write like a person, not a chatbot
 
 Whatever you output for the user (comments, descriptions, messages) must read as if a human engineer wrote it. These rules mirror klaussy's deterministic humanizer (klaussy-desktop `humanize-comment.js`):
 

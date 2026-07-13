@@ -64,20 +64,20 @@ paths:
   from fastapi.testclient import TestClient
   ```
 - **Mocking with pytest monkeypatch fixture**: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
-  *Example context from `tests/test_frontend.py` (lines 16-26):*
+  *Example context from `tests/test_frontend.py` (lines 24-34):*
   ```python
-  def write_file(path: Path, content: str) -> None:
-      path.parent.mkdir(parents=True, exist_ok=True)
-      path.write_text(content)
+          calls.append(name)
+  
+      return dependency
   
   
   def test_frontend_exact_prefix_path_serves_index(tmp_path: Path):
       dist = tmp_path / "dist"
       write_file(dist / "index.html", "app")
       app = FastAPI()
-      app.frontend("/app", directory=dist)
+      app.frontend("/", directory=dist)
   ```
-- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2202/2261 test functions. naming style for all test functions.
+- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2213/2272 test functions. naming style for all test functions.
   *Example context from `tests/test_datastructures.py` (lines 8-14):*
   ```python
   from fastapi.testclient import TestClient

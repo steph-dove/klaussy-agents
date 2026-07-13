@@ -33,6 +33,7 @@ COMMENT_GUARD = "klaussy_comment_guard.py"
 DEPENDENCY_GUARD = "klaussy_dependency_guard.py"
 READ_GUARD = "klaussy_read_guard.py"
 GUIDANCE_GUARD = "klaussy_plan_guidance.py"
+SELF_REVIEW_GUARD = "klaussy_self_review_guard.py"
 
 
 def _hook_python() -> str:
@@ -85,6 +86,20 @@ def _install_guidance_script(repo: Path, relpath: str, dialect: str) -> None:
     content = content.replace(
         '"__KLAUSSY_GUIDANCE__"', _python_literal(read_pre_plan_guidance())
     ).replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
+    dest.write_text(content)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _install_self_review_script(repo: Path, relpath: str, dialect: str) -> None:
+    """Copy the self-review stop hook, baking in the per-agent output dialect."""
+    dest = repo / relpath
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        resources.files("klaussy")
+        .joinpath("templates/hooks/multi/self_review_guard.py")
+        .read_text()
+    )
+    content = content.replace('"__KLAUSSY_DIALECT__"', _python_literal(dialect))
     dest.write_text(content)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
@@ -164,14 +179,20 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     # the guidance lands each turn rather than only on plan entry.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "gemini")
     guidance_cmd = {"type": "command", "command": _cmd(GUIDANCE_GUARD), "timeout": 60000}
+    # AfterAgent "fires once per turn after the model generates its final response"
+    # (Gemini hooks reference) — the Stop analogue. The guard rejects the response
+    # via decision:"deny"+reason to request a self-review pass.
+    _install_self_review_script(repo, f"{hooks_dir}/{SELF_REVIEW_GUARD}", "gemini")
+    review_cmd = {"type": "command", "command": _cmd(SELF_REVIEW_GUARD), "timeout": 60000}
     settings["hooks"] = {
         "BeforeAgent": [{"hooks": [guidance_cmd]}],
         "BeforeTool": before,
+        "AfterAgent": [{"hooks": [review_cmd]}],
         "AfterTool": [{"matcher": "web_fetch", "hooks": [read_cmd]}],
     }
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    _report(label, bool(fmt or lint or com), read=True, web=True, plan=True)
+    _report(label, bool(fmt or lint or com), read=True, web=True, plan=True, self_review=True)
 
 
 def cursor_hooks(repo: Path, *, force: bool) -> None:
@@ -218,11 +239,16 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
     # failClosed — a guidance hiccup must never wedge the session.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "cursor")
     hooks["sessionStart"] = [{"command": f"{hooks_dir}/{GUIDANCE_GUARD}", "type": "command"}]
+    # Cursor's `stop` ("Handle agent completion") returns `followup_message` to
+    # auto-continue for one self-review pass; Cursor bounds re-fires via its own
+    # loop_limit/loop_count. Not failClosed — a stop hiccup must never wedge.
+    _install_self_review_script(repo, f"{hooks_dir}/{SELF_REVIEW_GUARD}", "cursor")
+    hooks["stop"] = [{"command": f"{hooks_dir}/{SELF_REVIEW_GUARD}", "type": "command"}]
 
     if _write_json(
         repo / ".cursor" / "hooks.json", {"version": 1, "hooks": hooks}, force=force, label=label
     ):
-        _report(label, bool(fmt or lint or com), read=True, web=False, plan=True)
+        _report(label, bool(fmt or lint or com), read=True, web=False, plan=True, self_review=True)
 
 
 def codex_hooks(repo: Path, *, force: bool) -> None:
@@ -266,6 +292,13 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     _install_script(repo, f"{hooks_dir}/{DEPENDENCY_GUARD}", "dependency_guard.py")
     bash_hooks.append({"type": "command", "command": _cmd(DEPENDENCY_GUARD), "timeout": 60})
     hooks_cfg["PreToolUse"] = [{"matcher": "Bash", "hooks": bash_hooks}]
+    # Codex `Stop` "fires when the agent stops responding"; the guard blocks via
+    # decision:"block"+reason to request a self-review pass (loop-guarded by
+    # stop_hook_active, which Codex reports on stdin).
+    _install_self_review_script(repo, f"{hooks_dir}/{SELF_REVIEW_GUARD}", "codex")
+    hooks_cfg["Stop"] = [
+        {"hooks": [{"type": "command", "command": _cmd(SELF_REVIEW_GUARD), "timeout": 60}]}
+    ]
 
     if _write_json(repo / ".codex" / "hooks.json", {"hooks": hooks_cfg}, force=force, label=label):
         _report(
@@ -274,6 +307,7 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
             read=False,
             web=False,
             plan=True,
+            self_review=True,
             read_note="Codex has no pre-file-read hook event",
         )
 
@@ -345,6 +379,19 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
         }
     )
     hooks_cfg["preToolUse"] = pre_tool
+    # Copilot `agentStop` "the main agent finishes a turn"; the guard blocks via
+    # decision:"block"+reason to request a self-review pass. agentStop carries no
+    # stop_hook_active, so the guard's own once-per-session/HEAD marker prevents loops.
+    _install_self_review_script(repo, f"{hooks_dir}/{SELF_REVIEW_GUARD}", "copilot")
+    hooks_cfg["agentStop"] = [
+        {
+            "type": "command",
+            "cwd": ".",
+            "bash": f"python3 {hooks_dir}/{SELF_REVIEW_GUARD}",
+            "powershell": f"python {hooks_dir}/{SELF_REVIEW_GUARD}",
+            "timeoutSec": 60,
+        }
+    ]
 
     config = {"version": 1, "hooks": hooks_cfg}
     if _write_json(
@@ -356,6 +403,7 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
             read=False,
             web=False,
             plan=True,
+            self_review=True,
             read_note="Copilot preToolUse is fail-closed; read-injection "
             "tool args are unconfirmed, so it's omitted",
         )
@@ -518,6 +566,7 @@ def opencode_hooks(repo: Path, *, force: bool) -> None:
         bool(fmt or lint or com),
         read=True,
         web=True,
+        self_review=True,
         read_note="opencode has no context-injection hook event, so plan-guidance "
         "rides an always-loaded instructions rule instead (written by "
         "emit_conventions), not a hook; webfetch scanning is best-effort (its "
@@ -532,6 +581,7 @@ def _report(
     read: bool,
     web: bool,
     plan: bool = False,
+    self_review: bool = False,
     read_note: str | None = None,
 ) -> None:
     parts = []
@@ -544,6 +594,8 @@ def _report(
         parts.append("web-fetch")
     if plan:
         parts.append("plan-guidance")
+    if self_review:
+        parts.append("self-review")
     wired = ", ".join(parts) if parts else "none"
     console.print(f"[green]✔ [{label}] hooks wired: {wired}[/green]")
     if not commit:

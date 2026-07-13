@@ -1,17 +1,18 @@
 # gitleaks configuration for klaussy-agents.
 #
-# Keeps the full default ruleset (useDefault) and adds one narrowly-scoped
-# allowlist: the security-audit eval fixture deliberately embeds a realistic
-# fake secret so the skill has something real to flag — an obvious placeholder
-# wouldn't trigger the audit (the skill ignores "YOUR_API_KEY"-style stubs by
-# design). The allowlist is scoped to that single fixture file so a real secret
-# committed anywhere else still fails the scan.
+# Keeps the full default ruleset (useDefault) and adds a narrowly-scoped
+# allowlist for test files that deliberately embed realistic fake secrets so
+# the scanner/skill has something real to flag — an obvious placeholder
+# wouldn't trigger detection (both ignore "YOUR_API_KEY"-style stubs by
+# design). The allowlist is scoped to those specific fixture/test files so a
+# real secret committed anywhere else still fails the scan.
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Intentional fake secret in the security-audit eval fixture"
+description = "Intentional fake secrets in secret-detection tests and fixtures"
 paths = [
   '''tests/evals/test_security_audit_eval\.py''',
+  '''tests/test_secret_scan\.py''',
 ]

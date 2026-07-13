@@ -30,6 +30,12 @@
         "command": ".cursor/hooks/klaussy_plan_guidance.py",
         "type": "command"
       }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/klaussy_self_review_guard.py",
+        "type": "command"
+      }
     ]
   }
 }

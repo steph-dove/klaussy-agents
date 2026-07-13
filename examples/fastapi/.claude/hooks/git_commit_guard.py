@@ -36,6 +36,10 @@ COMMENT_CHECK_CMD: str | None = 'ruff check --select ERA __KLAUSSY_PATHS__'
 # `--diff` scopes it to lines changed vs HEAD so pre-existing comments
 # elsewhere in a touched file don't block the commit.
 VERBOSE_COMMENT_CMD: str | None = "klaussy comment-lint --diff __KLAUSSY_PATHS__"
+# Deterministic secret scan (block-only literal, no sentinel). `--diff` scopes it
+# to added lines so a pre-existing value elsewhere in a touched file doesn't block
+# the commit.
+SECRET_SCAN_CMD: str | None = "klaussy secret-scan --diff __KLAUSSY_PATHS__"
 
 # Stand-in for the files being committed; expanded just before each command runs.
 PATHS_TOKEN = "__KLAUSSY_PATHS__"
@@ -82,6 +86,12 @@ RUNNER_TOKENS = frozenset(
 # Matches `git commit` and `git -C path commit`, but not `git commitlint`,
 # `git log --grep=commit`, or shell-quoted strings that mention commit.
 GIT_COMMIT_RE = re.compile(r"(^|[\s;&|])git(\s+-[^\s]+\s+\S+)*\s+commit(\s|$)")
+
+# Conventional Commits: type(scope)!: subject. The repo mandates this format;
+# an inline `-m` message that doesn't match blocks the commit.
+CONVENTIONAL_RE = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+"
+)
 
 
 def _command_tool(cmd: str) -> str | None:
@@ -146,6 +156,51 @@ def _skips_verify(command: str) -> bool:
         if tok.startswith("-") and not tok.startswith("--") and "n" in tok:
             return True
     return False
+
+
+def _commit_messages(command: str) -> list[str]:
+    """Subjects passed via -m/--message on the commit command, in order.
+
+    Only inline messages are visible to a pre-commit hook; an editor-based commit
+    (no -m) has no message yet, so it can't be validated and is allowed. Handles
+    `-m foo`, `-mfoo`, `--message foo`, `--message=foo`, and combined short flags
+    like `-am foo`.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    msgs: list[str] = []
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in ("-m", "--message"):
+            if i + 1 < len(tokens):
+                msgs.append(tokens[i + 1])
+                i += 2
+                continue
+        elif tok.startswith("--message="):
+            msgs.append(tok[len("--message=") :])
+        elif tok.startswith("-") and not tok.startswith("--") and "m" in tok:
+            after = tok[tok.index("m") + 1 :]
+            if after:
+                msgs.append(after)
+            elif i + 1 < len(tokens):
+                msgs.append(tokens[i + 1])
+                i += 2
+                continue
+        i += 1
+    return msgs
+
+
+def _bad_commit_message(subject: str) -> str:
+    """Block notice for a non-Conventional-Commits subject line."""
+    return (
+        "klaussy pre-commit: commit message must follow Conventional Commits "
+        "(type(scope): subject), e.g. `feat(auth): add SSO`. Allowed types: feat, "
+        "fix, docs, style, refactor, perf, test, build, ci, chore, revert. Fix the "
+        f"message, or re-commit with `--no-verify` to skip. Got: {subject!r}"
+    )
 
 
 def _changed_paths(include_unstaged: bool) -> list[str]:
@@ -224,8 +279,13 @@ def main() -> int:
     if _skips_verify(command):
         return 0
 
+    subjects = _commit_messages(command)
+    if subjects and not CONVENTIONAL_RE.match(subjects[0]):
+        print(_bad_commit_message(subjects[0]), file=sys.stderr)
+        return 2
+
     paths = _changed_paths(include_unstaged=_commits_all(command))
-    for cmd in (FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD):
+    for cmd in (SECRET_SCAN_CMD, FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD):
         if not cmd:
             continue
         resolved = _resolve(cmd, paths)

@@ -32,6 +32,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/klaussy_self_review_guard.py\"",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   }
 }

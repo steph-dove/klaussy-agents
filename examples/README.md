@@ -6,8 +6,8 @@ only** — the upstream source is not vendored here.
 
 | Example | Upstream repo | Generated with |
 |---|---|---|
-| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | klaussy 0.12.1 |
-| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | klaussy 0.12.1 |
+| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | klaussy 0.14.0 |
+| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | klaussy 0.14.0 |
 
 ## What's in each
 
@@ -17,8 +17,8 @@ Everything `klaussy init` writes for all supported agents:
   conventions, plus path-scoped `AGENTS.md`/`GEMINI.md` inside source
   subdirectories and `.github/instructions/` for Copilot.
 - `.claude/`, `.cursor/`, `.codex/`, `.gemini/`, `.clinerules/`, `.agents/`,
-  `.github/` — repo-namespaced skills (`fastapi-*`, `httpx-*`), hooks, and
-  settings for each backend.
+  `.opencode/`, `.github/` — repo-namespaced skills (`fastapi-*`, `httpx-*`),
+  hooks, and settings for each backend.
 - Secret-exclusion files (`.cursorignore`, `.geminiignore`, …) and the
   per-agent commit/comment/read guards.
 

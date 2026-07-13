@@ -101,41 +101,38 @@ You are a senior/principal-level engineer reviewing a pull request. Treat this a
 11. **Scope** — Identify the primary intent of the PR. Flag changes unrelated to that intent with **Warn** severity.
 
 ### Repo Conventions
-- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_config.py`.
+- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_client.py`.
 - Config access patterns: Manage environment configuration: Config access: 12 direct env accesses..
-- PR template: PR template present.
+- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
+- PR template: Sections: Summary, Changes, Test Plan, Checklist.
 - Python import path (flat-layout): flat-layout: `import httpx`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
+- Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 29 with statements. Types: file_io (5), http_client (5).).
 - Single test directory: tests/: All tests in 'tests/' directory.
+- for `.cursor/hooks/**/*.py`: High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 442/442 functions have at least one type annotation..
 - for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
-- for `httpx/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
 - for `httpx/**/*.py`: Custom decorator pattern: @click.option: Use custom decorator @click.option (17 usages).
 - for `httpx/**/*.py`: Limited exception chaining: Preserve exception context: use `raise X from Y` or `raise X from None`.
-- for `httpx/**/*.py`: Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 24 with statements. Types: http_client (5).).
 - for `httpx/**/*.py`: Configuration via os.environ direct access: Use os.environ direct access.
-- for `httpx/**/*.py`: High type annotation coverage: Standardize on typing: Type annotations are commonly used in this codebase. 396/396 functions have at least one type annotation..
 - for `httpx/**/*.py`: Manual validation (ValueError/TypeError): Validate inputs and parameters: Use Manual validation (ValueError/TypeError) for input validation. 17/17 validation patterns use this approach..
 - for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.
 
 ### Verification Commands
-Ensure these pass before approving:
-- `requirements.txt`
-- `scripts/check`
-- `network`
-- `mypy`
+Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
+- `venv/bin/mypy httpx tests`
+- `pytest`
 
 ### Known Pitfalls
 Flag if any of these are violated:
-- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
-- New public symbols must be added to `__all__` in `httpx/__init__.py` *and* exported with `*` from their source module's own `__all__`, or `import httpx` won't expose them even though the module-level import works.
-- `scripts/coverage` fails the build below 100% line coverage — untested branches need either a test or `# pragma: no cover` (66 existing usages in `httpx/`), don't add code paths that can't be exercised by the test suite.
-- `ruff` has `B904` (raise-without-from-inside-except) and `B028` (no-explicit-stacklevel) deliberately disabled in `pyproject.toml` — don't assume `raise X from Y` is enforced everywhere; check `_exceptions.py`/`_decoders.py` for the actual exception-chaining convention instead.
-- `mypy` is `strict = true` for `httpx/` but relaxed for `tests/*` (`disallow_untyped_defs = false`) — code under `httpx/` needs full annotations, test helpers don't.
-- `pytest` runs with `filterwarnings = ["error", ...]` (see `pyproject.toml`) — any unfiltered `DeprecationWarning`/`RuntimeWarning` raised during tests becomes a hard failure, not just noise in the output.
-- Tests requiring network access are marked `@pytest.mark.network`; some third-party/offline CI environments disable networking and deselect on this marker — don't assume a failing un-marked test is a flake if it secretly needs the network.
-- `scripts/install` behaves differently under CI (`$GITHUB_ACTIONS` set → installs directly, no `venv/`) vs. local (creates `venv/`) — other scripts detect this via `[ -d 'venv' ]`, so running scripts after a partial/manual install can silently use the wrong interpreter.
-- The `verify` (string form) and `cert` `Client`/`request` arguments are deprecated since v0.28.0 and emit warnings — combined with `filterwarnings = ["error", ...]` in tests, using them in test code will break the suite, not just warn.
+- 100% coverage is enforced, not aspirational: `scripts/coverage` runs `coverage report --fail-under=100`. Any new branch without a covering test (or an explicit `# pragma: no cover` / `# pragma: nocover`) fails CI outright — see the existing `# pragma: nocover` uses in `_config.py` around the `SSL_CERT_FILE`/`SSL_CERT_DIR` branches.
+- `scripts/check` validates version sync before anything else: `scripts/sync-version` greps the second semver match in `CHANGELOG.md` against `httpx/__version__.py` and fails if they differ. Bumping the version means updating both files together (the first CHANGELOG match is the "unreleased" header, so the second entry must equal `__version__`).
+- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles. `__init__.py`'s wildcard-import order (`_api` before `_client` before `_config` ...) is load-bearing; reordering it can surface these cycles as `ImportError`/`AttributeError` at import time.
+- `ruff` intentionally ignores `B904` and `B028`: bare `raise X` inside an `except` block (without `from`) and non-`stacklevel` `warnings.warn` calls are allowed project-wide (`pyproject.toml` `[tool.ruff.lint]`) — don't "fix" these in unrelated diffs.
+- `mypy strict = true` for `httpx/` but relaxed for `tests/`: the `[[tool.mypy.overrides]]` block turns off `disallow_untyped_defs` for `tests.*`. Test helpers can skip full annotations; library code cannot.
+- CLI extras aren't installed by default: running the `httpx` console script without `pip install httpx[cli]` hits the `except ImportError` branch in `__init__.py` and just prints an install hint — don't mistake this for a real crash when debugging `_main.py`.
+- `requirements.txt` intentionally pins tooling but not runtime deps: httpx's own dependencies (`httpcore`, `certifi`, `anyio`, `idna`) are unpinned by design so tests run against latest — see the comment at the top of `requirements.txt` and PR #1721 discussion. Don't "fix" this by pinning them.
+- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
 
 ### Tone & standards — pick a delivery mode, keep the substance:
 
