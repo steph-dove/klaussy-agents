@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.15.1] - 2026-07-14
+
+### Fixed
+
+- **Resolve bot-thanking and superlative AI tells in humanizer.** Prevented automated PR comment reviews from thanking bots (e.g. `@dependabot`, `@codecov-bot`, `@github-actions`) and using superlative compliments like *"this is the sharpest catch in the review"*.
+- **Extend tells coverage**. Added emojis, transition word openers, apologies, and utilize/leverage replacements to the deterministic Python scrubber.
+
 ## [0.15.0] - 2026-07-13
 
 ### Added
