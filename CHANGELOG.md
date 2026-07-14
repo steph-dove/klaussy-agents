@@ -5,6 +5,47 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.15.0] - 2026-07-13
+
+### Added
+
+- **`klaussy-hook` launcher for OS-agnostic hooks.** A committed hook command
+  can't portably name a Python interpreter (`python3` is absent on stock Windows;
+  `python` isn't guaranteed on Linux/macOS), and Claude/Gemini hook configs have
+  no per-OS field — so the interpreter was frozen to whatever machine ran
+  `klaussy init`. The new `klaussy-hook` console script — installed on `PATH` by
+  pip on every OS (`klaussy-hook.exe` on Windows) — runs the guard under klaussy's
+  own interpreter, so the committed command names no interpreter and just works on
+  any OS with nothing for the user to adjust. Claude and Gemini hooks invoke it;
+  Codex gains a per-OS `command`/`commandWindows` (`py -3`) override;
+  Copilot/OpenCode keep their existing OS-agnostic mechanisms. See the README
+  "Cross-Platform Support" matrix (Cline hooks remain macOS/Linux-only by spec;
+  Cursor and Antigravity Windows execution is undocumented).
+- **`<repo>-qa` skill** — captures PR-ready QA evidence sized to the change:
+  screenshots for UI, exercised endpoints and e2e for backend, command output
+  for a CLI, tests for a library. Artifacts land in a `Downloads/<repo>-<branch>`
+  folder the user can open.
+- **`<repo>-rest-of-the-owl` skill** — runs the full development loop from a task
+  definition (plan → implement → review → QA → humanized PR → poll CI and code
+  review, fixing and resolving) and stops at the merge button.
+
+### Fixed
+
+- **Cross-platform (macOS / Linux / Windows) hardening of hooks and skills.**
+  Guard scripts now read stdin as UTF-8 instead of the process locale encoding,
+  so a Windows `cp1252` locale no longer fail-opens on em-dashes/smart quotes
+  (the very input the comment guard exists to catch). The commit guard resolves
+  tools via `shutil.which` (honoring Windows `PATHEXT`) and runs `.cmd`/`.bat`
+  shims through `cmd.exe`, so `npm`/`eslint`/`prettier` gating works on Windows
+  instead of silently passing. The `new-worktree` and `humanize` skills no longer
+  instruct the agent to run POSIX-only shell idioms verbatim.
+- **Duplicate `# Rules for` header in nested conventions.** The generated
+  `.claude/rules/*.md` bodies open with their own `# Rules for <glob>` heading,
+  which the non-Claude backends re-wrapped with a second one — producing a visible
+  duplicate in nested `AGENTS.md`/`GEMINI.md` and a redundant header in inline
+  rule files. The heading is now stripped once at load; Claude still copies the
+  raw rules files untouched.
+
 ## [0.14.0] - 2026-07-13
 
 ### Added
@@ -20,43 +61,14 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   review of your own uncommitted diff against a fixed checklist (reuse, stdlib,
   comments, dead code, tests, scope) before declaring an implementation done,
   with a companion guard that nudges the agent to run it.
-- **`<repo>-qa` skill** — captures PR-ready QA evidence sized to the change:
-  screenshots for UI, exercised endpoints and e2e for backend, command output
-  for a CLI, tests for a library. Artifacts land in a `Downloads/<repo>-<branch>`
-  folder the user can open.
-- **`<repo>-rest-of-the-owl` skill** — runs the full development loop from a task
-  definition (plan → implement → review → QA → humanized PR → poll CI and code
-  review, fixing and resolving) and stops at the merge button.
 - **Additional bundled skills** — `address-review`, `deps`, `document`, and
   `release`, joining the canonical `SKILL_NAMES` list.
-- **`klaussy-hook` launcher for OS-agnostic hooks.** A committed hook command
-  can't portably name a Python interpreter (`python3` is absent on stock Windows;
-  `python` isn't guaranteed on Linux/macOS), and Claude/Gemini hook configs have
-  no per-OS field. The new `klaussy-hook` console script — installed on `PATH` by
-  pip on every OS — runs the guard under klaussy's own interpreter, so the
-  committed command names no interpreter and works regardless of which machine
-  scaffolded the repo, with nothing for the user to adjust. Claude and Gemini
-  hooks now invoke it; Codex keeps its per-OS `commandWindows` (`py -3`) override,
-  and Copilot/OpenCode keep their existing OS-agnostic mechanisms. See the README
-  "Cross-Platform Support" matrix (Cline hooks remain macOS/Linux-only by spec;
-  Cursor and Antigravity Windows execution is undocumented).
 
 ### Changed
 
 - **Pre-plan guidance and commit guard refinements** — updated plan-step
   guardrails and commit-guard behavior; example scaffolds regenerated across all
   supported agents.
-
-### Fixed
-
-- **Cross-platform (macOS / Linux / Windows) hardening of hooks and skills.**
-  Guard scripts now read stdin as UTF-8 instead of the process locale encoding,
-  so a Windows `cp1252` locale no longer fail-opens on em-dashes/smart quotes
-  (the very input the comment guard exists to catch). The commit guard resolves
-  tools via `shutil.which` (honoring Windows `PATHEXT`) and runs `.cmd`/`.bat`
-  shims through `cmd.exe`, so `npm`/`eslint`/`prettier` gating works on Windows
-  instead of silently passing. The `new-worktree` and `humanize` skills no longer
-  instruct the agent to run POSIX-only shell idioms verbatim.
 
 ## [0.13.0] - 2026-07-01
 

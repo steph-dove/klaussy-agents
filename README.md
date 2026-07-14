@@ -178,7 +178,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.14.0** (adds the `run` and `self-review` skills, plus `address-review`, `deps`, `document`, and `release`).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.15.0** (adds the `klaussy-hook` launcher for OS-agnostic hooks, cross-platform hardening, and the `qa` and `rest-of-the-owl` skills).
 
 ---
 
