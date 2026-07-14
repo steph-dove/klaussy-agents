@@ -92,9 +92,7 @@ class TestClineSkills:
         ClineBackend().run_skills(
             repo_with_rules, force=True, base_branch="main", review_template=None
         )
-        assert (
-            repo_with_rules / ".agents" / "skills" / f"{ns}-plan" / "SKILL.md"
-        ).exists()
+        assert (repo_with_rules / ".agents" / "skills" / f"{ns}-plan" / "SKILL.md").exists()
         # Skills are kept out of .clinerules to avoid prompt pollution.
         assert not (repo_with_rules / ".clinerules" / "skills").exists()
 

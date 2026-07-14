@@ -58,9 +58,7 @@ CASES = [
 
 
 @harness.requires_eval_env
-@pytest.mark.parametrize(
-    "label,skill,context,instruction,any_of", CASES, ids=[c[0] for c in CASES]
-)
+@pytest.mark.parametrize("label,skill,context,instruction,any_of", CASES, ids=[c[0] for c in CASES])
 def test_multistep_discipline_surfaces(label, skill, context, instruction, any_of):
     out = harness.run_skill(skill, context, instruction=instruction, max_tokens=1200)
     low = out.lower()

@@ -47,9 +47,7 @@ _DYNAMIC_SHELL = re.compile(r"```!\n.*?\n```", re.DOTALL)
 
 def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "main") -> str:
     """Return the substituted SKILL.md body, frontmatter + ```! blocks stripped."""
-    text = resources.files("klaussy").joinpath(
-        f"templates/skills/{skill}/SKILL.md"
-    ).read_text()
+    text = resources.files("klaussy").joinpath(f"templates/skills/{skill}/SKILL.md").read_text()
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)
@@ -63,9 +61,7 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
 
 def sh(repo: Path, *args: str, timeout: int = 120) -> subprocess.CompletedProcess:
     """Run a command in `repo`, capturing output. Never raises on non-zero."""
-    return subprocess.run(
-        list(args), cwd=repo, capture_output=True, text=True, timeout=timeout
-    )
+    return subprocess.run(list(args), cwd=repo, capture_output=True, text=True, timeout=timeout)
 
 
 def git(repo: Path, *args: str) -> subprocess.CompletedProcess:

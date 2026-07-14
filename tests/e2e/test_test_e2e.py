@@ -27,8 +27,7 @@ TEST_BASE = "from calc import add\n\n\ndef test_add():\n    assert add(1, 2) == 
 
 # The mutant: clamp ignores its bounds. Boundary tests must catch this.
 CALC_MUTANT = (
-    "def add(a, b):\n    return a + b\n\n\n"
-    "def clamp(value, low, high):\n    return value\n"
+    "def add(a, b):\n    return a + b\n\n\ndef clamp(value, low, high):\n    return value\n"
 )
 
 PYPROJECT = "[tool.ruff]\nline-length = 100\n"

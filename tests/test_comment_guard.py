@@ -56,8 +56,7 @@ def test_find_body_forms(claude):
 
 
 def _feed(mod, monkeypatch, command, event="PreToolUse", tool="Bash"):
-    payload = {"hook_event_name": event, "tool_name": tool,
-               "tool_input": {"command": command}}
+    payload = {"hook_event_name": event, "tool_name": tool, "tool_input": {"command": command}}
     monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
 
 

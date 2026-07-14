@@ -261,6 +261,7 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     label = "Codex CLI"
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".codex/hooks"
+
     def _cmd(name: str) -> str:
         # Codex has no project-root env var and runs hook commands from the
         # session cwd, so a bare relative path is unsafe; `git rev-parse

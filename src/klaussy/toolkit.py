@@ -134,9 +134,7 @@ def init(
     ]
     for key in selected:
         steps.extend(
-            BACKENDS[key].steps(
-                repo, force=force, base_branch=branch, review_template=template
-            )
+            BACKENDS[key].steps(repo, force=force, base_branch=branch, review_template=template)
         )
     steps.append(("PR template", lambda: scaffold_github(repo=repo, force=force)))
     steps.append(("shared session", lambda: scaffold_session(repo=repo, force=force)))
@@ -169,9 +167,7 @@ def skills(
     return _run_steps(repo, selected, steps)
 
 
-def settings(
-    repo: PathLike = ".", *, agents: Agents = None, force: bool = False
-) -> ScaffoldResult:
+def settings(repo: PathLike = ".", *, agents: Agents = None, force: bool = False) -> ScaffoldResult:
     """Generate stack-appropriate permissions for each selected agent."""
     repo = Path(repo).resolve()
     selected = _resolve_agents(agents)
@@ -182,9 +178,7 @@ def settings(
     return _run_steps(repo, selected, steps)
 
 
-def hooks(
-    repo: PathLike = ".", *, agents: Agents = None, force: bool = False
-) -> ScaffoldResult:
+def hooks(repo: PathLike = ".", *, agents: Agents = None, force: bool = False) -> ScaffoldResult:
     """Scaffold hook configurations (git-commit + read-injection guards)."""
     repo = Path(repo).resolve()
     selected = _resolve_agents(agents)
@@ -208,9 +202,7 @@ def session(repo: PathLike = ".", *, force: bool = False) -> Path:
     return scaffold_session(repo=Path(repo).resolve(), force=force)
 
 
-def checklist(
-    repo: PathLike = ".", *, force: bool = False, base_branch: str | None = None
-) -> Path:
+def checklist(repo: PathLike = ".", *, force: bool = False, base_branch: str | None = None) -> Path:
     """Regenerate the review skill from CLAUDE.md; returns the written path."""
     repo = Path(repo).resolve()
     return generate_checklist(repo=repo, force=force, base_branch=_base_branch(repo, base_branch))
