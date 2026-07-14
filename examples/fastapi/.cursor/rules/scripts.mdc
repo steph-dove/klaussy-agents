@@ -3,8 +3,6 @@ globs: scripts/**/*.py
 alwaysApply: false
 ---
 
-# Rules for `scripts/**/*.py`
-
 ## Conventions
 
 - **Structured configuration with Pydantic Settings**: Use Pydantic BaseSettings for configuration management.

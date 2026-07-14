@@ -176,8 +176,6 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
 
 ### Applies to: `fastapi/**/*.py`
 
-# Rules for `fastapi/**/*.py`
-
 ## Conventions
 
 - **URL-based API versioning**: Use URL path versioning (e.g., /v1/, /api/v2/).
@@ -288,8 +286,6 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
 
 ### Applies to: `scripts/**/*.py`
 
-# Rules for `scripts/**/*.py`
-
 ## Conventions
 
 - **Structured configuration with Pydantic Settings**: Use Pydantic BaseSettings for configuration management.
@@ -305,8 +301,6 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
   ```
 
 ### Applies to: `tests/**/*.py`
-
-# Rules for `tests/**/*.py`
 
 ## Conventions
 

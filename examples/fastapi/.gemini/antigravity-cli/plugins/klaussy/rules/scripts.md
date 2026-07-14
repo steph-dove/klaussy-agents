@@ -3,8 +3,6 @@ trigger: glob
 globs: scripts/**/*.py
 ---
 
-# Rules for `scripts/**/*.py`
-
 ## Conventions
 
 - **Structured configuration with Pydantic Settings**: Use Pydantic BaseSettings for configuration management.

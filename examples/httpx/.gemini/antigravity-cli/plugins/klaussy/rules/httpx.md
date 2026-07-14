@@ -3,8 +3,6 @@ trigger: glob
 globs: httpx/**/*.py
 ---
 
-# Rules for `httpx/**/*.py`
-
 ## Conventions
 
 - **Data classes: NamedTuple**: Use NamedTuple for structured data. 2/2 structured classes use this pattern.

@@ -154,8 +154,6 @@ Env vars of note: `GITHUB_ACTIONS` (skips the venv-creation and check/coverage s
 
 ### Applies to: `httpx/**/*.py`
 
-# Rules for `httpx/**/*.py`
-
 ## Conventions
 
 - **Data classes: NamedTuple**: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
@@ -238,8 +236,6 @@ Env vars of note: `GITHUB_ACTIONS` (skips the venv-creation and check/coverage s
   ```
 
 ### Applies to: `tests/**/*.py`
-
-# Rules for `tests/**/*.py`
 
 ## Conventions
 

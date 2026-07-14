@@ -211,6 +211,11 @@ def read_canonical_conventions(repo: Path) -> ConventionsDoc | None:
                 continue
             frontmatter = text[3:end]
             body = text[end + 4 :].lstrip("\n")
+            # The generated body opens with its own "# Rules for <glob>" heading.
+            # Backends that re-wrap the rule (nested AGENTS.md/GEMINI.md, inline
+            # conventions) add their own heading, so a retained one produced a
+            # duplicate header. Strip it here — the glob lives in `globs` anyway.
+            body = re.sub(r"^# Rules for [^\n]*\n+", "", body, count=1)
             globs = re.findall(r'-\s*"([^"]+)"', frontmatter)
             if not globs:
                 globs = re.findall(r"-\s*'([^']+)'", frontmatter)

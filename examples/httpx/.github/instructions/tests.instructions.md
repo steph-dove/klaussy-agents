@@ -2,8 +2,6 @@
 applyTo: "tests/**/*.py"
 ---
 
-# Rules for `tests/**/*.py`
-
 ## Conventions
 
 - **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.

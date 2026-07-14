@@ -1,7 +1,5 @@
 # Rules for `fastapi/**/*.py`
 
-# Rules for `fastapi/**/*.py`
-
 ## Conventions
 
 - **URL-based API versioning**: Use URL path versioning (e.g., /v1/, /api/v2/).

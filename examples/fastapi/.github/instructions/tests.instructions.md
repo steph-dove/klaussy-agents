@@ -2,8 +2,6 @@
 applyTo: "tests/**/*.py"
 ---
 
-# Rules for `tests/**/*.py`
-
 ## Conventions
 
 - **FastAPI-style session dependency injection**: Use get_db() dependency pattern with Depends() for session lifecycle.

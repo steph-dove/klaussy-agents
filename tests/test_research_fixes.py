@@ -67,6 +67,21 @@ class TestNestedConventions:
         assert (repo / "src" / "api" / "AGENTS.md").exists()
         assert "Path-scoped rules" not in (repo / "AGENTS.md").read_text()
 
+    def test_nested_rule_does_not_duplicate_generated_heading(self, repo):
+        # klaussy-repo-conventions writes rule bodies that already open with a
+        # "# Rules for <glob>" heading; the backend must strip it before adding
+        # its own, or nested AGENTS.md/GEMINI.md ends up with a duplicate header.
+        (repo / "src" / "api").mkdir(parents=True)
+        rule = (
+            '---\npaths:\n  - "src/api/**/*.py"\n---\n\n'
+            "# Rules for `src/api/**/*.py`\n\n## Conventions\n\n- Use pydantic\n"
+        )
+        (repo / ".claude" / "rules" / "api.md").write_text(rule)
+        GeminiBackend().emit_conventions(repo, force=True)
+        nested = (repo / "src" / "api" / "GEMINI.md").read_text()
+        assert nested.count("# Rules for") == 1
+        assert "Use pydantic" in nested
+
     def test_inline_fallback_when_dir_missing(self, repo):
         # No src/api dir on disk → rule stays inlined in the root file.
         (repo / ".claude" / "rules" / "api.md").write_text(_rule(["src/api/**/*.py"]))
