@@ -11,6 +11,7 @@ Conservative by design — high-confidence, meaning-preserving edits only:
 - normalize em/en dashes in prose,
 - strip sentence-initial filler openers (and re-capitalize),
 - drop trailing chatbot scaffolding lines,
+- drop filler/ranking praise leads ("Great catch, ...", "Nice find. ..."),
 - tighten a few verbose phrasings.
 
 Code is never touched: fenced ```blocks``` and `inline code` pass through
@@ -41,8 +42,26 @@ _SCAFFOLD = (
     r"|Happy to help[^\n]*|Let me know your thoughts[^\n]*)"
 )
 
+# Filler / ranking praise that leads a comment ("Great catch", "Nice find") — a
+# reliable AI tell. Kept to fixed adjective+noun phrases; free-form ranking ("the
+# sharpest catch in the review") and "good catch" at a bot stay prompt-side, since
+# generalizing them would strip legitimate prose ("the most important issue here").
+_PRAISE = (
+    r"(?:(?:Great|Nice|Good|Excellent|Fantastic|Awesome|Wonderful|Solid"
+    r"|Strong|Fair)[ \t]+(?:catch|find|point|call|callout|call-out"
+    r"|observation|spot|work)|Well spotted|Good eye|Nice one|Spot on)"
+)
+
 _OPENER_RE = re.compile(r"(^|\n)[ \t]*" + _OPENERS + r"[ \t,]+(\w)", re.IGNORECASE)
 _SCAFFOLD_RE = re.compile(r"(?:^|\n)\s*" + _SCAFFOLD + r"\s*$", re.IGNORECASE)
+# A praise phrase that IS the whole line (optionally punctuated) — drop it.
+_PRAISE_LINE_RE = re.compile(
+    r"(^|\n)[ \t]*" + _PRAISE + r"[ \t]*[.!]*[ \t]*(?=\n|$)", re.IGNORECASE
+)
+# A praise phrase leading into real content, separated by punctuation
+# ("Great catch, this races" / "Nice find. This leaks") — strip it, recapitalize.
+# Punctuation is required so "Good point about X" (a real sentence) is left alone.
+_PRAISE_LEAD_RE = re.compile(r"(^|\n)[ \t]*" + _PRAISE + r"[ \t]*[,.:!]+[ \t]*(\w)", re.IGNORECASE)
 _FENCE_RE = re.compile(r"(```[\s\S]*?```)")
 _INLINE_RE = re.compile(r"(`[^`\n]*`)")
 
@@ -53,6 +72,9 @@ def _scrub_prose(s: str) -> str:
     s = re.sub(r"\s*–\s*", " - ", s)
     # Drop trailing scaffolding sentences/lines.
     s = _SCAFFOLD_RE.sub("", s)
+    # Drop standalone praise lines, then strip praise that leads into content.
+    s = _PRAISE_LINE_RE.sub(lambda m: m.group(1), s)
+    s = _PRAISE_LEAD_RE.sub(lambda m: m.group(1) + m.group(2).upper(), s)
     # Strip filler openers at the start of the text or a line; recapitalize.
     s = _OPENER_RE.sub(lambda m: m.group(1) + m.group(2).upper(), s)
     # A few safe, unambiguous tightenings.

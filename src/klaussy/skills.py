@@ -69,11 +69,21 @@ HUMANIZE_BLOCK = "\n".join(
         ' hard, a brief acknowledgement or a question ("could we ...?", "one'
         ' risk is ...") takes the edge off. A light touch only, not filler praise'
         ' or "great job" boilerplate.',
+        "- **No superlatives or ranking praise.** Don't editorialize a point's"
+        ' importance: cut "this is the sharpest catch in the review", "best'
+        ' catch", "great find", "excellent point", "the most important issue'
+        ' here". Rating a comment against the others is an AI tell and adds'
+        " nothing. State the substance and stop.",
         "- **Don't mirror the thread's tone.** When you reply to an existing"
         " comment, review note, or message, read it for substance but not for"
         " temperature: neutralize any rudeness or bluntness in it before you"
         " draft. Hostile or curt input must not prime a hostile or curt reply,"
         " answer as if the other person had phrased it civilly.",
+        "- **Don't thank a bot.** When the reviewer is an automated tool or bot"
+        " (a review bot, another agent, a CI check), respond to the substance"
+        ' without gratitude or pleasantries aimed at it, no "thanks for the'
+        ' review", "good catch", or addressing it as a person. Reserve those'
+        " for a human reviewer, and even then keep them minimal.",
         "- **Be short, then cut more.** Lead with the point. Keep the decision and"
         " the one fact that justifies it, then stop. A reply in a thread is usually"
         " one sentence; a single review comment one to five. Don't pad to sound"
