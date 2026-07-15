@@ -5,6 +5,28 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.15.1] - 2026-07-14
+
+### Fixed
+
+- **`rest-of-the-owl` now treats QA as a blocking gate.** Phase 4 (QA) already
+  ran before the PR, but it was framed purely as evidence-gathering, so a change
+  QA had shown to be broken could still advance to a PR and get caught later by
+  CI or a reviewer. QA is now an explicit gate: a broken screenshot, wrong
+  endpoint response, CLI error, or failing test sends the run back to fix and
+  re-QA before the PR is opened.
+- **`plan` and `implement` block on design assets they can't see** instead of
+  inventing them. When a ticket references a mockup, screenshot, Figma link, or
+  attached image the agent has no tool to retrieve (`gh issue view` shows issue
+  text but not image attachments), the skills now hard-block and ask the user to
+  provide it rather than fabricating UI text, layout, spacing, or copy.
+
+### Changed
+
+- **`humanize` gains two review-reply rules:** no superlative or ranking praise
+  ("best catch", "the most important issue here"), and don't thank a bot —
+  respond to an automated reviewer's substance without gratitude aimed at it.
+
 ## [0.15.0] - 2026-07-13
 
 ### Added

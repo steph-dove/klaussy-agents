@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "klaussy-agents"
-version = "0.15.0"
+version = "0.15.1"
 description = "Multi-agent repo boilerplate generator — scaffolds conventions, repo-namespaced skills, settings, and hooks for Claude Code, Gemini CLI, Cursor, Codex, Copilot, Google Antigravity, Cline, Aider (Ollama), and opencode"
 readme = "README.md"
 license = "MIT"
