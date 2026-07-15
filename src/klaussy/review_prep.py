@@ -114,9 +114,7 @@ class ReviewPayload:
 
 
 def _run_git(args: list[str], repo: Path) -> str:
-    out = subprocess.run(
-        ["git", *args], cwd=str(repo), capture_output=True, text=True
-    )
+    out = subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True)
     if out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
     return out.stdout

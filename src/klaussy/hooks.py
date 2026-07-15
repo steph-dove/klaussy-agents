@@ -18,6 +18,7 @@ console = Console()
 # https://code.claude.com/docs/en/hooks.md ("Path Placeholders").
 PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
 
+
 # Hook commands invoke the guard through klaussy's `klaussy-hook` launcher rather
 # than naming a Python interpreter directly. `python3` is absent on a stock
 # python.org Windows install and `python` isn't guaranteed on Linux/macOS, and

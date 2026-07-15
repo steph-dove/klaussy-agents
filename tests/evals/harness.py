@@ -55,9 +55,7 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
     context those blocks would gather (the diff, git log) directly in the user
     message, so the model isn't told to run commands it can't.
     """
-    text = resources.files("klaussy").joinpath(
-        f"templates/skills/{skill}/SKILL.md"
-    ).read_text()
+    text = resources.files("klaussy").joinpath(f"templates/skills/{skill}/SKILL.md").read_text()
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)
@@ -74,8 +72,17 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
 # CLAUDE.md") sends the model off investigating an empty dir until it times out.
 # A prompt eval wants the completion, not the agent loop.
 _NO_TOOLS = [
-    "Bash", "Edit", "Write", "Read", "Glob", "Grep",
-    "Task", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite",
+    "Bash",
+    "Edit",
+    "Write",
+    "Read",
+    "Glob",
+    "Grep",
+    "Task",
+    "WebFetch",
+    "WebSearch",
+    "NotebookEdit",
+    "TodoWrite",
 ]
 
 
@@ -153,9 +160,7 @@ AI_TELLS = [
     "great question",
 ]
 
-_CONVENTIONAL = re.compile(
-    r"^(feat|fix|refactor|test|docs|chore|style|perf)(\([^)]+\))?: .+"
-)
+_CONVENTIONAL = re.compile(r"^(feat|fix|refactor|test|docs|chore|style|perf)(\([^)]+\))?: .+")
 
 
 def ai_tells_present(text: str) -> list[str]:

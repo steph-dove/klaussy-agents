@@ -41,7 +41,7 @@ class TestRuleBaseDir:
         [
             (["src/api/**/*.py"], "src/api"),
             (["docs/**/*.md", "docs/**/*.mdx"], "docs"),
-            (["**/*.py"], None),            # root-level wildcard → inline
+            (["**/*.py"], None),  # root-level wildcard → inline
             (["src/a/**", "src/b/**"], None),  # disagreeing bases → inline
             (["src/api/config.py"], None),  # wildcard-free literal → inline
         ],

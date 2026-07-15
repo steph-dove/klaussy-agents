@@ -120,9 +120,7 @@ def scaffold_session(*, repo: Path, force: bool = False) -> Path:
 
     session = repo / SESSION_RELPATH
     if session.exists() and not force:
-        console.print(
-            f"[dim]{SESSION_RELPATH} exists; leaving live state untouched.[/dim]"
-        )
+        console.print(f"[dim]{SESSION_RELPATH} exists; leaving live state untouched.[/dim]")
     else:
         session.write_text(json.dumps(_skeleton(repo), indent=2) + "\n")
         console.print(f"[green]✔ Scaffolded shared session state at {SESSION_RELPATH}[/green]")

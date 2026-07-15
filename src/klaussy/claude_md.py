@@ -20,9 +20,7 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
     claude_md = repo / "CLAUDE.md"
 
     if claude_md.exists() and not force:
-        console.print(
-            f"[yellow]⚠ {claude_md} already exists. Use --force to overwrite.[/yellow]"
-        )
+        console.print(f"[yellow]⚠ {claude_md} already exists. Use --force to overwrite.[/yellow]")
         raise SystemExit(1)
 
     # Install/upgrade klaussy-repo-conventions to latest

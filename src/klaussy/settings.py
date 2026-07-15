@@ -31,30 +31,38 @@ def _build_allowed_tools(stack: dict[str, bool]) -> list[str]:
     ]
 
     if stack["python"]:
-        tools.extend([
-            "Bash(python *)",
-            "Bash(pytest *)",
-            "Bash(ruff *)",
-            "Bash(mypy *)",
-            "Bash(pip *)",
-            "Bash(uv *)",
-        ])
+        tools.extend(
+            [
+                "Bash(python *)",
+                "Bash(pytest *)",
+                "Bash(ruff *)",
+                "Bash(mypy *)",
+                "Bash(pip *)",
+                "Bash(uv *)",
+            ]
+        )
     if stack["node"]:
-        tools.extend([
-            "Bash(npm *)",
-            "Bash(npx *)",
-            "Bash(node *)",
-            "Bash(yarn *)",
-            "Bash(pnpm *)",
-        ])
+        tools.extend(
+            [
+                "Bash(npm *)",
+                "Bash(npx *)",
+                "Bash(node *)",
+                "Bash(yarn *)",
+                "Bash(pnpm *)",
+            ]
+        )
     if stack["go"]:
-        tools.extend([
-            "Bash(go *)",
-        ])
+        tools.extend(
+            [
+                "Bash(go *)",
+            ]
+        )
     if stack["rust"]:
-        tools.extend([
-            "Bash(cargo *)",
-        ])
+        tools.extend(
+            [
+                "Bash(cargo *)",
+            ]
+        )
     if stack["make"]:
         tools.append("Bash(make *)")
 

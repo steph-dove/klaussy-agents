@@ -63,6 +63,28 @@ HUMANIZE_BLOCK = "\n".join(
         ' → "could"; "may potentially" → "may". Drop stacked'
         " qualifiers.",
         '- **No emoji, no exclamatory enthusiasm, no "Certainly"/"Great question".**',
+        '- **No excessive apologies.** Avoid apologetic filler ("Sorry about'
+        ' that!", "My apologies for the confusion", "Apologies for the'
+        ' oversight"). State the correction or resolution directly.',
+        "- **Prefer active, imperative verbs and avoid narration.** Use direct"
+        ' instructions (e.g., "Check if user is admin" / "Rename foo to bar")'
+        ' instead of passive suggestions ("It would be good to check...", "You'
+        ' might want to rename..."). Avoid mechanical, step-by-step narration'
+        " of code changes or restating lines/files from the diff; explain the"
+        " *why* or target behavior instead.",
+        "- **Avoid the LLM lexicon & buzzwords.** Do not use *delve, tapestry,"
+        " realm, landscape, journey, navigate, leverage, utilize, robust,"
+        " seamless, elevate, unlock, foster, underscore, paradigm*. Replace"
+        " corporate jargon (e.g. leverage/utilize) with simpler words (e.g. use).",
+        "- **Avoid transition crutches.** Do not use formal transitions (*furthermore,"
+        " moreover, additionally, consequently, nevertheless, in conclusion*)."
+        " Use simpler ones or prune them entirely.",
+        "- **Avoid rhetorical reframes and standalones.** Avoid the negation-reframe"
+        ' ("not only... but also", "this isn\'t just a bug fix — it\'s...") and'
+        ' standalone summary lines ("And that\'s the whole point.").',
+        "- **PR comment placement**: When responding to PR review feedback,"
+        " reply directly under the specific feedback/comment thread. Do not post"
+        " replies in a separate/new top-level comment.",
         "- **Don't let trimming tip into terse.** Cutting filler shouldn't make"
         " prose read as curt or dismissive. Critique the work, never the person"
         ' (no "you forgot", "this is wrong", "obviously"); where a line lands'
@@ -81,7 +103,7 @@ HUMANIZE_BLOCK = "\n".join(
         " answer as if the other person had phrased it civilly.",
         "- **Don't thank a bot.** When the reviewer is an automated tool or bot"
         " (a review bot, another agent, a CI check), respond to the substance"
-        " without gratitude or pleasantries aimed at it, no \"thanks for the"
+        ' without gratitude or pleasantries aimed at it, no "thanks for the'
         ' review", "good catch", or addressing it as a person. Reserve those'
         " for a human reviewer, and even then keep them minimal.",
         "- **Be short, then cut more.** Lead with the point. Keep the decision and"

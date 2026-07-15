@@ -26,13 +26,8 @@ class TestVerdictOpeners:
     def test_opinion_openers(self):
         assert humanize("IMO we should rethrow here.") == "We should rethrow here."
         assert humanize("IMHO this leaks.") == "This leaks."
-        assert (
-            humanize("In my opinion the retry is redundant.")
-            == "The retry is redundant."
-        )
-        assert (
-            humanize("In my honest opinion this is fragile.") == "This is fragile."
-        )
+        assert humanize("In my opinion the retry is redundant.") == "The retry is redundant."
+        assert humanize("In my honest opinion this is fragile.") == "This is fragile."
 
     def test_if_you_ask_me(self):
         assert humanize("If you ask me, the cache is stale.") == "The cache is stale."
@@ -40,10 +35,7 @@ class TestVerdictOpeners:
     def test_opener_only_at_sentence_start_not_midword(self):
         # "personality" must not be clipped by the "Personally" alternative, and a
         # mid-sentence "honestly" is left alone — only line/text-initial openers go.
-        assert (
-            humanize("The personality module is fine.")
-            == "The personality module is fine."
-        )
+        assert humanize("The personality module is fine.") == "The personality module is fine."
         assert (
             humanize("This works honestly well in practice.")
             == "This works honestly well in practice."
@@ -52,3 +44,27 @@ class TestVerdictOpeners:
     def test_opener_inside_code_is_preserved(self):
         # Backticked/fenced content is never scrubbed.
         assert humanize("Run `Personally()` first.") == "Run `Personally()` first."
+
+
+class TestExtendedScrubber:
+    def test_emoji_stripping(self):
+        assert humanize("Add user authentication 🚀") == "Add user authentication"
+        assert humanize("✨ Refactor database helpers ✨") == "Refactor database helpers"
+
+    def test_transition_openers(self):
+        assert humanize("Furthermore, the handler has a bug.") == "The handler has a bug."
+        assert humanize("Moreover, we should clean up.") == "We should clean up."
+
+    def test_leverage_utilize_replacement(self):
+        assert humanize("We should utilize the new function.") == "We should use the new function."
+        assert humanize("This will leverage caches.") == "This will use caches."
+
+    def test_apologies_stripping(self):
+        assert humanize("Sorry about that! The handler is correct.") == "The handler is correct."
+        assert humanize("Apologies for the confusion. We should use foo.") == "We should use foo."
+        assert humanize("My apologies.") == ""
+
+    def test_bot_thanking_stripping(self):
+        assert humanize("Thanks @dependabot! We should merge this.") == "We should merge this."
+        assert humanize("Thank you for the review, @codecov-bot!") == ""
+        assert humanize("Thanks, bot.") == ""

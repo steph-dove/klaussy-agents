@@ -26,9 +26,7 @@ def test_pr_description_has_sections_and_is_clean():
     out = harness.run_skill(
         "pr",
         CONTEXT,
-        instruction=(
-            "Produce the PR description markdown (do not write a file, just output it)."
-        ),
+        instruction=("Produce the PR description markdown (do not write a file, just output it)."),
         max_tokens=1500,
     )
     low = out.lower()
