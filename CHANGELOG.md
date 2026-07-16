@@ -5,6 +5,42 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.17.0] - 2026-07-16
+
+### Added
+
+- **Comment lint blocks past two sentences.** The run-length and word-count
+  heuristics only caught the long tail, so a three-sentence narration comment on
+  two lines sailed through. Sentences are counted across a wrapped comment, since
+  consecutive lines are one logical comment. Two is deliberate rather than one: a
+  one-sentence cap flags 45% of `src/klaussy`'s own comment blocks, including
+  load-bearing why-comments, which would make `--no-verify` a habit. Block-only
+  like the rest of the check — which sentence is worth keeping is a judgment call,
+  so the author makes it, not a regex. Counting errs low (a break needs terminal
+  punctuation, whitespace, and a capital), so `hooks.py`, `0.16.0`, trailing URLs,
+  and `e.g. Claude` don't split a sentence.
+- **The stop-hook self-review leads with comments.** Comment removal was one
+  clause buried mid-checklist; it's now the first step, biased toward deletion —
+  cut what narrates or restates the code, keep only what the code cannot say, hold
+  survivors to a single sentence. The model is asked for one sentence while the
+  lint blocks at three: it can judge which sentence earns its place, so it aims
+  tighter than the deterministic backstop can safely enforce. The `self-review`
+  skill checklist is kept in sync.
+
+### Fixed
+
+- **Hook upgrades no longer duplicate entries.** `_merge_managed_hooks` keyed on
+  the exact command string, but the command form has changed across releases (a
+  bare relative path, then `python3 ${CLAUDE_PROJECT_DIR}/…`, now the
+  `klaussy-hook` launcher), so an old entry never matched the new desired one and
+  every upgrade appended a copy while leaving the stale one behind. The stale
+  copies weren't just noise: a bare relative path resolves against the session
+  cwd, so any session not rooted at the repo (a subagent, a worktree) failed to
+  find the guard and blocked every matching tool call. Entries are now keyed on
+  the guard script name, so an upgrade rewrites in place and leaves the user's own
+  hooks untouched. Repos carrying duplicates from an earlier version are repaired
+  by this release's version-gated re-run.
+
 ## [0.16.0] - 2026-07-15
 
 ### Added
