@@ -60,6 +60,11 @@ class CapabilityProfile:
     keep_disable_invocation: bool
     subagent_mechanism: str | None = None
     plan_mechanism: str | None = None
+    # Scopes the grant-permissions skill to this agent's own allow-list (via
+    # render.py). `permissions_file` is None when there's no committed one
+    # (Cline); `permission_syntax` then says what the agent gates on instead.
+    permissions_file: str | None = None
+    permission_syntax: str | None = None
 
 
 @dataclass

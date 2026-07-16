@@ -91,7 +91,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 | **`<repo>-self-review`** | Last-pass review of your own diff before "done". | 🪞 **AI-Tell Catcher:** Checks the uncommitted change against a fixed list — reuse, stdlib, comments, dead code, tests, scope — catching what makes a diff read as AI-written before a human ever sees it. A companion hook nudges the agent to run it. |
 | **`<repo>-qa`** | Captures PR-ready QA evidence for the current change. | 📸 **Change-Aware Verification:** Classifies the diff and runs only the QA that fits — screenshots for UI, exercised endpoints & e2e for backend, command output for a CLI, tests for a library — then saves artifacts to a `Downloads/<repo>-<branch>` folder where you can open them and writes a summary you can paste into the PR. |
 
-*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
+*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, `adr-generator`, and `grant-permissions`.*
 
 <sub>🦉 And `<repo>-rest-of-the-owl` — hand it a task definition and it draws *the rest of the owl*: plans, implements, reviews and fixes, opens a humanized PR, then polls CI and code review, fixing findings and resolving threads until the PR is green and clean. Does everything except merge — the human keeps that button.</sub>
 

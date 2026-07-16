@@ -24,6 +24,8 @@ import re
 
 from klaussy.agents.base import CapabilityProfile, SkillPayload
 
+_PERMISSIONS_TOKEN = "{{PERMISSIONS_TARGET}}"
+
 _DYNAMIC_BLOCK = re.compile(r"```!\n(.*?)\n```", re.DOTALL)
 _SUBAGENT_HINT = re.compile(
     r"sub-?agent|Agent tool|in parallel|subagent_type|launch \d", re.IGNORECASE
@@ -40,6 +42,47 @@ def _replace_dynamic_block(match: re.Match[str]) -> str:
         return f"Run `{commands[0]}` and use its output."
     bullets = "\n".join(f"- `{c}`" for c in commands)
     return "Run these commands and use their output:\n\n" + bullets
+
+
+def permission_target_markdown(
+    label: str, permissions_file: str | None, permission_syntax: str | None
+) -> str:
+    """Compose the agent-specific "where your allow-list lives" block.
+
+    Replaces the `{{PERMISSIONS_TARGET}}` sentinel in the grant-permissions
+    skill so each agent's copy is scoped to its own permission file and rule
+    shape instead of carrying a table of all agents. When `permissions_file`
+    is None the agent has no committed per-command allow-list; `permission_syntax`
+    then explains what it gates on instead.
+    """
+    header = "## Where your allow-list lives\n"
+    if permissions_file:
+        return (
+            f"{header}\n"
+            f"You're running **{label}**. Write permissions to {permissions_file}, "
+            f"using {permission_syntax}. Prefer the local, git-ignored file so one "
+            "developer's convenience list isn't committed onto the team; only write "
+            "a shared, committed file if the user asks to apply it team-wide. The "
+            "rule examples below use Claude Code's `Bash(...)` / `Edit(...)` form, "
+            "translate them to your file's shape."
+        )
+    return (
+        f"{header}\n"
+        f"You're running **{label}**. {permission_syntax} So this skill's "
+        "file-writing steps don't apply as written; tell the user that plainly, and "
+        "where the agent has an equivalent control (an ignore file, a settings UI, a "
+        "test/lint gate) point them at it instead of writing an allow-list."
+    )
+
+
+def _apply_permission_target(text: str, profile: CapabilityProfile) -> str:
+    """Resolve the `{{PERMISSIONS_TARGET}}` sentinel for this profile, if present."""
+    if _PERMISSIONS_TOKEN not in text:
+        return text
+    block = permission_target_markdown(
+        profile.label, profile.permissions_file, profile.permission_syntax
+    )
+    return text.replace(_PERMISSIONS_TOKEN, block)
 
 
 def _capability_banner(body: str, profile: CapabilityProfile) -> str:
@@ -95,6 +138,7 @@ def adapt_body(body: str, profile: CapabilityProfile) -> str:
         text = _DYNAMIC_BLOCK.sub(_replace_dynamic_block, text)
     if profile.skills_root != ".claude/skills":
         text = text.replace(".claude/skills/", f"{profile.skills_root}/")
+    text = _apply_permission_target(text, profile)
     # Detect capabilities against the adapted text: a subagent/plan-mode mention
     # that lived inside a stripped ```! block shouldn't trigger a banner.
     return _capability_banner(text, profile) + text
