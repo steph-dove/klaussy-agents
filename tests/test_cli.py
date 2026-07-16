@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -1528,12 +1529,20 @@ class TestCommentHygiene:
         assert "Don't add narrating comments" in refac
 
     def test_commit_guard_runs_comment_check(self, repo: Path):
-        # The rendered guard must actually invoke COMMENT_CHECK_CMD in its loop.
+        """Every check must be reached by the guard's loop, not merely defined."""
         scaffold_hooks(repo=repo)
         guard = (repo / ".claude" / "hooks" / "git_commit_guard.py").read_text()
-        assert "COMMENT_CHECK_CMD" in guard
-        loop = "(SECRET_SCAN_CMD, FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD)"
-        assert loop in guard
+        loop = re.search(r"for cmd in \((.*?)\):", guard, re.DOTALL)
+        assert loop, "the guard should iterate its checks in a `for cmd in (...)` loop"
+        run = {name.strip().rstrip(",") for name in loop.group(1).split()}
+        assert run == {
+            "SECRET_SCAN_CMD",
+            "FORMAT_CMD",
+            "LINT_CMD",
+            "COMMENT_CHECK_CMD",
+            "VERBOSE_COMMENT_CMD",
+            "IMPORT_LINT_CMD",
+        }
 
     def test_multi_agent_commit_guard_bakes_comment_check(self, repo: Path):
         from klaussy.agents.backends import CursorBackend

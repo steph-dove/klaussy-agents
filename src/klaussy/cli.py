@@ -17,6 +17,7 @@ from klaussy.comment_lint import changed_lines
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
+from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
 
@@ -318,6 +319,31 @@ def comment_lint(
         scope = changed_lines(str(path)) if diff else None
         findings.extend(analyze_comments(str(path), text, scope))
 
+    for finding in findings:
+        console.print(finding.render())
+    if findings:
+        raise typer.Exit(1)
+
+
+@app.command(name="import-lint")
+def import_lint(
+    files: list[Path] = typer.Argument(
+        ..., help="Python files to scan for function-local imports."
+    ),
+    diff: bool = typer.Option(
+        False,
+        "--diff",
+        help="Only flag imports on lines changed vs HEAD (used by the precommit guard).",
+    ),
+) -> None:
+    """Flag imports inside a function or class (block-only); exit 1 if any are found.
+
+    Hoisting is left to the author: a `# noqa` on the line marks a local import
+    deliberate and is honored. With --diff, findings are scoped to lines that
+    differ from HEAD, so a pre-existing local import elsewhere in a changed file
+    doesn't block.
+    """
+    findings = scan_imports([str(f) for f in files], diff=diff)
     for finding in findings:
         console.print(finding.render())
     if findings:

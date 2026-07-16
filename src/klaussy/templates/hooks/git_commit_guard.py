@@ -37,6 +37,10 @@ COMMENT_CHECK_CMD: str | None = "__KLAUSSY_COMMENT_CHECK_CMD__"
 # `--diff` scopes it to lines changed vs HEAD so pre-existing comments
 # elsewhere in a touched file don't block the commit.
 VERBOSE_COMMENT_CMD: str | None = "klaussy comment-lint --diff __KLAUSSY_PATHS__"
+# Deterministic function-local import check (block-only literal, no sentinel).
+# `--diff` scopes it to changed lines so a pre-existing local import elsewhere
+# in a touched file doesn't block the commit.
+IMPORT_LINT_CMD: str | None = "klaussy import-lint --diff __KLAUSSY_PATHS__"
 # Deterministic secret scan (block-only literal, no sentinel). `--diff` scopes it
 # to added lines so a pre-existing value elsewhere in a touched file doesn't block
 # the commit.
@@ -303,7 +307,14 @@ def main() -> int:
         return 2
 
     paths = _changed_paths(include_unstaged=_commits_all(command))
-    for cmd in (SECRET_SCAN_CMD, FORMAT_CMD, LINT_CMD, COMMENT_CHECK_CMD, VERBOSE_COMMENT_CMD):
+    for cmd in (
+        SECRET_SCAN_CMD,
+        FORMAT_CMD,
+        LINT_CMD,
+        COMMENT_CHECK_CMD,
+        VERBOSE_COMMENT_CMD,
+        IMPORT_LINT_CMD,
+    ):
         if not cmd:
             continue
         resolved = _resolve(cmd, paths)
