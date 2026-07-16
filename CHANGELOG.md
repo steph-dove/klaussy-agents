@@ -5,6 +5,34 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.19.0] - 2026-07-16
+
+### Added
+
+- **`grant-permissions` grants the file tools, not just the commands.** The
+  allow-list covered the stack's commands but left `Write` out, so the agent
+  still stopped to ask before creating a file, and the builtins listed `rg`,
+  `find` and `sort` but not `grep`. It now matches the Read/Edit/Write/Glob/Grep
+  baseline `klaussy settings` has always written, and adds `Bash(grep *)`,
+  `Bash(diff *)` and the everyday moves `cp`/`mv`/`touch`. Not `rm` — deleting is
+  the one routine command worth a prompt. The safe-boundary section now also
+  states that bare file tools allow any path the denies don't cover, not only
+  paths inside the repo.
+
+### Fixed
+
+- **A commit-guard check that can't run no longer blocks the commit.** The guard
+  treated any non-zero exit as findings, so a `klaussy` older than the guard
+  exited 2 on an unknown subcommand ("No such command 'import-lint'") and every
+  commit blocked on a usage error the message never explained — hit for real
+  where a repo was scaffolded from a venv install while PATH resolved an older
+  pipx one. Exit 2 means the tool couldn't judge the diff; 1 means it judged and
+  found problems. ruff, eslint and Typer/Click all draw that line, so the guard
+  now does too, matching the fail-open it already applied to a tool that isn't
+  installed at all. It says so rather than skipping quietly: a silent skip is
+  indistinguishable from a clean pass, and that's the wrong thing to imply about
+  a secret scan that never ran.
+
 ## [0.18.1] - 2026-07-16
 
 ### Fixed

@@ -53,6 +53,11 @@ SECRET_SCAN_CMD: str | None = "klaussy secret-scan --diff __KLAUSSY_PATHS__"
 # Stand-in for the files being committed; expanded just before each command runs.
 PATHS_TOKEN = "__KLAUSSY_PATHS__"
 
+# Exit code for "I couldn't run" rather than "I found problems" — an unknown
+# subcommand, a bad flag, a broken config. ruff, eslint and Typer/Click all
+# reserve 1 for findings and 2 for this, so an exit 2 hasn't judged the diff.
+USAGE_EXIT = 2
+
 # Per-tool file suffixes, used to drop staged paths a tool can't parse before it
 # runs — so a `.md` committed with Python never reaches `ruff` (which would fail
 # to parse it and wrongly block the commit). Unlisted tools get every path.
@@ -296,6 +301,28 @@ def _run(cmd: str) -> int:
         return 0
 
 
+def _check_name(cmd: str) -> str:
+    """The check's name for a message — `klaussy import-lint`, `ruff check`."""
+    try:
+        tokens = [t for t in shlex.split(cmd) if not t.startswith("-")]
+    except ValueError:
+        return "a check"
+    return " ".join(tokens[:2]) if tokens else "a check"
+
+
+def _skipped_message(cmd: str) -> str:
+    """Notice that a check couldn't run, so the commit wasn't judged by it.
+
+    Said out loud rather than passed over in silence: a skipped secret scan that
+    looks like a clean one is worse than a noisy line.
+    """
+    return (
+        f"klaussy pre-commit: `{_check_name(cmd)}` exited with a usage error, so that "
+        "check was SKIPPED — not passed. The tool is likely older than this guard "
+        "(upgrade it) or misconfigured. Commit allowed."
+    )
+
+
 def _blocked_message(cmd: str) -> str:
     """One-line block notice. The failing tool's own output already printed
     above, so we deliberately don't echo the resolved command and its (possibly
@@ -337,6 +364,9 @@ def main() -> int:
             if resolved is None:
                 continue
             rc = _run(resolved)
+            if rc == USAGE_EXIT:
+                print(_skipped_message(cmd), file=sys.stderr)
+                continue
             if rc != 0:
                 print(_blocked_message(cmd), file=sys.stderr)
                 return 2

@@ -53,10 +53,9 @@ SECRET_SCAN_CMD: str | None = "klaussy secret-scan --diff __KLAUSSY_PATHS__"
 # Stand-in for the files being committed; expanded just before each command runs.
 PATHS_TOKEN = "__KLAUSSY_PATHS__"
 
-# Exit code meaning "I couldn't run" rather than "I found problems": an unknown
+# Exit code for "I couldn't run" rather than "I found problems" — an unknown
 # subcommand, a bad flag, a broken config. ruff, eslint and Typer/Click all
-# reserve 1 for findings and 2 for this, so a check that exits 2 hasn't judged
-# the diff and can't be treated as a failure of it.
+# reserve 1 for findings and 2 for this, so an exit 2 hasn't judged the diff.
 USAGE_EXIT = 2
 
 # Per-tool file suffixes, used to drop staged paths a tool can't parse before it

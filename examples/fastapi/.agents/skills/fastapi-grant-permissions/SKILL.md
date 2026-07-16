@@ -1,6 +1,6 @@
 ---
 name: fastapi-grant-permissions
-description: Use when the user is tired of approving the same routine dev commands ("stop asking me yes", "allow the normal dev tools", "grant permissions"). Detects the repo's stack and writes a curated allow-list into the agent's own local permission file so everyday commands (tests, lint, build, git, package manager, run) stop prompting, while keeping secret files denied.
+description: Use when the user is tired of approving the same routine dev work ("stop asking me yes", "allow the normal dev tools", "grant permissions"). Detects the repo's stack and writes a curated allow-list into the agent's own local permission file so the basics stop prompting — reading, editing and creating files, plus tests, lint, build, git, the package manager and the run command — while keeping secret files denied.
 ---
 
 Grant the permissions a developer needs to work in this repo without a prompt on every routine command, while keeping sensitive files off-limits.
@@ -22,9 +22,10 @@ You're running **Cline**. Cline's auto-approval is GUI-only — there's no commi
    - **A `scripts/` directory or a Makefile is the entrypoint in many repos** (FastAPI runs `bash scripts/test.sh`; httpx runs `scripts/test`, `scripts/check`, `scripts/lint`). A `Bash(pytest *)` rule does NOT cover `scripts/test` — allow the runner itself (next step) or the tests still prompt.
 3. **Read the current permission file(s)** so you merge instead of clobbering. Preserve every existing allow/deny entry and any hook config.
 4. **Build the allow-list** (curated mode — the default):
-   - `Read`, `Edit`, `Grep`, `Glob` (bare tool names)
+   - **The file tools, bare:** `Read`, `Edit`, `Write`, `Grep`, `Glob`. These are table stakes — an agent that has to ask before reading a file or writing a new one is unusable for local dev, and they're the same baseline `klaussy settings` writes. A bare name (no parens) allows the tool for any path; the step-5 denies still win, so secrets stay blocked. Don't write `Write(**)` — see the `Edit`/`Write` rule below.
    - `Bash(git *)`
-   - **Navigation/inspection builtins** that otherwise block compound commands (see the compound-command note): `Bash(cd *)`, `Bash(ls *)`, `Bash(pwd)`, `Bash(echo *)`, `Bash(mkdir *)`, `Bash(which *)`, `Bash(cat *)`, `Bash(head *)`, `Bash(tail *)`, `Bash(wc *)`, `Bash(find *)`, `Bash(rg *)`, `Bash(sort *)`
+   - **Navigation/inspection builtins** that otherwise block compound commands (see the compound-command note): `Bash(cd *)`, `Bash(ls *)`, `Bash(pwd)`, `Bash(echo *)`, `Bash(mkdir *)`, `Bash(which *)`, `Bash(cat *)`, `Bash(head *)`, `Bash(tail *)`, `Bash(wc *)`, `Bash(find *)`, `Bash(grep *)`, `Bash(rg *)`, `Bash(sort *)`, `Bash(diff *)`
+   - **Everyday file moves:** `Bash(cp *)`, `Bash(mv *)`, `Bash(touch *)`. `rm` is deliberately not here — deleting is the one routine command worth a prompt. Add it only on request.
    - one `Bash(<tool> *)` per stack command from step 2 (e.g. `Bash(pytest *)`, `Bash(npm *)`, `Bash(cargo *)`)
    - **the repo's runner** if it uses one: `Bash(bash scripts/*)`, `Bash(sh scripts/*)`, `Bash(./scripts/*)`, `Bash(scripts/*)`, `Bash(make *)`
    - **the run/dev command** as its own entry (e.g. `Bash(fastapi dev *)`, `Bash(uvicorn *)`, `Bash(npm run dev *)`, `Bash(docker compose *)`)
@@ -42,7 +43,8 @@ So `cd services/api && npm run dev` prompts even when `Bash(npm run dev *)` is a
 
 Curated mode is a reasonable boundary for a **trusted local dev agent**, not a security sandbox. Be honest with the user about the line:
 
-- **It does** stop routine prompts, block obviously-destructive arbitrary shell (no blanket `Bash(*)`), and prevent accidental *edits* to secret files via the Read/Edit tools.
+- **It does** stop routine prompts, block obviously-destructive arbitrary shell (no blanket `Bash(*)`), and prevent accidental *edits* to secret files via the Read/Edit/Write tools.
+- **The file tools are unscoped.** Bare `Read`/`Edit`/`Write` allow any path the denies don't cover, not just paths inside the repo — an agent working in this repo can still write to your home directory. That's the normal trade for a local dev agent, and path-scoping every rule is what makes an allow-list unusable; but it's a trade, so say it rather than imply a repo sandbox. Same for `Bash(cp *)`/`Bash(mv *)`: they overwrite without asking.
 - **It does not** sandbox execution. `Bash(python *)`, `Bash(pip *)`, `Bash(uv *)`, and `Bash(npx *)` all run arbitrary code (a language runtime executes anything; `pip install` runs a package's setup code). Only allow these for an agent you trust to run this repo's code — which is the normal case for local dev, but say it out loud.
 - **Per-tool deny is not a wall against Bash.** A `deny` on `Read(**/.env)` only stops the *Read tool*; `Bash(cat *)` can still `cat .env`. So the secret-file denies protect Read/Edit, not Bash. If secrets in the repo are a real concern, either don't allow `Bash(cat *)`/`Bash(head *)` (read files with the Read tool, which honors deny) or add the secret globs to the agent's ignore file (`.cursorignore`/`.geminiignore`), which some agents enforce for Bash too. Don't claim the denies protect against Bash — they don't.
 - **Deliberately excluded from the default builtins:** `source`/`.` (executes an arbitrary file), `env`/`printenv` (dumps secrets in the environment), `eval`, `xargs`. Add them only on request.
