@@ -3,9 +3,12 @@
 Format, lint, and ruff's ERA rule judge commented-out *code* but never comment
 *prose*, so a narration block that restates the code sails through; this module
 flags over-long comments for the author to trim, and like ERA it is block-only
-and never edits source. Two heuristics trip a finding: a run of `COMMENT_RUN_MAX`+
-consecutive full-line prose comments, or a single comment over `COMMENT_WORD_MAX`
-words. Exempt: Python docstrings, tooling directives (`# noqa`, `// eslint-disable`),
+and never edits source — which sentence of a comment is the one worth keeping is
+a judgment call, so the author (or the agent) makes it, not a regex. Three
+heuristics trip a finding: a run of `COMMENT_RUN_MAX`+ consecutive full-line
+prose comments, a single comment over `COMMENT_WORD_MAX` words, or one logical
+comment running past `COMMENT_SENTENCE_MAX` sentences.
+Exempt: Python docstrings, tooling directives (`# noqa`, `// eslint-disable`),
 bare URLs, and the leading license/shebang/banner block. Python is read via stdlib
 `tokenize` so a `#` inside a string isn't mistaken for a comment (line-scan
 fallback on syntax error); C-style languages use a line scanner that ignores
@@ -25,6 +28,10 @@ from pathlib import Path
 COMMENT_RUN_MAX = 4
 # A single comment longer than this (in words) is "too long" on its own.
 COMMENT_WORD_MAX = 30
+# Sentences a comment may spend before it reads as narration. Two leaves room
+# for the claim-plus-why shape a real comment needs; a third usually restates
+# the code.
+COMMENT_SENTENCE_MAX = 2
 
 # Extensions whose line comments start with `#`. Python is read via tokenize;
 # the rest fall back to the line scanner (full-line comments only).
@@ -69,6 +76,15 @@ _DIRECTIVE_RE = re.compile(
 
 _WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*")
 
+# A sentence ends at terminal punctuation followed by whitespace and a capital.
+# Requiring the capital is what keeps `hooks.py`, `0.16.0`, `klaussy.toolkit`,
+# and a trailing URL from splitting a sentence — their dots are mid-token.
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+# Words whose trailing dot is an abbreviation, not a sentence end — without
+# these, `e.g. Claude` reads as a break. Compared lowercased, terminators stripped.
+_ABBREVIATIONS = frozenset({"e.g", "i.e", "etc", "vs", "cf", "al", "approx", "resp", "viz"})
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -88,6 +104,25 @@ class Finding:
 
 def _word_count(text: str) -> int:
     return len(_WORD_RE.findall(text))
+
+
+def _sentence_count(text: str) -> int:
+    """Sentences in `text`, deliberately erring low.
+
+    A miscount here blocks a commit, so every ambiguous break is resolved as
+    "not a break" — under-counting lets a wordy comment through, over-counting
+    rejects a comment the author can't see the fault in.
+    """
+    text = text.strip()
+    if not text:
+        return 0
+    count = 1
+    for match in _SENTENCE_BREAK.finditer(text):
+        preceding = text[: match.start()].split()
+        if preceding and preceding[-1].rstrip(".!?\"')").lower() in _ABBREVIATIONS:
+            continue
+        count += 1
+    return count
 
 
 def _is_directive(text: str) -> bool:
@@ -234,25 +269,35 @@ def _findings(path: str, text: str, records: list[_Record]) -> list[Finding]:
     first_code = _first_code_line(text, {ln for ln, _, _ in records})
     header = _header_lines(prose, first_code)
 
-    # Heuristic 1: runs of consecutive full-line prose comments.
-    flagged: set[int] = set()
+    # Consecutive full-line prose comments form one logical comment, so the run —
+    # not the line — is what heuristics 1 and 3 judge.
+    runs: list[list[tuple[int, str]]] = []
     run: list[tuple[int, str]] = []
-
-    def flush() -> None:
-        if len(run) >= COMMENT_RUN_MAX:
-            findings.append(Finding(path, run[0][0], run[-1][0], f"{len(run)} lines"))
-            flagged.update(ln for ln, _ in run)
-
     for ln, txt in prose:
         if ln in header:
-            flush()
+            if run:
+                runs.append(run)
             run = []
             continue
         if run and ln != run[-1][0] + 1:
-            flush()
+            runs.append(run)
             run = []
         run.append((ln, txt))
-    flush()
+    if run:
+        runs.append(run)
+
+    flagged: set[int] = set()
+    for block in runs:
+        # Heuristic 1: too many consecutive lines of prose.
+        if len(block) >= COMMENT_RUN_MAX:
+            findings.append(Finding(path, block[0][0], block[-1][0], f"{len(block)} lines"))
+            flagged.update(ln for ln, _ in block)
+            continue
+        # Heuristic 3: too many sentences, however few lines it spans.
+        sentences = _sentence_count(" ".join(txt for _, txt in block))
+        if sentences > COMMENT_SENTENCE_MAX:
+            findings.append(Finding(path, block[0][0], block[-1][0], f"{sentences} sentences"))
+            flagged.update(ln for ln, _ in block)
 
     # Heuristic 2: a single over-long comment (full-line or inline), unless it's
     # already inside a flagged block or part of the file header.

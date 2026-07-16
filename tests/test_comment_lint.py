@@ -5,7 +5,14 @@ import subprocess
 from pathlib import Path
 
 from klaussy import hooks as hooks_mod
-from klaussy.comment_lint import COMMENT_RUN_MAX, COMMENT_WORD_MAX, analyze, changed_lines
+from klaussy.comment_lint import (
+    COMMENT_RUN_MAX,
+    COMMENT_SENTENCE_MAX,
+    COMMENT_WORD_MAX,
+    _sentence_count,
+    analyze,
+    changed_lines,
+)
 
 TEMPLATES = Path(hooks_mod.__file__).parent / "templates" / "hooks"
 
@@ -39,6 +46,64 @@ def test_blank_line_breaks_the_run():
     src = "x = 0\n# one\n# two\n\n# three\n# four\nx = 1\n"
     # two runs of 2 — neither reaches the threshold
     assert analyze("foo.py", src) == []
+
+
+# --- sentence-count heuristic ----------------------------------------------
+
+
+def test_flags_comment_past_sentence_cap():
+    src = "x = 0\n# Cache the row. Lookups are hot. The cache is invalidated on write.\ny = 1\n"
+    findings = analyze("foo.py", src)
+    assert len(findings) == 1
+    assert "3 sentences" in findings[0].detail
+
+
+def test_two_sentence_comment_is_clean():
+    """The claim-plus-why shape a real comment needs must survive."""
+    assert COMMENT_SENTENCE_MAX == 2
+    src = (
+        "x = 0\n# auto-test is off by default. Running the suite after each edit is heavy.\ny = 1\n"
+    )
+    assert analyze("foo.py", src) == []
+
+
+def test_sentences_counted_across_a_wrapped_comment():
+    """Consecutive lines are one logical comment, so the cap spans the run."""
+    src = (
+        "x = 0\n"
+        "# Retry twice. The upstream 502s under load.\n"
+        "# Longer waits just stack requests.\n"
+        "y = 1\n"
+    )
+    findings = analyze("foo.py", src)
+    assert len(findings) == 1
+    assert findings[0].start == 2
+    assert findings[0].end == 3
+    assert "3 sentences" in findings[0].detail
+
+
+def test_run_length_finding_wins_over_sentence_finding():
+    """A long run reports once, as lines — not twice."""
+    src = "x = 0\n" + "".join(f"# Sentence {i}. Another one.\n" for i in range(4)) + "y = 1\n"
+    findings = analyze("foo.py", src)
+    assert len(findings) == 1
+    assert "lines" in findings[0].detail
+
+
+def test_sentence_count_ignores_dots_inside_tokens():
+    """A miscount blocks a commit, so filenames/versions/URLs must not split."""
+    assert _sentence_count("Bind `klaussy.toolkit` so the import works.") == 1
+    assert _sentence_count("Version 0.16.0 ships the launcher.") == 1
+    assert _sentence_count("See https://code.claude.com/docs/en/hooks.md for details.") == 1
+
+
+def test_sentence_count_ignores_abbreviations():
+    assert _sentence_count("Pass a token, e.g. Claude expands it.") == 1
+
+
+def test_sentence_count_handles_missing_terminator():
+    assert _sentence_count("no terminal punctuation here") == 1
+    assert _sentence_count("") == 0
 
 
 # --- word-count heuristic --------------------------------------------------

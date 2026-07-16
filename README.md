@@ -71,7 +71,7 @@ klaussy init
 > | 📝 **Commit message** | Non-Conventional-Commits subjects, before the commit lands and needs amending. |
 > | 🎨 **Format + lint** | Your project's own stack (`ruff`, `eslint`, …), scoped to the staged files. |
 > | 🧟 **Commented-out code** | Dead code an agent parked in a comment "just in case" (`ruff --select ERA`). Flags, never deletes — commented code you meant to keep stays. |
-> | 💬 **Verbose comments** | The narration tell. Blocks a run of 4+ consecutive prose comments, or any single comment over 30 words. `# noqa`, `@ts-ignore`, JSDoc, license headers, and bare URLs are exempt. |
+> | 💬 **Verbose comments** | The narration tell. Blocks a comment running past 2 sentences, a run of 4+ consecutive prose comments, or any single comment over 30 words. Two sentences is deliberate — it leaves room for the claim-plus-why a real comment needs, and a third is usually the code restated. `# noqa`, `@ts-ignore`, JSDoc, license headers, and bare URLs are exempt. |
 >
 > **Every check is diff-scoped.** The gate judges only the change in flight — a pre-existing secret or comment block elsewhere in a file you touched won't block you, and the formatter never rewrites the tree outside your diff.
 >
