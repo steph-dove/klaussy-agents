@@ -62,8 +62,20 @@ klaussy init
 > Injects strict guardrails (e.g., minimal lines changed, no over-engineering, write tests first) directly into the agent's plan step before it begins modifying files, preventing scope creep.
 
 ### 4. Git Commit Guard (`commit_guard.py`)
-> [!NOTE]
-> Automatically triggers your project's linting and formatting stack before allowing the agent to commit, keeping your Git history green.
+> [!IMPORTANT]
+> **The last gate before an agent writes to your history.** Not a linter wrapper — these run in order, and the first failure blocks the commit:
+>
+> | Gate | What it catches |
+> |---|---|
+> | 🔑 **Secret scan** | Credentials headed for your history. Eight provider tokens flagged on sight (AWS access keys, GitHub, Slack, Google API, Stripe live and OpenAI keys, private key blocks, Slack webhooks), plus generic `api_key = "..."` assignments gated on length and Shannon entropy — so a real key blocks but `password = "postgres"` doesn't. `os.environ` lookups, `${TEMPLATE}` holes, and `changeme`/`your-key-here` stand-ins are known non-secrets and pass. |
+> | 📝 **Commit message** | Non-Conventional-Commits subjects, before the commit lands and needs amending. |
+> | 🎨 **Format + lint** | Your project's own stack (`ruff`, `eslint`, …), scoped to the staged files. |
+> | 🧟 **Commented-out code** | Dead code an agent parked in a comment "just in case" (`ruff --select ERA`). Flags, never deletes — commented code you meant to keep stays. |
+> | 💬 **Verbose comments** | The narration tell. Blocks a run of 4+ consecutive prose comments, or any single comment over 30 words. `# noqa`, `@ts-ignore`, JSDoc, license headers, and bare URLs are exempt. |
+>
+> **Every check is diff-scoped.** The gate judges only the change in flight — a pre-existing secret or comment block elsewhere in a file you touched won't block you, and the formatter never rewrites the tree outside your diff.
+>
+> **It fails open, deliberately.** A missing tool, an unparseable payload, or any unexpected error allows the commit rather than blocking it — a guard that crashes shut would deny *every* tool call on some agents. `git commit --no-verify` skips the gate outright, same as git's own hooks.
 
 ### 5. Dependency Speed Bump (`dependency_guard.py`)
 > [!NOTE]
