@@ -192,7 +192,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.17.1** (the dependency gate no longer blocks a manifest sync inside a pipeline).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.18.0** (the commit guard blocks function-local imports, and the read-injection guard no longer blocks a repo's own test code).
 
 ---
 

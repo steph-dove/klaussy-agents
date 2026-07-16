@@ -5,6 +5,44 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.18.0] - 2026-07-16
+
+### Added
+
+- **The commit guard blocks function-local imports.** Agents write an import
+  where the need surfaces rather than where it belongs — `import json` three
+  frames deep, because that's the line they were on. Ruff's `PLC0415` is the same
+  rule but judges a whole file, which would turn every pre-existing local import
+  into a landmine (90 in this repo alone), and a noisy guard gets disabled. The
+  new `klaussy import-lint` scopes to the lines in flight, so it only asks about
+  an import the commit actually adds. Verified against ruff across `src/` and
+  `tests/`: 90 findings each, no disagreement in either direction. Block-only,
+  with `# noqa` on the line honored — a local import is sometimes the only way to
+  break a cycle or defer an optional dependency, and no AST walk can tell that
+  from habit. Module-level `if TYPE_CHECKING:` and `try/except ImportError` are
+  top-level scope and never flagged. The `self-review` checklist asks for the
+  same thing, so the model hoists before the gate fires.
+
+### Fixed
+
+- **The read-injection guard no longer blocks a repo's own test code.** A suite
+  that tests injection handling has to contain injection strings, so the guard
+  read its fixtures as live injections and refused the file — klaussy's own
+  `tests/test_cli.py` was unreadable to any agent working in a scaffolded repo.
+  Test *source* is now exempt, scoped three ways so the guard keeps its teeth:
+  source extensions only (a data blob under `tests/` is still scanned), file
+  reads only (a fetch is never waved through on the strength of a path), and test
+  layout conventions only (`tests/`, `__tests__/`, `test_x.py`, `x_test.go`,
+  `x.spec.ts`, `conftest.py`). Both the Claude and cross-agent copies are fixed.
+
+### Documentation
+
+- **The `grant-permissions` skill has a table entry.** It was the headline of
+  0.16.0 but appeared only as a bare name in the "also bundles" list.
+- **Corrected the commit-guard scoping claim.** "Every check is diff-scoped" was
+  wrong: secrets, comments and imports narrow to the changed lines, but the
+  project's own format and lint judge the whole staged file.
+
 ## [0.17.1] - 2026-07-16
 
 ### Fixed
