@@ -77,6 +77,49 @@ def test_bypass_token_allows(guard):
     assert guard._added_packages("KLAUSSY_DEPS_OK=1 pip install requests") == []
 
 
+# A command line is many commands. Scanning to end-of-line once read `|`, `tail`
+# and every other trailing token as package names, so a manifest sync in a
+# pipeline blocked with shell operators quoted back as the "dependency".
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pip install -e . | tail -1",
+        "pip install -e . 2>&1 | tail -1",
+        "pip install -e . 2>&1 | tail -1; echo done",
+        "pip install -e '.[dev]' && pytest -q",
+        "pip install -r requirements.txt > log.txt",
+        "npm ci && npm test",
+    ],
+)
+def test_manifest_sync_in_a_compound_command_is_exempt(guard, command):
+    assert guard._added_packages(command) == []
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("pip install requests; echo hi", ["requests"]),
+        ("pip install requests | tee log", ["requests"]),
+        ("pip install requests > log.txt", ["requests"]),
+        ("pip install requests 2>&1", ["requests"]),
+        ("npm install && pip install lodash", ["lodash"]),
+        ("pip install requests && npm install lodash", ["requests", "lodash"]),
+    ],
+)
+def test_detects_new_dependency_in_a_compound_command(guard, command, expected):
+    assert guard._added_packages(command) == expected
+
+
+def test_redirect_target_is_not_a_package(guard):
+    """Scanning stops at a redirect, so its target can't be read as a package."""
+    assert guard._added_packages("pip install -e . > out") == []
+
+
+def test_file_descriptor_is_not_a_package(guard):
+    """`2>&1` splits into `2`, `>&`, `1` — the fd number is not a dependency."""
+    assert guard._added_packages("pip install -e . 2>&1") == []
+
+
 def _run(guard, payload, monkeypatch) -> tuple[int, str]:
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     err = io.StringIO()
