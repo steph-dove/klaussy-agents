@@ -9,7 +9,7 @@ so they're namespaced under `toolkit` rather than dumped onto the package root):
     toolkit.humanize("A great solution — it works.")
 """
 
-__version__ = "0.17.0"
+__version__ = "0.17.1"
 
 # Bind the library submodule so `import klaussy; klaussy.toolkit.…` works without a
 # separate `import klaussy.toolkit`. Done after __version__ so the modules that read

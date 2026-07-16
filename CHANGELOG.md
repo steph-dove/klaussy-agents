@@ -5,6 +5,23 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.17.1] - 2026-07-16
+
+### Fixed
+
+- **The dependency gate no longer blocks a manifest sync in a pipeline.** The
+  guard found `pip install` and then read every token to end-of-line as a package
+  name, straight through `;`, `&&`, and `|` — so `pip install -e . 2>&1 | tail -1`
+  blocked, reporting `2>&1, |, tail, echo` as the dependency it had found. The
+  `pip install -e .` exemption was real but only survived a bare command line.
+  A line is now split on shell operators and each command judged on its own.
+  Scanning a segment stops at a redirect, since package names always precede one,
+  and a bare file-descriptor number is skipped (`2>&1` tokenizes as `2`, `>&`,
+  `1`). Parsing moved to `shlex.shlex(punctuation_chars=True)`, since
+  `shlex.split` leaves an operator glued to its neighbour (`requests;` stays one
+  token) and hides the boundary the split needs. A compound line with two
+  installs now reports both packages.
+
 ## [0.17.0] - 2026-07-16
 
 ### Added

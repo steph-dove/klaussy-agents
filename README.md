@@ -190,7 +190,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.17.0** (comment lint blocks past two sentences, the stop-hook self-review leads with comment removal, and hook upgrades no longer leave stale duplicate entries behind).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.17.1** (the dependency gate no longer blocks a manifest sync inside a pipeline).
 
 ---
 
