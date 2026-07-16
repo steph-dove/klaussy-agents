@@ -176,38 +176,7 @@ For each finding, be specific about the failure mode (the exact input or state t
 - Check that the PR does one thing well rather than bundling unrelated work.
 
 ### Project Conventions
-### Repo Conventions
-- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_client.py`.
-- Config access patterns: Manage environment configuration: Config access: 12 direct env accesses..
-- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
-- PR template: Sections: Summary, Changes, Test Plan, Checklist.
-- Python import path (flat-layout): flat-layout: `import httpx`.
-- PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
-- Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 29 with statements. Types: file_io (5), http_client (5).).
-- Single test directory: tests/: All tests in 'tests/' directory.
-- for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
-- for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
-- for `httpx/**/*.py`: Custom decorator pattern: @click.option: Use custom decorator @click.option (17 usages).
-- for `httpx/**/*.py`: Limited exception chaining: Preserve exception context: use `raise X from Y` or `raise X from None`.
-- for `httpx/**/*.py`: Configuration via os.environ direct access: Use os.environ direct access.
-- for `httpx/**/*.py`: Manual validation (ValueError/TypeError): Validate inputs and parameters: Use Manual validation (ValueError/TypeError) for input validation. 17/17 validation patterns use this approach..
-- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.
-
-### Verification Commands
-Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
-- `venv/bin/mypy httpx tests`
-- `pytest`
-
-### Known Pitfalls
-Flag if any of these are violated:
-- 100% coverage is enforced, not aspirational: `scripts/coverage` runs `coverage report --fail-under=100`. Any new branch without a covering test (or an explicit `# pragma: no cover` / `# pragma: nocover`) fails CI outright — see the existing `# pragma: nocover` uses in `_config.py` around the `SSL_CERT_FILE`/`SSL_CERT_DIR` branches.
-- `scripts/check` validates version sync before anything else: `scripts/sync-version` greps the second semver match in `CHANGELOG.md` against `httpx/__version__.py` and fails if they differ. Bumping the version means updating both files together (the first CHANGELOG match is the "unreleased" header, so the second entry must equal `__version__`).
-- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles. `__init__.py`'s wildcard-import order (`_api` before `_client` before `_config` ...) is load-bearing; reordering it can surface these cycles as `ImportError`/`AttributeError` at import time.
-- `ruff` intentionally ignores `B904` and `B028`: bare `raise X` inside an `except` block (without `from`) and non-`stacklevel` `warnings.warn` calls are allowed project-wide (`pyproject.toml` `[tool.ruff.lint]`) — don't "fix" these in unrelated diffs.
-- `mypy strict = true` for `httpx/` but relaxed for `tests/`: the `[[tool.mypy.overrides]]` block turns off `disallow_untyped_defs` for `tests.*`. Test helpers can skip full annotations; library code cannot.
-- CLI extras aren't installed by default: running the `httpx` console script without `pip install httpx[cli]` hits the `except ImportError` branch in `__init__.py` and just prints an install hint — don't mistake this for a real crash when debugging `_main.py`.
-- `requirements.txt` intentionally pins tooling but not runtime deps: httpx's own dependencies (`httpcore`, `certifi`, `anyio`, `idna`) are unpinned by design so tests run against latest — see the comment at the top of `requirements.txt` and PR #1721 discussion. Don't "fix" this by pinning them.
-- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
+{{REPO_SPECIFIC_CHECKS}}
 
 If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
 ```
@@ -264,38 +233,7 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 
 - **Dynamic context injection** — `` !`<command>` `` inline form or ` ```! ` fenced blocks inside SKILL.md bodies. Documented at `code.claude.com/docs/en/skills.md` under "Inject dynamic context". The shell command runs at skill-load time and its output replaces the placeholder. Flag only if the command leaks secrets, hits an external service unintentionally, or runs something destructive — never flag the syntax itself.
 - **`$ARGUMENTS` / `$N` / `${CLAUDE_SESSION_ID}` / `${CLAUDE_SKILL_DIR}` substitution** in SKILL.md bodies. Documented in the skills frontmatter spec under "Available string substitutions". When a skill is auto-triggered without args, `$ARGUMENTS` resolves to empty — that is by design, not a defect.
-- **`httpx` / `master` / `### Repo Conventions
-- File change hotspots: Frequently modified: `CHANGELOG.md`, `requirements.txt`, `_client.py`.
-- Config access patterns: Manage environment configuration: Config access: 12 direct env accesses..
-- Trunk-based/GitHub Flow: Trunk-based/GitHub Flow.
-- PR template: Sections: Summary, Changes, Test Plan, Checklist.
-- Python import path (flat-layout): flat-layout: `import httpx`.
-- PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
-- Context manager usage: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 29 with statements. Types: file_io (5), http_client (5).).
-- Single test directory: tests/: All tests in 'tests/' directory.
-- for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
-- for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
-- for `httpx/**/*.py`: Custom decorator pattern: @click.option: Use custom decorator @click.option (17 usages).
-- for `httpx/**/*.py`: Limited exception chaining: Preserve exception context: use `raise X from Y` or `raise X from None`.
-- for `httpx/**/*.py`: Configuration via os.environ direct access: Use os.environ direct access.
-- for `httpx/**/*.py`: Manual validation (ValueError/TypeError): Validate inputs and parameters: Use Manual validation (ValueError/TypeError) for input validation. 17/17 validation patterns use this approach..
-- for `tests/**/*.py`: Test naming: Simple style (test_feature): Use Use Simple style (test_feature) naming. 523/539 test functions. Uses 2 test classes for grouping. naming style for all test functions.
-
-### Verification Commands
-Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
-- `venv/bin/mypy httpx tests`
-- `pytest`
-
-### Known Pitfalls
-Flag if any of these are violated:
-- 100% coverage is enforced, not aspirational: `scripts/coverage` runs `coverage report --fail-under=100`. Any new branch without a covering test (or an explicit `# pragma: no cover` / `# pragma: nocover`) fails CI outright — see the existing `# pragma: nocover` uses in `_config.py` around the `SSL_CERT_FILE`/`SSL_CERT_DIR` branches.
-- `scripts/check` validates version sync before anything else: `scripts/sync-version` greps the second semver match in `CHANGELOG.md` against `httpx/__version__.py` and fails if they differ. Bumping the version means updating both files together (the first CHANGELOG match is the "unreleased" header, so the second entry must equal `__version__`).
-- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles. `__init__.py`'s wildcard-import order (`_api` before `_client` before `_config` ...) is load-bearing; reordering it can surface these cycles as `ImportError`/`AttributeError` at import time.
-- `ruff` intentionally ignores `B904` and `B028`: bare `raise X` inside an `except` block (without `from`) and non-`stacklevel` `warnings.warn` calls are allowed project-wide (`pyproject.toml` `[tool.ruff.lint]`) — don't "fix" these in unrelated diffs.
-- `mypy strict = true` for `httpx/` but relaxed for `tests/`: the `[[tool.mypy.overrides]]` block turns off `disallow_untyped_defs` for `tests.*`. Test helpers can skip full annotations; library code cannot.
-- CLI extras aren't installed by default: running the `httpx` console script without `pip install httpx[cli]` hits the `except ImportError` branch in `__init__.py` and just prints an install hint — don't mistake this for a real crash when debugging `_main.py`.
-- `requirements.txt` intentionally pins tooling but not runtime deps: httpx's own dependencies (`httpcore`, `certifi`, `anyio`, `idna`) are unpinned by design so tests run against latest — see the comment at the top of `requirements.txt` and PR #1721 discussion. Don't "fix" this by pinning them.
-- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)` / `### Write like a person, not a chatbot
+- **`httpx` / `master` / `{{REPO_SPECIFIC_CHECKS}}` / `### Write like a person, not a chatbot
 
 Whatever you output for the user (comments, descriptions, messages) must read as if a human engineer wrote it. These rules mirror klaussy's deterministic humanizer (klaussy-desktop `humanize-comment.js`):
 
@@ -304,8 +242,16 @@ Whatever you output for the user (comments, descriptions, messages) must read as
 - **No chatbot scaffolding.** No "Let me know if...", "Hope this helps", "Feel free to...", "Happy to help", "Let me know your thoughts".
 - **Tighten hedges.** "in order to" → "to"; "could potentially" → "could"; "may potentially" → "may". Drop stacked qualifiers.
 - **No emoji, no exclamatory enthusiasm, no "Certainly"/"Great question".**
+- **No excessive apologies.** Avoid apologetic filler ("Sorry about that!", "My apologies for the confusion", "Apologies for the oversight"). State the correction or resolution directly.
+- **Prefer active, imperative verbs and avoid narration.** Use direct instructions (e.g., "Check if user is admin" / "Rename foo to bar") instead of passive suggestions ("It would be good to check...", "You might want to rename..."). Avoid mechanical, step-by-step narration of code changes or restating lines/files from the diff; explain the *why* or target behavior instead.
+- **Avoid the LLM lexicon & buzzwords.** Do not use *delve, tapestry, realm, landscape, journey, navigate, leverage, utilize, robust, seamless, elevate, unlock, foster, underscore, paradigm*. Replace corporate jargon (e.g. leverage/utilize) with simpler words (e.g. use).
+- **Avoid transition crutches.** Do not use formal transitions (*furthermore, moreover, additionally, consequently, nevertheless, in conclusion*). Use simpler ones or prune them entirely.
+- **Avoid rhetorical reframes and standalones.** Avoid the negation-reframe ("not only... but also", "this isn't just a bug fix — it's...") and standalone summary lines ("And that's the whole point.").
+- **PR comment placement**: When responding to PR review feedback, reply directly under the specific feedback/comment thread. Do not post replies in a separate/new top-level comment.
 - **Don't let trimming tip into terse.** Cutting filler shouldn't make prose read as curt or dismissive. Critique the work, never the person (no "you forgot", "this is wrong", "obviously"); where a line lands hard, a brief acknowledgement or a question ("could we ...?", "one risk is ...") takes the edge off. A light touch only, not filler praise or "great job" boilerplate.
+- **No superlatives or ranking praise.** Don't editorialize a point's importance: cut "this is the sharpest catch in the review", "best catch", "great find", "excellent point", "the most important issue here". Rating a comment against the others is an AI tell and adds nothing. State the substance and stop.
 - **Don't mirror the thread's tone.** When you reply to an existing comment, review note, or message, read it for substance but not for temperature: neutralize any rudeness or bluntness in it before you draft. Hostile or curt input must not prime a hostile or curt reply, answer as if the other person had phrased it civilly.
+- **Don't thank a bot.** When the reviewer is an automated tool or bot (a review bot, another agent, a CI check), respond to the substance without gratitude or pleasantries aimed at it, no "thanks for the review", "good catch", or addressing it as a person. Reserve those for a human reviewer, and even then keep them minimal.
 - **Be short, then cut more.** Lead with the point. Keep the decision and the one fact that justifies it, then stop. A reply in a thread is usually one sentence; a single review comment one to five. Don't pad to sound thorough or stack throat-clearing ahead of the point.
 - **Cut detail, not just words.** The verbose tell isn't long words, it's over-explaining. Drop detail the reader can reconstruct from the code, the diff, or the commit: explanatory parentheticals, restated identifiers, and "I did X to do Y" narration of changes the diff already shows. Keep the load-bearing fact; drop what's merely supporting. This is the one place humanizing may drop content, never reverse or invent meaning, but you need not preserve every clause.
 - Vary sentence shape; don't open every line the same way. Never reword code, identifiers, or anything inside backticks or fences. Humanize prose only.

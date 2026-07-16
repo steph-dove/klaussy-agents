@@ -15,6 +15,7 @@ Read the user's task description carefully. Identify:
 1. **What is being asked** — the specific deliverable or behavior change.
 2. **What is NOT being asked** — anything outside this scope is off-limits. Do not refactor, rename, restyle, or "improve" anything beyond the task. If you notice other issues, list them at the end but do NOT fix them.
 3. **Acceptance criteria** — extract every testable condition from the task. If the task is ambiguous or missing details that would change your approach, ask the user to clarify before proceeding. Do not guess at requirements — wrong assumptions compound into wrong implementations.
+4. **Referenced assets you can't see — block, don't invent.** If the task or ticket points at material you need but cannot retrieve — a mockup, screenshot, or design file attached to a GitHub/Jira issue; a Figma link; an image, spec, or doc you have no tool to open — stop and ask the user to provide it (paste the image, drop the file in the repo, share the copy/measurements). `gh issue view` shows an issue's text but does not download its image attachments, and a design you can't see is not one you can fabricate. Never make up UI text, layout, spacing, colors, or copy to keep moving — a plausible-looking invention looks done and is worse than a blocked task. This is a hard block: implementation cannot proceed past a design the human hasn't given you.
 
 ---
 

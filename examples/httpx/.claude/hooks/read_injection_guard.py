@@ -9,6 +9,10 @@ Reads the Claude Code hook payload from stdin. For `Read` (PreToolUse) it exits
 (PostToolUse) the fetch has already happened, so it exits 2 with a stderr
 warning that Claude Code surfaces back to the model as untrusted-content notice.
 
+A repo's own test *source* is exempt from the `Read` scan (a suite that tests
+injection handling has to contain injection strings); blobs under `tests/` and
+the WebFetch path are not.
+
 Pure-stdlib so the repo stays portable across machines that don't have klaussy
 installed.
 """
@@ -55,6 +59,56 @@ INJECTION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 
 MAX_BYTES = 200_000
 
+_TEST_DIRS = frozenset({"tests", "test", "spec", "specs", "__tests__"})
+
+# The exemption covers source files only: a fixture blob under `tests/` carries
+# no surrounding code to mark it as a fixture, so it is still scanned.
+_SOURCE_EXTS = frozenset(
+    {
+        ".py",
+        ".pyi",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".go",
+        ".rb",
+        ".rs",
+        ".java",
+        ".kt",
+        ".cs",
+        ".php",
+        ".swift",
+        ".scala",
+        ".ex",
+        ".exs",
+    }
+)
+
+
+def _is_test_source(path: str) -> bool:
+    """True for a file that is the repo's own test code.
+
+    Matches the layout conventions across languages: a test directory component
+    (`tests/`, `__tests__/`), or a test filename shape (`test_x.py`, `x_test.go`,
+    `x.spec.ts`, `conftest.py`).
+    """
+    p = Path(path)
+    if p.suffix.lower() not in _SOURCE_EXTS:
+        return False
+    if {part.lower() for part in p.parts} & _TEST_DIRS:
+        return True
+    stem = p.stem.lower()
+    return (
+        stem.startswith(("test_", "spec_"))
+        or stem.endswith(("_test", "_spec"))
+        or ".test" in stem
+        or ".spec" in stem
+        or stem == "conftest"
+    )
+
 
 def scan(text: str) -> list[tuple[int, str, str]]:
     """Return (line_no, label, match_text) for every injection pattern hit."""
@@ -87,6 +141,8 @@ def _report(source: str, findings: list[tuple[int, str, str]]) -> None:
 def _handle_read(tool_input: dict) -> int:
     path = tool_input.get("file_path")
     if not path:
+        return 0
+    if _is_test_source(path):
         return 0
     p = Path(path)
     if not p.is_file():

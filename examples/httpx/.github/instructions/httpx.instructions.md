@@ -19,6 +19,15 @@ applyTo: "httpx/**/*.py"
       port: int | None
       path: str
   ```
+- **lowercase constant naming**: Name constants using lowercase style.
+  *Example context from `httpx/_multipart.py` (lines 269-273):*
+  ```python
+          """
+          boundary_length = len(self.boundary)
+          length = 0
+  
+          for field in self.fields:
+  ```
 - **Enum usage: Enum**: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
   *Example context from `httpx/_client.py` (lines 120-130):*
   ```python
@@ -60,6 +69,17 @@ applyTo: "httpx/**/*.py"
       def flush(self) -> bytes:
           try:
   ```
+- **Context manager usage**: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 24 with statements. Types: http_client (5).).
+  *Example context from `httpx/_main.py` (lines 476-482):*
+  ```python
+          method = "POST" if content or data or files or json else "GET"
+  
+      try:
+          with Client(proxy=proxy, timeout=timeout, http2=http2, verify=verify) as client:
+              with client.stream(
+                  method,
+                  url,
+  ```
 - **Configuration via os.environ direct access**: Use os.environ direct access.
   *Example context from `httpx/_config.py` (lines 31-37):*
   ```python
@@ -70,6 +90,20 @@ applyTo: "httpx/**/*.py"
               ctx = ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"])
           elif trust_env and os.environ.get("SSL_CERT_DIR"):  # pragma: nocover
               ctx = ssl.create_default_context(capath=os.environ["SSL_CERT_DIR"])
+  ```
+- **High type annotation coverage**: Standardize on typing: Type annotations are commonly used in this codebase. 396/396 functions have at least one type annotation..
+  *Example context from `httpx/_decoders.py` (lines 32-42):*
+  ```python
+  except ImportError:  # pragma: no cover
+      zstandard = None  # type: ignore
+  
+  
+  class ContentDecoder:
+      def decode(self, data: bytes) -> bytes:
+          raise NotImplementedError()  # pragma: no cover
+  
+      def flush(self) -> bytes:
+          raise NotImplementedError()  # pragma: no cover
   ```
 - **Manual validation (ValueError/TypeError)**: Validate inputs and parameters: Use Manual validation (ValueError/TypeError) for input validation. 17/17 validation patterns use this approach..
   *Example context from `httpx/_urls.py` (lines 95-101):*

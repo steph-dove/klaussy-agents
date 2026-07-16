@@ -27,6 +27,8 @@ Restate the user's request in your own words: what is being built, what problem 
 
 If any answer is "no", ask the user before exploring. Phase 3 covers the deeper "what should error handling do" / "what about edge case X" questions; Phase 1 catches the "do I even know what they want" case so the parallel agents don't waste effort on the wrong target.
 
+**Referenced-asset check — block, don't invent.** If the task or ticket points at material you need but cannot actually retrieve — a mockup, screenshot, or design file attached to a GitHub/Jira issue; a Figma link; an image, spec, or doc you have no tool to open — do NOT proceed by guessing what it contains. `gh issue view` shows an issue's text but does not download its image attachments, and a design you can't see is not a design you can fabricate. Stop and tell the user exactly which assets you're missing and ask them to provide them (paste the image, drop the file into the repo, share the copy/measurements). Never make up UI text, layout, spacing, colors, or copy to fill the gap — a plausible-looking invention is worse than a blocked task, because it looks done. This is a hard block: planning cannot continue past a design the human hasn't given you.
+
 Confirm with the user before continuing.
 
 ## Phase 2 — Understand (parallel exploration)
@@ -159,6 +161,7 @@ Write a 3–5 line summary: what was built, key decisions, files modified, sugge
 These apply regardless of the project. ALSO read this codebase's CLAUDE.md / `.claude/rules/*.md` / README / CONTRIBUTING early in Phase 2 to pick up project-specific rules and add them to your working list — local conventions usually beat generic advice when they conflict.
 
 - Skipping Phase 3 because the task "seems clear." Most clear-looking tasks have hidden ambiguities. Ask anyway.
+- Inventing design you can't see. When a ticket references an image or mockup you cannot download, block and ask for it (Phase 1) — never fabricate the UI text, layout, or copy to keep moving.
 - Adding features, abstractions, or refactors beyond what the task requires. YAGNI.
 - New abstractions for code with only one or two callsites. Three similar lines is fine.
 - Backwards-compatibility shims for code that has no other callers.

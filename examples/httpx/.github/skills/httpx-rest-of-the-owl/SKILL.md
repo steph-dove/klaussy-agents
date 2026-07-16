@@ -37,6 +37,8 @@ Follow **`httpx-review`** against the working diff (`git diff master...HEAD`). F
 
 Follow **`httpx-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to a `Downloads/<repo>-<branch>` folder where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
 
+**QA is a gate, not a formality — clear it before you touch the PR.** The whole point of running QA here is to catch problems *before* they become CI failures or reviewer comments. If QA surfaces anything wrong — a screenshot that shows the change is broken or ugly, an endpoint returning the wrong response, a CLI erroring, a failing test — stop and fix it: loop back to Phase 2/3, correct the change, and re-QA. Do NOT open the PR (Phase 5) on a change that QA has shown to be broken and then rely on CI or the reviewer to catch it. Only advance once QA is genuinely clean (or the only gaps are ones you've explicitly flagged as un-QA-able and told the user about).
+
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `master`) and push.

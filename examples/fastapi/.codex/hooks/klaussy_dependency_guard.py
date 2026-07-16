@@ -13,7 +13,10 @@ the dep is actually needed and not coverable by the stdlib or an existing dep.
 
 It deliberately does NOT fire on commands that merely sync an existing manifest
 (`npm install` / `npm ci`, `pip install -r requirements.txt`, `pip install -e .`,
-`poetry install`, `uv sync`, a bare `yarn`) — those add nothing new.
+`poetry install`, `uv sync`, a bare `yarn`) — those add nothing new. A command
+line is split on `;`/`&&`/`|` and each command judged on its own, so an install
+inside a pipeline stays exempt instead of reading the rest of the line as
+package names.
 
 Like the other cross-agent guards, these protocols can't surface a soft warning,
 so the mechanism is a block (exit 2 + stderr, honored by every supported agent).
@@ -61,6 +64,15 @@ _ADDERS = {
 # (`pip install -r reqs.txt`, `pip install -e .`, `-c constraints.txt`).
 _FLAGS_WITH_VALUE = {"-r", "--requirement", "-c", "--constraint", "-e", "--editable"}
 
+# Shell operators that end one command and start another. A command line is split
+# on these before scanning, so `pip install -e . | tail -1` reads only the pip
+# segment — scanning to end-of-line took `|` and `tail` for package names.
+_SEPARATORS = frozenset({";", "&&", "||", "|", "|&", "&", "(", ")", "\n"})
+
+# Redirection operators. Package names always precede a redirect, so scanning a
+# segment stops at one rather than reading its target as a package.
+_REDIRECTS = frozenset({">", ">>", ">|", ">&", "<", "<<", "<<<", "<&", "&>", "&>>"})
+
 
 def _extract_command(payload: dict) -> str:
     """Pull the shell command string out of any supported agent's payload."""
@@ -83,6 +95,8 @@ def _packages_after(args: list[str]) -> list[str]:
     pkgs: list[str] = []
     skip_next = False
     for tok in args:
+        if tok in _REDIRECTS:
+            break
         if skip_next:
             skip_next = False
             continue
@@ -90,6 +104,10 @@ def _packages_after(args: list[str]) -> list[str]:
             skip_next = True
             continue
         if tok.startswith("-"):
+            continue
+        # A bare number is the file descriptor of a redirect (`2>&1`), which the
+        # tokenizer splits off on its own. No real package is named `2`.
+        if tok.isdigit():
             continue
         # Current project / requirement or lock files / local paths — not a new
         # named dependency, just a sync of what's already declared.
@@ -101,14 +119,35 @@ def _packages_after(args: list[str]) -> list[str]:
     return pkgs
 
 
-def _added_packages(command: str) -> list[str]:
-    """New named dependencies an install command would add; [] if it adds none."""
-    if BYPASS_PREFIX in command:
-        return []
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return []
+def _tokenize(command: str) -> list[str]:
+    """Shell-split `command`, keeping operators as tokens of their own.
+
+    `shlex.split` leaves an operator glued to its neighbour (`requests;` stays one
+    token), which hides the boundary this guard splits on — hence the lexer.
+    """
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
+def _segments(tokens: list[str]) -> list[list[str]]:
+    """The individual commands in a token list, split on shell operators."""
+    out: list[list[str]] = []
+    current: list[str] = []
+    for tok in tokens:
+        if tok in _SEPARATORS:
+            if current:
+                out.append(current)
+            current = []
+            continue
+        current.append(tok)
+    if current:
+        out.append(current)
+    return out
+
+
+def _segment_packages(tokens: list[str]) -> list[str]:
+    """New named dependencies one command adds; [] if it adds none."""
     for i in range(len(tokens) - 1):
         mgr, verb = tokens[i], tokens[i + 1]
         # `uv pip install <pkg>` mirrors pip's argument shape.
@@ -117,6 +156,24 @@ def _added_packages(command: str) -> list[str]:
         if (mgr, verb) in _ADDERS:
             return _packages_after(tokens[i + 2 :])
     return []
+
+
+def _added_packages(command: str) -> list[str]:
+    """New named dependencies a command line would add; [] if it adds none.
+
+    Each `;`/`&&`/`|`-separated command is judged on its own, so an install in a
+    pipeline is read as an install and the rest of the line isn't read as packages.
+    """
+    if BYPASS_PREFIX in command:
+        return []
+    try:
+        tokens = _tokenize(command)
+    except ValueError:
+        return []
+    found: list[str] = []
+    for segment in _segments(tokens):
+        found.extend(_segment_packages(segment))
+    return found
 
 
 def main() -> int:

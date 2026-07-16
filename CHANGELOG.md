@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.18.1] - 2026-07-16
+
+### Fixed
+
+- **The self-review guard template no longer trips klaussy's own comment gate.**
+  Its header comment ran to three sentences, over the two-sentence cap shipped in
+  0.17.0. It stayed invisible because the gate scopes to changed lines and nobody
+  had touched those two — it only surfaced when the whole file landed as new
+  (regenerating `examples/`), which is what any repo scaffolding this guard for
+  the first time sees.
+
 ## [0.18.0] - 2026-07-16
 
 ### Added

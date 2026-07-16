@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-node, python project using fastapi.
+python project using fastapi.
 
 FastAPI framework, high performance, easy to learn, fast to code, ready for production
 
@@ -42,24 +42,27 @@ For the repository directory map and file layout, see [.claude/directory-map.md]
 - `security/http.py`: `GET /users/me`, `GET /users/me`, `GET /users/me`
 - `security/oauth2.py`: `POST /login`, `POST /login`
 
-### How it fits together
+### Narrative: how the pieces fit together
 
-This repo is the FastAPI library itself, not an app built on top of it — the routes listed above are examples embedded in docstrings and `docs_src/`, not a running service. Contributions live almost entirely under `fastapi/`, `tests/`, and `docs_src/` (documentation code snippets that both the docs site and the test suite import and execute).
+FastAPI is a thin, typed layer on top of **Starlette** (ASGI toolkit, routing, middleware, responses) and **Pydantic v2** (validation/serialization). It does not implement HTTP itself — it builds request handling around Starlette's `Router`/`Route` and delegates ASGI serving to Uvicorn (or any ASGI server) at runtime.
 
-- `fastapi/applications.py` — the `FastAPI` class, a thin subclass of `starlette.applications.Starlette`. It owns the middleware stack, exception handlers, and OpenAPI/docs generation, and delegates actual route matching/dispatch to Starlette via `fastapi/routing.py`.
-- `fastapi/routing.py` — `APIRoute`/`APIRouter`. This is where the real work happens per request: it wraps a path operation function, builds a `Dependant` graph for it (see below), validates the request against that graph, calls the endpoint, and serializes the return value against `response_model`.
-- `fastapi/dependencies/utils.py` — analyzes a path operation function's signature (via `inspect` + `typing`) once at route-registration time to build a `Dependant` tree describing path/query/header/cookie params, body fields, and nested `Depends()`. At request time, `solve_dependencies()` walks that tree, resolving each dependency (generator dependencies are cleaned up via `AsyncExitStack`) and collecting validation errors before calling the endpoint.
-- `fastapi/_compat/` — the Pydantic compatibility layer. `shared.py` holds version-agnostic helpers; `v2.py` holds the current Pydantic v2 implementation. Pydantic v1 support has been fully removed (see Decision Log).
-- `fastapi/openapi/utils.py` + `fastapi/openapi/models.py` — walk all registered routes and their `Dependant` graphs to build the OpenAPI schema; `fastapi/openapi/docs.py` serves the Swagger UI / ReDoc HTML that consumes it.
-- `fastapi/security/` — `Depends()`-compatible callables (`OAuth2PasswordBearer`, `HTTPBasic`, `APIKeyHeader`, etc.) that both extract credentials from the request *and* declare the matching OpenAPI `securitySchemes` entries, which is why they're implemented as classes rather than plain functions.
-- `fastapi/encoders.py` (`jsonable_encoder`) — converts arbitrary Python/Pydantic return values into JSON-safe structures before Starlette's response classes serialize them.
-- `fastapi/exceptions.py` / `fastapi/exception_handlers.py` — `HTTPException`, `RequestValidationError`, `WebSocketRequestValidationError` and their default handlers, registered in `FastAPI.__init__`.
-- `fastapi/testclient.py` re-exports Starlette's `TestClient` (httpx-based); nearly every test in `tests/` drives an `APIRouter`/`FastAPI` app through it rather than mocking internals.
-- `docs_src/` contains the actual, runnable code shown in the documentation. `scripts/test.sh` sets `PYTHONPATH=./docs_src` and `tests/` imports modules from it directly, so docs examples are exercised by CI like any other code path — treat `docs_src/` as tested code, not inert samples.
+- `fastapi/applications.py` — the `FastAPI` class (`class FastAPI(Starlette)`, ~4.7k lines). This is the top-level app object users instantiate; it owns OpenAPI schema generation/caching, exception handler registration, middleware setup, and delegates actual routing to an internal `APIRouter`.
+- `fastapi/routing.py` — the biggest module (~6.4k lines). Defines `APIRoute` and `APIRouter`. This is where a decorated path operation function becomes an ASGI-callable: `get_request_handler()` builds the per-route closure that runs on every request, calling `solve_dependencies()` to resolve the dependency graph, then `run_endpoint_function()` to invoke the user's function (sync functions are offloaded to a threadpool via `run_in_threadpool`, async functions are awaited directly).
+- `fastapi/dependencies/utils.py` + `fastapi/dependencies/models.py` — the dependency-injection engine. `get_dependant()` introspects a callable's signature (via `inspect` + type hints) to build a `Dependant` tree at route-registration time; `solve_dependencies()` walks that tree at request time, resolving path/query/header/cookie/body params, sub-dependencies, and security schemes, with results cached per-request via `use_cache=True` (default) on repeated sub-dependencies.
+- `fastapi/params.py` / `fastapi/param_functions.py` — the `Path`, `Query`, `Header`, `Cookie`, `Body`, `Form`, `File`, `Depends`, `Security` marker classes and their public factory functions. These are what a user writes as default values (`Annotated[X, Query(...)]` style) that `get_dependant()` later parses back out.
+- `fastapi/_compat/` — the Pydantic version-compatibility shim (`shared.py` has the common helpers, `v2.py` has Pydantic-v2-specific code). This is the seam between FastAPI's internals and Pydantic's; the package layer is kept separate from callers even though only Pydantic v2 is supported now.
+- `fastapi/encoders.py` — `jsonable_encoder()`, used to convert arbitrary Python/Pydantic return values into JSON-safe primitives before Starlette serializes the response.
+- `fastapi/openapi/` — `models.py` (Pydantic models mirroring the OpenAPI 3.1 spec), `utils.py` (walks all registered routes to build the schema dict), `docs.py` (serves Swagger UI / ReDoc HTML at `/docs` and `/redoc`).
+- `fastapi/security/` — OAuth2/API-key/HTTP-auth helper classes (`OAuth2PasswordBearer`, `HTTPBasic`, `APIKeyHeader`, etc.). Each is itself a callable `Depends`-compatible class that also injects an OpenAPI `securitySchemes` entry.
+- `fastapi/middleware/` — thin re-exports/wrappers around Starlette middleware (CORS, GZip, TrustedHost, WSGI bridge) plus `asyncexitstack.py`, which manages the request-scoped `AsyncExitStack` used to close `yield`-style dependencies.
+
+Request flow in one line: **ASGI server → Starlette `Router` → `APIRoute.get_route_handler()` closure → `solve_dependencies()` (validates params, resolves `Depends` tree) → user endpoint function → return value passed through `jsonable_encoder`/`response_model` validation → Starlette `Response`.**
+
+`docs_src/` holds the runnable example apps referenced by the documentation (one tiny FastAPI app per tutorial step); `scripts/docs.py` and `tests/` both exercise these, which is why they're covered by test collection and coverage (see `[tool.coverage.run] source`).
 
 ## Tech Stack
 
-- **Runtime**: node, python
+- **Runtime**: python
 - **CI/CD**: github_actions
 - **Backend**: fastapi
 - **Schema validation**: pydantic
@@ -71,69 +74,75 @@ This repo is the FastAPI library itself, not an app built on top of it — the r
 
 ### Prerequisites
 
-- **python**: 3.11 (from `.python-version`); the library itself supports `>=3.10` per `pyproject.toml`.
+- **python**: 3.11 (from `.python-version`)
+- Package manager: **uv** (repo ships `uv.lock`; dev tooling is invoked as `uv run ...`)
+- Build backend: `pdm-backend` (see `[build-system]` in `pyproject.toml`); the package version is read live from `fastapi/__init__.py`.
+- Minimum supported Python for the library itself is 3.10 (`requires-python = ">=3.10"` in `pyproject.toml`), even though local dev pins 3.11.
 
 ## Commands
 
-Dependency management uses `uv` (`uv.lock` is checked in). Dev/test/docs dependencies are declared as `dependency-groups` in `pyproject.toml`.
-
+Install (dev/test/docs dependency groups, from `uv.lock`):
 ```bash
-# Install (dev environment: tests, docs, translations groups)
-uv sync
+uv sync --group dev
+```
 
-# Run the full test suite (parallelized with pytest-xdist, includes docs_src examples)
+Run the full test suite (mirrors CI, sets `PYTHONPATH=./docs_src` so tutorial examples import cleanly):
+```bash
 bash scripts/test.sh
 # equivalent to:
 PYTHONPATH=./docs_src pytest -n auto --dist loadgroup tests scripts/tests/
+```
 
-# Run a single test file / test case
-pytest tests/test_path.py
-pytest tests/test_path.py::test_specific_case
-# tests importing docs_src need PYTHONPATH set when run outside scripts/test.sh:
-PYTHONPATH=./docs_src pytest tests/test_dependency_cache.py -k test_normal_read_body
+Run a single test:
+```bash
+pytest tests/test_dependency_overrides.py::test_get_dependency
+```
 
-# Coverage
-bash scripts/test-cov.sh        # test.sh + --cov --cov-context=test
-bash scripts/test-cov-html.sh   # + term-missing and HTML report (coverage/, htmlcov/)
+Test with coverage (used by CI):
+```bash
+bash scripts/test-cov.sh --cov-report=term-missing
+# or, for an HTML report:
+bash scripts/test-cov-html.sh
+```
 
-# Lint + format-check + type-check (all must pass before committing)
-bash scripts/lint.sh
-# equivalent to:
+Lint / type-check (must all pass in CI, run in this order via `scripts/lint.sh`):
+```bash
 mypy fastapi
 ty check
 ruff check fastapi tests docs_src scripts
 ruff format fastapi tests --check
-
-# Auto-fix lint + format
-bash scripts/format.sh
-# equivalent to:
-ruff check fastapi tests docs_src scripts --fix
-ruff format fastapi tests docs_src scripts
 ```
 
-No separate "build" step is needed for local development; `pdm-backend` (`[build-system]` in `pyproject.toml`) builds the sdist/wheel from project metadata at publish time.
+Auto-format (fixes what `lint.sh` only checks):
+```bash
+bash scripts/format.sh
+# runs: ruff check --fix ...  &&  ruff format ...
+```
+
+Docs (Zensical-based site, `scripts/docs.py`, a Typer CLI):
+```bash
+uv run python scripts/docs.py serve       # local docs dev server
+uv run python scripts/docs.py build-all   # build all language docs
+```
+
+Pre-commit (runs typos, ruff check/format, mypy locally via `uv run`):
+```bash
+uv run prek run --all-files
+```
 
 ## Conventions
 
-- **File change hotspots**: Frequently modified: `release-notes.md`, `uv.lock`, `notify-translations.yml`.
+- **File change hotspots**: Frequently modified: `release-notes.md`, `__init__.py`, `routing.py`.
 - **Config access patterns**: Manage environment configuration: Use `pydantic_settings` for env config.
 - **Gitmoji commits**: Gitmoji commit messages.
 - **Trunk-based/GitHub Flow**: Trunk-based/GitHub Flow.
-- **PR template**: Sections: Summary, Changes, Test Plan, Checklist.
-- **Response envelope classes**: Use response envelope classes (5 found).
-- **Cursor-based pagination**: Use cursor-based pagination. 8 cursor/after/before usages.
+- **Response envelope classes**: Use response envelope classes (3 found).
+- **Cursor-based pagination**: Use cursor-based pagination. 4 cursor/after/before usages.
 - **Caching: functools.lru_cache**: Use functools.lru_cache for caching.
 - **Python import path (flat-layout)**: flat-layout: `import fastapi`.
 - **PEP 8 snake_case naming**: Name functions, variables, and modules using snake_case style.
-- **Context manager usage**: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 41 with statements (27 sync, 14 async). Types: file_io (9).).
 - **Distributed test files**: Test files spread across 2 directories. 496 total test files.
-- **High type annotation coverage**: Standardize on typing: Type annotations are commonly used in this codebase. 481/485 functions have at least one type annotation..
-
-## Anti-patterns Present
-
-> Detected in the codebase but **not** conventions to imitate. Avoid these in new code; fix on touch where practical.
-
-- **Password hashing: hashlib (not recommended)**: CRITICAL: hashlib is not suitable for passwords. Use argon2-cffi or bcrypt immediately.
+- **High type annotation coverage**: Standardize on typing: Type annotations are commonly used in this codebase. 416/420 functions have at least one type annotation..
 
 ## Deployment
 
@@ -142,17 +151,15 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
 
 ## Decision Log
 
+- Dropped Pydantic v1 support: `pyproject.toml` now pins `pydantic>=2.9.0`, and the old v1-migration tutorials (`docs_src/pydantic_v1_in_v2/*`) are explicitly excluded from coverage in `[tool.coverage.run] omit`. `fastapi/_compat/` is still structured as a version-compatibility seam (`shared.py` + `v2.py`) rather than inlined directly into callers — kept as an abstraction boundary even though only v2 is active now.
+
 - v0.137.0 (2026-06-14): 🔥 Remove slim package stub, deprecated for a while.
 
-- v0.136.2 (2026-05-23): 🔧 Migrate docs from MkDocs to Zensical.
+- v0.136.2 (2026-05-23): 🔧 Migrate docs from MkDocs to Zensical — `scripts/docs.py` and the `docs` dependency group now target `zensical` instead of `mkdocs`/`mkdocs-material`.
 
-- Pydantic v1 support has been dropped from `fastapi/_compat/` — `v2.py` is the only backend implementation left alongside version-agnostic `shared.py` helpers, and passing a Pydantic v1 model now raises `PydanticV1NotSupportedError` (`fastapi/exceptions.py`) instead of silently degrading.
+- Dual type-checkers in CI: `scripts/lint.sh` runs both `mypy fastapi` in `strict` mode and Astral's newer `ty check` — both must pass. `ty` has its own large exclude-list in `[tool.ty.src]` for docs examples that intentionally don't type-check cleanly (partial/dynamic/deprecated tutorials), signaling `ty` adoption is still in progress rather than a full mypy replacement.
 
-- Type checking runs both `mypy --strict` (`[tool.mypy]`) and `ty check` (Astral's newer type checker, `[tool.ty.src]`) in `scripts/lint.sh`. `ty` carries a large exclude list of `docs_src/` tutorial files that are intentionally partial, dynamic, or environment-driven and not expected to type-check cleanly — check why a tutorial is written that way before touching those exclusions.
-
-- `FastAPI` is deliberately a thin subclass of Starlette (`fastapi/applications.py`) rather than a from-scratch ASGI implementation — routing/dispatch is inherited from Starlette; FastAPI's own code concentrates on dependency injection, validation, and OpenAPI generation on top of it.
-
-- Security schemes (`fastapi/security/`) are implemented as classes usable directly as `Depends()` targets, not plain functions, because they need to both extract request data and self-register OpenAPI `securitySchemes` metadata — a plain function couldn't do the latter.
+- Dependencies are declared via PEP 735 `[dependency-groups]` (not `[project.optional-dependencies]` `dev` extras) — `tests`, `docs`, `translations`, `github-actions` are separate installable groups, installed with `uv sync --group <name>`.
 
 ## Known Pitfalls
 
@@ -160,17 +167,21 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
 
 - CI workflow `pre-commit.yml` contains steps allowed to fail (`continue-on-error: true`).
 
-- `docs_src/` is not inert sample code — `scripts/test.sh` sets `PYTHONPATH=./docs_src` and `tests/` imports modules from it directly. Breaking a `docs_src/` tutorial file breaks the test suite, and running `pytest` directly without that `PYTHONPATH` (i.e. without going through `scripts/test.sh`) fails on those imports.
+- `scripts/test.sh` sets `PYTHONPATH=./docs_src` — running `pytest` directly without this env var will fail any test that imports a `docs_src.*` tutorial module. Prefer `bash scripts/test.sh` over bare `pytest` unless you're targeting a single non-docs test file.
 
-- `[tool.pytest].filterwarnings = ["error"]` — any warning raised during a test run (including one raised by a dependency) becomes a hard test failure. Code that trips a `DeprecationWarning` or similar will fail CI even if its assertions pass.
+- `[tool.pytest] filterwarnings = ["error"]` — any warning raised during tests (including from third-party libraries) becomes a hard failure. A new deprecation warning from a dependency bump can break the suite with no code changes.
 
-- `ruff` has several intentional rule exclusions: `E501` (line length, unenforced), `B008` (function calls in argument defaults — required by FastAPI's own `Depends()`/`Query()`/etc. pattern, so don't "fix" this in code that mirrors that API), and `C901` (complexity). There's also a long per-file `ignore` list for specific `docs_src/` tutorials (e.g. `F821`, `B904`, `B006`) where the tutorial intentionally shows incomplete or simplified code.
+- Ruff intentionally ignores `B008` ("do not perform function calls in argument defaults") repo-wide — this is required because FastAPI's whole API style is `def endpoint(x: int = Query(...))`, a call-in-default-argument pattern by design. Don't "fix" this pattern in application code.
 
-- `mypy` runs in `strict = true` mode against `fastapi/` only; `docs_src.*` has relaxed overrides (`disallow_incomplete_defs = false`, `disallow_untyped_defs = false`, `disallow_untyped_calls = false`) since tutorials are intentionally partial — don't assume the same strictness applies there.
+- `ruff` also ignores `E501` (line length, deferred to `ruff format`) and `C901` (complexity) — `routing.py` and `applications.py` in particular have very large, intentionally complex functions.
 
-- Tests are parallelized with `pytest-xdist` using `--dist loadgroup` (`scripts/test.sh`) — tests relying on shared mutable global state or execution order can pass locally with a plain `pytest` invocation but fail or flake under the parallel runner.
+- Large `[tool.ty.src] exclude` and per-file `ruff` ignore lists under `docs_src/` are deliberate: many tutorial example files are intentionally partial/non-runnable snippets or cover deprecated patterns (e.g. Pydantic v1-in-v2 migration examples) and are not meant to fully type-check or lint clean. Don't assume a `docs_src` failure indicates a real bug without checking these exclude lists first.
 
-- `mypy` has a targeted override disabling `warn_unused_ignores` for `fastapi/concurrency.py`, which manages compat shims across `anyio`/asyncio versions where `# type: ignore` comments are only needed on some versions/platforms.
+- `[tool.mypy] strict = true` for `fastapi/` itself, but relaxed via overrides for `docs_src.*` (`disallow_incomplete_defs/untyped_defs/untyped_calls = false`) and `fastapi.tests.*`. Contributions to core `fastapi/` modules are held to strict typing even though examples aren't.
+
+- macOS-specific env var hack in `scripts/docs.py`: `DYLD_FALLBACK_LIBRARY_PATH` is set to `/opt/homebrew/lib` in the Typer `@app.callback()` to make `cairosvg` find its native Cairo lib on Apple Silicon Homebrew installs — if docs image generation fails locally on macOS, check this path matches your Homebrew prefix.
+
+- `zizmor` (GitHub Actions security linter) is a dev dependency with its own CI workflow (`zizmor.yml`) — Actions-workflow changes should be checked against it, not just against `pre-commit.yml`.
 
 ## Path-scoped rules
 
@@ -189,7 +200,7 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
                   """
               ),
   ```
-- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (63) and dataclasses for internal DTOs (10). Good separation.
+- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (40) and dataclasses for internal DTOs (10). Good separation.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -217,7 +228,7 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
   P = ParamSpec("P")
   
   ```
-- **Data classes: Pydantic models**: Use Pydantic models for structured data. 85/103 structured classes use this pattern.
+- **Data classes: Pydantic models**: Use Pydantic models for structured data. 62/80 structured classes use this pattern.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -231,6 +242,15 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
       When `yield`ed from a *path operation function* that uses
       `response_class=EventSourceResponse`, each `ServerSentEvent` is encoded
       into the [SSE wire format](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)
+  ```
+- **lowercase constant naming**: Name constants using lowercase style.
+  *Example context from `fastapi/params.py` (lines 18-22):*
+  ```python
+  
+  class ParamTypes(Enum):
+      query = "query"
+      header = "header"
+      path = "path"
   ```
 - **Enum usage: Enum**: Use Python enums for categorical values. Found 4 enum class(es).
   *Example context from `fastapi/params.py` (lines 14-24):*
@@ -288,16 +308,27 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
 
 ## Conventions
 
-- **Structured configuration with Pydantic Settings**: Use Pydantic BaseSettings for configuration management.
-  *Example context from `scripts/contributors.py` (lines 237-243):*
+- **Context manager usage**: Manage resource lifecycles using context managers (e.g., Use context managers for resource management. 37 with statements (23 sync, 14 async). Types: file_io (4), threading (2).).
+  *Example context from `scripts/docs.py` (lines 853-859):*
   ```python
+      in_code_block4 = False
+      permalinks = set()
   
-  def main() -> None:
-      logging.basicConfig(level=logging.INFO)
-      settings = Settings()  # ty: ignore[missing-argument]
-      logging.info(f"Using config: {settings.model_dump_json()}")
-      g = Github(settings.github_token.get_secret_value())
-      repo = g.get_repo(settings.github_repository)
+      with path.open("r", encoding="utf-8") as f:
+          lines = f.readlines()
+  
+      for line in lines:
+  ```
+- **Structured configuration with Pydantic Settings**: Use Pydantic BaseSettings for configuration management.
+  *Example context from `scripts/label_approved.py` (lines 12-18):*
+  ```python
+      number: int
+  
+  
+  default_config = {"approved-2": LabelSettings(await_label="awaiting-review", number=2)}
+  
+  
+  class Settings(BaseSettings):
   ```
 
 ### Applies to: `tests/**/*.py`
@@ -374,7 +405,7 @@ No separate "build" step is needed for local development; `pdm-backend` (`[build
       app = FastAPI()
       app.frontend("/", directory=dist)
   ```
-- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2213/2272 test functions. naming style for all test functions.
+- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2215/2274 test functions. naming style for all test functions.
   *Example context from `tests/test_datastructures.py` (lines 8-14):*
   ```python
   from fastapi.testclient import TestClient

@@ -7,31 +7,6 @@
 - `.github/` — GitHub configuration
   - `DISCUSSION_TEMPLATE/`
   - `ISSUE_TEMPLATE/`
-  - `hooks/`
-  - `instructions/`
-  - `skills/`
-    - `fastapi-address-review/`
-    - `fastapi-adr-generator/`
-    - `fastapi-commit/`
-    - `fastapi-debug/`
-    - `fastapi-deps/`
-    - `fastapi-document/`
-    - `fastapi-explain/`
-    - `fastapi-fix/`
-    - `fastapi-humanize/`
-    - `fastapi-implement/`
-    - `fastapi-new-worktree/`
-    - `fastapi-plan/`
-    - `fastapi-pr/`
-    - `fastapi-precommit/`
-    - `fastapi-refactor/`
-    - `fastapi-release/`
-    - `fastapi-review/`
-    - `fastapi-run/`
-    - `fastapi-security-audit/`
-    - `fastapi-self-review/`
-    - `fastapi-slop-coded/`
-    - `fastapi-test/`
   - `workflows/`
 - `docs/` — documentation
   - `de/`
@@ -139,6 +114,16 @@
         - `security/`
   - `hi/`
     - `docs/`
+      - `about/`
+      - `advanced/`
+        - `security/`
+      - `deployment/`
+      - `how-to/`
+      - `learn/`
+      - `resources/`
+      - `tutorial/`
+        - `dependencies/`
+        - `security/`
   - `ja/`
     - `docs/`
       - `about/`
@@ -266,8 +251,6 @@
     - `oauth2.py`
     - `open_id_connect_url.py`
     - `utils.py`
-  - `AGENTS.md`
-  - `GEMINI.md`
   - `__init__.py`
   - `__main__.py`
   - `applications.py`

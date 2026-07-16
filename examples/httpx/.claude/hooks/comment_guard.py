@@ -48,9 +48,7 @@ def _find_body(tokens: list[str]) -> tuple[int, str, bool] | None:
 def _humanize(text: str) -> str | None:
     """Scrub via `klaussy humanize`; None if it can't run (missing/failed)."""
     try:
-        result = subprocess.run(
-            ["klaussy", "humanize"], input=text, capture_output=True, text=True
-        )
+        result = subprocess.run(["klaussy", "humanize"], input=text, capture_output=True, text=True)
     except OSError:
         return None
     if result.returncode != 0:

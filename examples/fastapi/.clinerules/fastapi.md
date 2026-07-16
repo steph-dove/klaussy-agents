@@ -16,7 +16,7 @@ paths:
                   """
               ),
   ```
-- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (63) and dataclasses for internal DTOs (10). Good separation.
+- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (40) and dataclasses for internal DTOs (10). Good separation.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -44,7 +44,7 @@ paths:
   P = ParamSpec("P")
   
   ```
-- **Data classes: Pydantic models**: Use Pydantic models for structured data. 85/103 structured classes use this pattern.
+- **Data classes: Pydantic models**: Use Pydantic models for structured data. 62/80 structured classes use this pattern.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -58,6 +58,15 @@ paths:
       When `yield`ed from a *path operation function* that uses
       `response_class=EventSourceResponse`, each `ServerSentEvent` is encoded
       into the [SSE wire format](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)
+  ```
+- **lowercase constant naming**: Name constants using lowercase style.
+  *Example context from `fastapi/params.py` (lines 18-22):*
+  ```python
+  
+  class ParamTypes(Enum):
+      query = "query"
+      header = "header"
+      path = "path"
   ```
 - **Enum usage: Enum**: Use Python enums for categorical values. Found 4 enum class(es).
   *Example context from `fastapi/params.py` (lines 14-24):*

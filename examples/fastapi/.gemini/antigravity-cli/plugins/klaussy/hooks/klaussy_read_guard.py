@@ -9,6 +9,10 @@ which Cursor provides directly — from the agent's payload, scans it, and exits
 to block (a block signal honored by every supported agent) with a stderr
 explanation.
 
+A repo's own test *source* is exempt (a suite that tests injection handling has
+to contain injection strings); blobs under `tests/` and fetched web content are
+not.
+
 Hardened to never crash: any unexpected payload or error exits 0 (allow), so a
 guard bug can't wedge the agent. Pure stdlib so the repo stays portable.
 """
@@ -53,6 +57,56 @@ INJECTION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 MAX_BYTES = 200_000
+
+_TEST_DIRS = frozenset({"tests", "test", "spec", "specs", "__tests__"})
+
+# The exemption covers source files only: a fixture blob under `tests/` carries
+# no surrounding code to mark it as a fixture, so it is still scanned.
+_SOURCE_EXTS = frozenset(
+    {
+        ".py",
+        ".pyi",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".go",
+        ".rb",
+        ".rs",
+        ".java",
+        ".kt",
+        ".cs",
+        ".php",
+        ".swift",
+        ".scala",
+        ".ex",
+        ".exs",
+    }
+)
+
+
+def _is_test_source(path: str) -> bool:
+    """True for a file that is the repo's own test code.
+
+    Matches the layout conventions across languages: a test directory component
+    (`tests/`, `__tests__/`), or a test filename shape (`test_x.py`, `x_test.go`,
+    `x.spec.ts`, `conftest.py`).
+    """
+    p = Path(path)
+    if p.suffix.lower() not in _SOURCE_EXTS:
+        return False
+    if {part.lower() for part in p.parts} & _TEST_DIRS:
+        return True
+    stem = p.stem.lower()
+    return (
+        stem.startswith(("test_", "spec_"))
+        or stem.endswith(("_test", "_spec"))
+        or ".test" in stem
+        or ".spec" in stem
+        or stem == "conftest"
+    )
 
 
 def scan(text: str) -> list[tuple[int, str, str]]:
@@ -123,6 +177,13 @@ def main() -> int:
         payload = json.loads(_raw.decode("utf-8", "replace") if isinstance(_raw, bytes) else _raw)
         if not isinstance(payload, dict):
             return 0
+
+        # Test code is exempt on a file read only — a fetch is the channel this
+        # guard exists for, so a path never waves one through.
+        if not _extract_fetch_body(payload):
+            target = _extract_path(payload)
+            if target and _is_test_source(target):
+                return 0
 
         # Prefer inline content (no disk read needed), then a fetched body, then
         # read the named file from disk — matching how each event delivers data.

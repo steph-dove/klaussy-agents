@@ -42,8 +42,8 @@ import tempfile
 # Baked in by klaussy at scaffold time — selects the output dialect below.
 DIALECT: str = "__KLAUSSY_DIALECT__"
 
-# The review pass requested on stop. Static (not repo-specific), so it's inlined
-# rather than baked. Mirrors the {{REPO}}-self-review skill's checklist.
+# The review pass requested on stop — static, so it's inlined rather than baked.
+# Mirrors the {{REPO}}-self-review skill's checklist.
 DIRECTIVE = (
     "Before you finish, do one self-review pass over your uncommitted changes. "
     "Start with comments: delete every one that narrates the change or restates what "

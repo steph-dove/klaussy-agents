@@ -75,7 +75,7 @@ paths:
       app = FastAPI()
       app.frontend("/", directory=dist)
   ```
-- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2213/2272 test functions. naming style for all test functions.
+- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2215/2274 test functions. naming style for all test functions.
   *Example context from `tests/test_datastructures.py` (lines 8-14):*
   ```python
   from fastapi.testclient import TestClient

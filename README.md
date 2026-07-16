@@ -192,7 +192,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.18.0** (the commit guard blocks function-local imports, and the read-injection guard no longer blocks a repo's own test code).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.18.1** (the commit guard blocks function-local imports, the read-injection guard no longer blocks a repo's own test code, and the self-review guard template passes klaussy's own comment gate).
 
 ---
 
