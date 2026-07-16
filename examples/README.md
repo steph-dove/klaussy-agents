@@ -6,8 +6,8 @@ only** — the upstream source is not vendored here.
 
 | Example | Upstream repo | Generated with |
 |---|---|---|
-| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | klaussy 0.19.0 |
-| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | klaussy 0.19.0 |
+| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | klaussy 0.19.1 |
+| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | klaussy 0.19.1 |
 
 ## What's in each
 

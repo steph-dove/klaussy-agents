@@ -5,6 +5,32 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.19.1] - 2026-07-16
+
+### Fixed
+
+- **`grant-permissions` no longer hands every agent Claude's tool names.** Step 4
+  listed `Read`/`Edit`/`Write`/`Grep`/`Glob` flat, as if universal. They're Claude
+  Code's vocabulary: Gemini gates `read_file`/`write_file`/`replace`, and opencode
+  has no per-tool names at all — its `permission.read` / `permission.bash` maps
+  cover this instead, so `Write` grants nothing there. The per-agent note already
+  said to translate the rule syntax; it now says it for the tool names too.
+- **Stop shipping compiled bytecode.** Nine `.pyc` files under
+  `templates/**/__pycache__/` were tracked in git, so every release built them
+  into the wheel — `package-data`'s `templates/**/*` glob sweeps them up, and
+  `.gitignore` doesn't apply to files already tracked. Untracked, and the test
+  suite now sets `sys.dont_write_bytecode` so importing a guard template stops
+  leaving them behind.
+
+### Internal
+
+- The guard templates are now checked whole-file against klaussy's own comment
+  and import gates. A scaffolded repo receives each template entire, so every
+  line lands in that first commit's diff — while in this repo the same gate is
+  diff-scoped and hides anything nobody has touched since. That gap shipped a
+  blocking template in 0.18.1 and again in 0.19.0, both caught only by
+  regenerating examples.
+
 ## [0.19.0] - 2026-07-16
 
 ### Added

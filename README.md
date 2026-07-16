@@ -192,7 +192,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.0** (`grant-permissions` now grants the file tools too, and a commit-guard check that can't run no longer blocks the commit).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.1** (`grant-permissions` no longer hands every agent Claude's tool names, and releases no longer ship compiled bytecode).
 
 ---
 
