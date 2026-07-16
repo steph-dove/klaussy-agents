@@ -238,24 +238,55 @@ def _hook_commands(entry: dict) -> set[str]:
     return cmds
 
 
-def _merge_managed_hooks(existing: list, desired: list[dict]) -> tuple[list, int]:
-    """Append each desired entry whose command isn't already registered.
+# Every guard klaussy installs. An entry naming one of these is klaussy's to
+# manage; anything else in the repo's hooks block is the user's and is left alone.
+MANAGED_SCRIPT_NAMES: frozenset[str] = frozenset(
+    {
+        GUARD_SCRIPT_NAME,
+        COMMIT_GUARD_SCRIPT_NAME,
+        COMMENT_GUARD_SCRIPT_NAME,
+        DEPENDENCY_GUARD_SCRIPT_NAME,
+        PLAN_GUIDANCE_SCRIPT_NAME,
+        SELF_REVIEW_GUARD_SCRIPT_NAME,
+    }
+)
 
-    Keyed on the hook command string, so re-running is idempotent and a repo
-    that has hooks but is missing only a newer one (e.g. the plan-guidance hook)
-    gains it without disturbing the user's own entries. Returns (merged, added).
+
+def _managed_scripts(entry: dict) -> set[str]:
+    """Which klaussy guard scripts an entry invokes, whatever the command form."""
+    return {name for cmd in _hook_commands(entry) for name in MANAGED_SCRIPT_NAMES if name in cmd}
+
+
+def _merge_managed_hooks(existing: list, desired: list[dict]) -> tuple[list, int]:
+    """Re-register each desired entry in its current form; keep the user's own.
+
+    Keyed on the guard *script* an entry invokes rather than its full command
+    string, because the command form has changed across releases (a bare relative
+    path, then `python3 ${CLAUDE_PROJECT_DIR}/...`, now the `klaussy-hook`
+    launcher). Keying on the string made every upgrade append a fresh entry and
+    leave the old one behind, so a repo accumulated one stale copy of each guard
+    per format change — and a stale relative-path copy resolves against the
+    session cwd, blocking every matching tool call whenever that isn't the repo
+    root. Superseded entries are dropped so an upgrade rewrites in place.
+
+    Returns (merged, added); `added` counts only entries not already registered
+    verbatim, so a same-version re-run reports nothing and rewrites identically.
     """
     existing = [e for e in existing if isinstance(e, dict)]
-    present: set[str] = set()
-    for e in existing:
-        present |= _hook_commands(e)
-    merged = list(existing)
-    added = 0
+    desired_scripts: set[str] = set()
     for d in desired:
-        if not (_hook_commands(d) & present):
-            merged.append(d)
-            present |= _hook_commands(d)
-            added += 1
+        desired_scripts |= _managed_scripts(d)
+
+    kept: list = []
+    superseded: set[str] = set()
+    for e in existing:
+        if _managed_scripts(e) & desired_scripts:
+            superseded |= _hook_commands(e)
+        else:
+            kept.append(e)
+
+    merged = kept + list(desired)
+    added = sum(1 for d in desired if not (_hook_commands(d) & superseded))
     return merged, added
 
 

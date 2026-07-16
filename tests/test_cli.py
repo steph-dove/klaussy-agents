@@ -11,6 +11,7 @@ from klaussy.cli import app
 from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.hooks import (
+    PROJECT_DIR,
     _detect_comment_check_command,
     _detect_format_command,
     _detect_lint_command,
@@ -391,6 +392,45 @@ class TestHooks:
         scaffold_hooks(repo=repo)  # no force, second run
         second = json.loads((repo / ".claude" / "settings.json").read_text())
         assert first["hooks"] == second["hooks"], "re-run must not change the hooks block"
+
+    def test_scaffold_hooks_upgrade_replaces_stale_command_form(self, repo: Path):
+        """An entry written by an older klaussy is rewritten, not duplicated.
+
+        The command form has changed across releases; a stale relative-path copy
+        left behind resolves against the session cwd and blocks the tool it
+        matches whenever that isn't the repo root.
+        """
+        scaffold_hooks(repo=repo)
+        settings_file = repo / ".claude" / "settings.json"
+        data = json.loads(settings_file.read_text())
+        # Simulate a pre-launcher install: the guard wired via a bare relative path.
+        data["hooks"]["PreToolUse"] = [
+            {
+                "matcher": "Read",
+                "hooks": [
+                    {"type": "command", "command": "python3 .claude/hooks/read_injection_guard.py"}
+                ],
+            },
+            {"matcher": "Edit", "hooks": [{"type": "command", "command": "echo mine"}]},
+        ]
+        settings_file.write_text(json.dumps(data))
+        (repo / ".claude" / "hooks" / ".klaussy-version").write_text("0.0.1\n")
+        scaffold_hooks(repo=repo)
+
+        pre = json.loads(settings_file.read_text())["hooks"]["PreToolUse"]
+        guard_cmds = [
+            h["command"]
+            for e in pre
+            for h in e["hooks"]
+            if "read_injection_guard.py" in h["command"]
+        ]
+        assert len(guard_cmds) == 1, f"stale entry should be replaced, not duplicated: {guard_cmds}"
+        assert PROJECT_DIR in guard_cmds[0], (
+            f"surviving entry must be anchored to the project root, got: {guard_cmds[0]}"
+        )
+        assert any(h["command"] == "echo mine" for e in pre for h in e["hooks"]), (
+            "user's own hook entry must survive the upgrade"
+        )
 
     def test_scaffold_hooks_writes_version_marker(self, repo: Path):
         scaffold_hooks(repo=repo)
