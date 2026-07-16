@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Cross-agent self-review stop hook: one review pass before the agent finishes.
 
-Wired to each agent's completion/stop event — the point where the model is about
-to end its turn. The event name and the field that re-drives the model differ per
-agent; all were confirmed from each agent's primary docs:
+Wired to each agent's completion/stop event; the event name and the field that
+re-drives the model differ per agent, each confirmed from its primary docs:
 
   * Claude Code   Stop         -> {"decision": "block",  "reason": ...}
   * Codex CLI     Stop         -> {"decision": "block",  "reason": ...}
@@ -11,23 +10,16 @@ agent; all were confirmed from each agent's primary docs:
   * Gemini CLI    AfterAgent   -> {"decision": "deny",   "reason": ...}
   * Cursor        stop         -> {"followup_message": ...}   (native loop_limit)
 
-opencode's session.idle is handled in its Bun plugin, not this script. Cline's
-completion hook (TaskComplete) is observe-only — its stdout isn't read for control
-and injected context only reaches the *next* request, so it can't re-drive the
-model on stop — and aider has no hook mechanism; users of both get the same pass
-via the {{REPO}}-self-review skill instead.
+opencode's session.idle is handled in its Bun plugin; Cline's TaskComplete is
+observe-only and aider has no hook mechanism, so users of those three get the
+same pass via the {{REPO}}-self-review skill instead.
 
-On stop, if the working tree has uncommitted CODE changes, the guard asks the model
-to run one self-review pass before finishing. It returns the agent's "re-drive the
-model" field with the review directive as its text.
+Loop-safe by two independent guards: each agent's native loop signal
+(`stop_hook_active` / `loop_count`), and a (session, HEAD) marker file — so the
+block -> review -> stop cycle can't recur, and a commit re-arms it.
 
-Loop-safe by two independent guards: it honors each agent's native loop signal
-(`stop_hook_active` / `loop_count`) as a fast allow, and it fires at most once per
-(session, HEAD) via a marker file — so the block -> review -> stop cycle can't
-recur, and a commit (which advances HEAD) re-arms it for the next batch of work.
-
-Hardened to never crash or wedge the agent: any unexpected payload or error prints
-nothing and exits 0 (allow the stop). Pure stdlib so the repo stays portable.
+Any unexpected payload or error exits 0 rather than wedging the agent; pure
+stdlib, so the repo stays portable.
 """
 
 from __future__ import annotations
