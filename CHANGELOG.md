@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.16.0] - 2026-07-15
+
+### Added
+
+- **`grant-permissions` skill.** Grants the typical dev permissions needed to
+  work in a repo so routine commands stop prompting, while keeping secret files
+  denied. Detects the stack (including `scripts/` and Makefile runners that a
+  bare `Bash(pytest *)` rule misses) and the app's run command, allows shell
+  builtins so compound `cd x && <cmd>` lines don't prompt, and documents an
+  honest boundary: curated mode trusts the agent to run repo code, and per-tool
+  denies don't stop Bash reads of secret files. Broad mode is opt-in.
+- **Per-agent permission scoping.** The skill is scoped to each agent's own
+  permission surface via a new `{{PERMISSIONS_TARGET}}` sentinel: `CapabilityProfile`
+  carries `permissions_file`/`permission_syntax`, `render.py` resolves it per
+  profile, and the Claude scaffold path feeds Claude's own file through the same
+  composer. Agents without a committed allow-list (Cline) render a "doesn't
+  apply" note; Aider has no profile so it never renders the skill.
+
 ## [0.15.2] - 2026-07-14
 
 ### Fixed
