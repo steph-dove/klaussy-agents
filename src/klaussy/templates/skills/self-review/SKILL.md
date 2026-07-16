@@ -23,7 +23,8 @@ Go through every item against the diff. For each, either confirm it holds or fix
 - Did you add a new third-party dependency? That's a decision to raise with the user, not to slip in — flag it.
 
 **Comments**
-- One line, and only where it earns its place: a *why*, a gotcha, an invariant, a link. Delete comments that restate the code, narrate steps, or read as changelog ("Now we handle…", "Added to fix…").
+- Deleting is the default; keeping one needs a reason you could defend in review. Go comment by comment and cut every one that restates the code, narrates steps, or reads as changelog ("Now we handle…", "Added to fix…").
+- What survives gets one sentence, and only where it earns its place: a *why*, a gotcha, an invariant, a link. A second sentence usually means the first one restated the code.
 - Prefer a clearer name over a comment.
 
 **Dead code and leftovers**

@@ -45,13 +45,16 @@ DIALECT: str = "__KLAUSSY_DIALECT__"
 # The review pass requested on stop. Static (not repo-specific), so it's inlined
 # rather than baked. Mirrors the {{REPO}}-self-review skill's checklist.
 DIRECTIVE = (
-    "Before you finish, do one self-review pass over your uncommitted changes: "
-    "confirm you reused existing code instead of reinventing it, preferred the "
-    "standard library and existing dependencies over new packages or hand-rolled "
-    "code, kept comments to a single WHY-line (no narration or restating the code), "
-    "left no dead code or debug prints, and covered the change with tests that pass. "
-    "Fix anything that falls short, then finish. If it already holds, say so briefly "
-    "and stop."
+    "Before you finish, do one self-review pass over your uncommitted changes. "
+    "Start with comments: delete every one that narrates the change or restates what "
+    "the code already says, and cut whatever survives to a single sentence. Keep a "
+    "comment only where it states something the code cannot — a constraint, a "
+    "non-obvious trade-off, a bug being worked around. Deleting is the default; "
+    "keeping one needs a reason you could defend in review. Then confirm you reused "
+    "existing code instead of reinventing it, preferred the standard library and "
+    "existing dependencies over new packages or hand-rolled code, left no dead code "
+    "or debug prints, and covered the change with tests that pass. Fix anything that "
+    "falls short, then finish. If it already holds, say so briefly and stop."
 )
 
 # Source-file suffixes that make a diff worth a review pass. A docs/config-only
