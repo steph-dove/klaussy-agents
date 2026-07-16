@@ -379,6 +379,8 @@ class GeminiBackend(GenericBackend):
         plan_mode=False,
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        permissions_file="`.gemini/settings.json` (plus secret globs in `.geminiignore`)",
+        permission_syntax="the tool allow-list Gemini reads from that settings file",
     )
 
     def emit_conventions(self, repo, *, force):
@@ -435,6 +437,8 @@ class CursorBackend(GenericBackend):
         plan_mode=False,
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        permissions_file="`.cursor/permissions.json` (plus secret globs in `.cursorignore`)",
+        permission_syntax="its `allow` / `deny` arrays",
     )
 
     def emit_conventions(self, repo, *, force):
@@ -500,6 +504,11 @@ class CodexBackend(GenericBackend):
         # drop them so Codex falls back to its own defaults rather than mis-parse.
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        permissions_file=(
+            "`~/.codex/config.toml` — Codex ignores a project-local `.codex/config.toml` "
+            "for these settings, so they must live in your user config"
+        ),
+        permission_syntax="its `approval_policy` / `sandbox_mode` and trusted-command settings",
     )
 
     def emit_conventions(self, repo, *, force):
@@ -557,6 +566,11 @@ class CopilotBackend(GenericBackend):
         plan_mode=False,
         keep_allowed_tools=False,
         keep_disable_invocation=True,  # Copilot honors disable-model-invocation
+        permissions_file=(
+            "`~/.copilot/config.json` and CLI `--allow-tool` flags — Copilot's "
+            "allow-list is user-level config, not a committed repo file"
+        ),
+        permission_syntax="its tool-permission entries",
     )
 
     def emit_conventions(self, repo, *, force):
@@ -623,6 +637,11 @@ class AntigravityBackend(GenericBackend):
         # them so Antigravity falls back to its own defaults rather than mis-parse.
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        permissions_file="`.agents/settings.json`",
+        permission_syntax=(
+            "its allow-list (best-effort — Antigravity's committed permission "
+            "format isn't fully documented)"
+        ),
     )
 
     def emit_conventions(self, repo, *, force):
@@ -715,6 +734,12 @@ class ClineBackend(GenericBackend):
         # them so Cline falls back to its own defaults rather than mis-parse.
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        # No committed per-command allow-list: Cline's auto-approval is GUI-only.
+        permissions_file=None,
+        permission_syntax=(
+            "Cline's auto-approval is GUI-only — there's no committed allow-list "
+            "file, and `.clineignore` is the only committed control."
+        ),
     )
 
     def emit_conventions(self, repo, *, force):
@@ -844,6 +869,11 @@ class OpenCodeBackend(GenericBackend):
         plan_mode=False,
         keep_allowed_tools=False,
         keep_disable_invocation=False,
+        permissions_file="`opencode.json`",
+        permission_syntax=(
+            "its `permission.bash` and `permission.read` maps, which are "
+            "last-match-wins — put a broad default first and the specific rules after"
+        ),
         subagent_mechanism=(
             "use opencode's subagents: `@`-mention one (built-in `@general`, "
             "`@explore`, `@scout`, or a project-defined subagent) or let the "

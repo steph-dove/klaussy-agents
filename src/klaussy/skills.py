@@ -10,6 +10,18 @@ from klaussy import __version__
 
 console = Console()
 
+# Claude's own permission surface for the grant-permissions {{PERMISSIONS_TARGET}}
+# sentinel — the Claude scaffold path skips render.py, so it feeds these through
+# the same composer (imported lazily to avoid a skills<->render cycle).
+_CLAUDE_PERMISSIONS_FILE = (
+    "`.claude/settings.local.json` (personal, git-ignored) or "
+    "`.claude/settings.json` (shared with the team)"
+)
+_CLAUDE_PERMISSION_SYNTAX = (
+    "a `permissions.allow` / `permissions.deny` array of string rules like "
+    "`Bash(git *)`, `Edit(**)`, and `Read(**)`"
+)
+
 SKILL_NAMES = [
     "review",
     "precommit",
@@ -35,6 +47,7 @@ SKILL_NAMES = [
     "security-audit",
     "slop-coded",
     "rest-of-the-owl",
+    "grant-permissions",
 ]
 
 VERSION_FILE = ".klaussy-version"
@@ -240,11 +253,18 @@ def scaffold_skills(
 
     repo_namespace = sanitize_skill_namespace(repo.name)
 
+    from klaussy.agents.render import permission_target_markdown
+
+    claude_permissions_target = permission_target_markdown(
+        "Claude Code", _CLAUDE_PERMISSIONS_FILE, _CLAUDE_PERMISSION_SYNTAX
+    )
+
     def _substitute(text: str) -> str:
         return (
             text.replace("{{REPO}}", repo_namespace)
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+            .replace("{{PERMISSIONS_TARGET}}", claude_permissions_target)
         )
 
     for skill in SKILL_NAMES:

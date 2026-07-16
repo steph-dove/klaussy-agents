@@ -789,6 +789,45 @@ class TestRenderAdapt:
         out = render_skill_md(payload, CopilotBackend().profile)
         assert "disable-model-invocation: true" in out
 
+    def test_permissions_target_scoped_to_backends_own_file(self):
+        # The grant-permissions {{PERMISSIONS_TARGET}} sentinel must resolve to
+        # each agent's OWN permission file, never leak the raw token, and never
+        # show another agent's file.
+        from klaussy.agents.backends import CursorBackend, GeminiBackend, OpenCodeBackend
+        from klaussy.agents.render import adapt_body
+
+        body = "before\n{{PERMISSIONS_TARGET}}\nafter"
+
+        gemini = adapt_body(body, GeminiBackend().profile)
+        assert "{{PERMISSIONS_TARGET}}" not in gemini
+        assert "`.gemini/settings.json`" in gemini
+        assert ".cursor/permissions.json" not in gemini
+
+        cursor = adapt_body(body, CursorBackend().profile)
+        assert "`.cursor/permissions.json`" in cursor
+
+        # opencode's last-match-wins syntax note rides on the same field.
+        opencode = adapt_body(body, OpenCodeBackend().profile)
+        assert "last-match-wins" in opencode
+
+    def test_permissions_target_none_branch_for_gui_only_agent(self):
+        # Cline has no committed allow-list file: the sentinel must render the
+        # "doesn't apply" explanation, not a bogus file path.
+        from klaussy.agents.backends import ClineBackend
+        from klaussy.agents.render import adapt_body
+
+        out = adapt_body("{{PERMISSIONS_TARGET}}", ClineBackend().profile)
+        assert "{{PERMISSIONS_TARGET}}" not in out
+        assert "GUI-only" in out
+        assert "Write permissions to" not in out  # no file-writing instruction
+
+    def test_permissions_target_absent_leaves_body_untouched(self, gemini_profile):
+        # Skills without the sentinel must be unaffected by the resolution step.
+        from klaussy.agents.render import adapt_body
+
+        out = adapt_body("A skill with no permissions token.", gemini_profile)
+        assert "Where your allow-list lives" not in out
+
 
 class TestMultiAgentBackends:
     def test_gemini_writes_skills_and_conventions(self, repo_with_claude_md: Path):
