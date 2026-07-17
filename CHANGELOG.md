@@ -5,6 +5,28 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.19.2] - 2026-07-17
+
+### Fixed
+
+- **The commit guard now runs when a commit stages its own files.** An agent that
+  writes `git add -A && git commit` fires the pre-commit gate before the `add`
+  half runs, so the index is still empty when the guard asks git what's staged.
+  Every path-scoped check — comment-lint, secret-scan, format, lint — resolved to
+  zero files and was silently skipped, and the commit went through unjudged. The
+  guard now detects a `git add` earlier on the same command line and folds the
+  working tree into the paths it checks, the same way it already handles
+  `git commit -a`. Fixed in both guard templates.
+- **`comment-lint` findings stay on one line.** Each finding was printed through
+  rich's console, which wrapped it to a second line at the terminal width. The
+  comment-lint, import-lint, and secret-scan output now prints with soft-wrap off.
+
+### Changed
+
+- **Requires `klaussy-repo-conventions >= 1.6.0`**, which broadens language
+  coverage in the discover step. Same CLI and `CLAUDE.md` output, so nothing else
+  changed.
+
 ## [0.19.1] - 2026-07-16
 
 ### Fixed
