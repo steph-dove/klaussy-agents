@@ -1,4 +1,6 @@
-# <img src="brand-mark.png" width="32" height="32" align="absmiddle" alt="Klaussy Logo"> Klaussy-Agents
+<img src="brand-mark.png" width="72" align="right" alt="Klaussy-Agents logo">
+
+# Klaussy-Agents
 
 [![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
 [![PyPI downloads](https://img.shields.io/badge/downloads-2.3K%2B%2Fmonth-blue?logo=pypi&logoColor=white)](https://pypi.org/project/klaussy-agents/)
@@ -48,43 +50,41 @@ klaussy init
 `klaussy` installs cross-agent, dialect-tolerant guard scripts that intercept agent tool actions (terminal runs, file reads, web requests) at the boundary. They block unsafe commands via `exit 2` and stderr, which all supported agents respect:
 
 ### 1. Prompt-Injection Guard (`read_guard.py`)
-> [!IMPORTANT]
-> **Intercepts and neutralizes prompt injection.**
-> Scans the content of any file being read locally or fetched from the web (on supported agents like Claude and Antigravity) for malicious instructions. Stops external data from hijacking your agent's current task context.
+
+**Intercepts and neutralizes prompt injection.** Scans the content of any file being read locally or fetched from the web (on supported agents like Claude and Antigravity) for malicious instructions. Stops external data from hijacking your agent's current task context.
 
 ### 2. Comment Humanizer (`comment_guard.py`)
-> [!TIP]
-> **Keep commits and pull request comments clean.**
-> Intercepts outgoing messages and pull request comments (e.g., `gh pr comment`). Automatically scrubs AI filler words, robotic formatting, and chatty openers, ensuring all generated communication reads like it was written by a human software engineer.
+
+**Keeps commits and pull request comments clean.** Intercepts outgoing messages and pull request comments (e.g., `gh pr comment`). Automatically scrubs AI filler words, robotic formatting, and chatty openers, ensuring all generated communication reads like it was written by a human software engineer.
 
 ### 3. Pre-Plan Guidance (`plan_guidance.py`)
-> [!NOTE]
-> Injects strict guardrails (e.g., minimal lines changed, no over-engineering, write tests first) directly into the agent's plan step before it begins modifying files, preventing scope creep.
+
+Injects strict guardrails (e.g., minimal lines changed, no over-engineering, write tests first) directly into the agent's plan step before it begins modifying files, preventing scope creep.
 
 ### 4. Git Commit Guard (`commit_guard.py`)
-> [!IMPORTANT]
-> **The last gate before an agent writes to your history.** Not a linter wrapper — these run in order, and the first failure blocks the commit:
->
-> | Gate | What it catches |
-> |---|---|
-> | 🔑 **Secret scan** | Credentials headed for your history. Eight provider tokens flagged on sight (AWS access keys, GitHub, Slack, Google API, Stripe live and OpenAI keys, private key blocks, Slack webhooks), plus generic `api_key = "..."` assignments gated on length and Shannon entropy — so a real key blocks but `password = "postgres"` doesn't. `os.environ` lookups, `${TEMPLATE}` holes, and `changeme`/`your-key-here` stand-ins are known non-secrets and pass. |
-> | 📝 **Commit message** | Non-Conventional-Commits subjects, before the commit lands and needs amending. |
-> | 🎨 **Format + lint** | Your project's own stack (`ruff`, `eslint`, …), scoped to the staged files. |
-> | 🧟 **Commented-out code** | Dead code an agent parked in a comment "just in case" (`ruff --select ERA`). Flags, never deletes — commented code you meant to keep stays. |
-> | 💬 **Verbose comments** | The narration tell. Blocks a comment running past 2 sentences, a run of 4+ consecutive prose comments, or any single comment over 30 words. Two sentences is deliberate — it leaves room for the claim-plus-why a real comment needs, and a third is usually the code restated. `# noqa`, `@ts-ignore`, JSDoc, license headers, and bare URLs are exempt. |
-> | 📦 **Function-local imports** | The import written where the need surfaced instead of where it belongs (`import json` three frames deep). Same rule as ruff's `PLC0415`, but scoped to your changed lines so a local import elsewhere in the file doesn't block you. A `# noqa` on the line keeps the ones that earn it — breaking a cycle, deferring an optional dependency. |
->
-> **Nothing outside your staged files is ever judged**, and klaussy's own checks — secrets, comments, imports — narrow further to the *lines* you changed, so a pre-existing secret or comment block elsewhere in a file you touched won't block you. Your project's own format and lint run against the whole staged file, as they would anywhere. The formatter never rewrites the tree outside your diff.
->
-> **It fails open, deliberately.** A missing tool, an unparseable payload, or any unexpected error allows the commit rather than blocking it — a guard that crashes shut would deny *every* tool call on some agents. `git commit --no-verify` skips the gate outright, same as git's own hooks.
+
+**The last gate before an agent writes to your history.** Not a linter wrapper — these run in order, and the first failure blocks the commit:
+
+| Gate | What it catches |
+|---|---|
+| 🔑 **Secret scan** | Credentials headed for your history. Eight provider tokens flagged on sight (AWS access keys, GitHub, Slack, Google API, Stripe live and OpenAI keys, private key blocks, Slack webhooks), plus generic `api_key = "..."` assignments gated on length and Shannon entropy — so a real key blocks but `password = "postgres"` doesn't. `os.environ` lookups, `${TEMPLATE}` holes, and `changeme`/`your-key-here` stand-ins are known non-secrets and pass. |
+| 📝 **Commit message** | Non-Conventional-Commits subjects, before the commit lands and needs amending. |
+| 🎨 **Format + lint** | Your project's own stack (`ruff`, `eslint`, …), scoped to the staged files. |
+| 🧟 **Commented-out code** | Dead code an agent parked in a comment "just in case" (`ruff --select ERA`). Flags, never deletes — commented code you meant to keep stays. |
+| 💬 **Verbose comments** | The narration tell. Blocks a comment running past 2 sentences, a run of 4+ consecutive prose comments, or any single comment over 30 words. Two sentences is deliberate — it leaves room for the claim-plus-why a real comment needs, and a third is usually the code restated. `# noqa`, `@ts-ignore`, JSDoc, license headers, and bare URLs are exempt. |
+| 📦 **Function-local imports** | The import written where the need surfaced instead of where it belongs (`import json` three frames deep). Same rule as ruff's `PLC0415`, but scoped to your changed lines so a local import elsewhere in the file doesn't block you. A `# noqa` on the line keeps the ones that earn it — breaking a cycle, deferring an optional dependency. |
+
+**Nothing outside your staged files is ever judged**, and klaussy's own checks — secrets, comments, imports — narrow further to the *lines* you changed, so a pre-existing secret or comment block elsewhere in a file you touched won't block you. Your project's own format and lint run against the whole staged file, as they would anywhere. The formatter never rewrites the tree outside your diff.
+
+**It fails open, deliberately.** A missing tool, an unparseable payload, or any unexpected error allows the commit rather than blocking it — a guard that crashes shut would deny *every* tool call on some agents. `git commit --no-verify` skips the gate outright, same as git's own hooks.
 
 ### 5. Dependency Speed Bump (`dependency_guard.py`)
-> [!NOTE]
-> Catches package-manager commands that add a *new named* dependency (`pip install requests`, `npm install lodash`, `poetry add x`, …) and blocks once, asking the agent to confirm the package is actually needed and not coverable by the stdlib or an existing dep. Ignores manifest syncs (`npm ci`, `pip install -r`, `uv sync`) that add nothing new.
+
+Catches package-manager commands that add a *new named* dependency (`pip install requests`, `npm install lodash`, `poetry add x`, …) and blocks once, asking the agent to confirm the package is actually needed and not coverable by the stdlib or an existing dep. Ignores manifest syncs (`npm ci`, `pip install -r`, `uv sync`) that add nothing new.
 
 ### 6. Self-Review Nudge (`self_review_guard.py`)
-> [!NOTE]
-> Prompts the agent to run a last-pass self-review of its own diff before declaring an implementation done, closing the loop with the `<repo>-self-review` skill.
+
+Prompts the agent to run a last-pass self-review of its own diff before declaring an implementation done, closing the loop with the `<repo>-self-review` skill.
 
 ---
 
