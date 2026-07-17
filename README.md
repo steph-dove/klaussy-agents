@@ -184,7 +184,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📋 Requirements
 - Python 3.10+
-- `klaussy-repo-conventions >= 1.5.0`
+- `klaussy-repo-conventions >= 1.6.0`
 - Claude Code CLI (optional, for `--init` enrichment)
 - `mcp` (optional, for MCP server support)
 
