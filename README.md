@@ -94,6 +94,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 | Skill | What it does | Magic Feature |
 | :--- | :--- | :--- |
+| **`<repo>-rest-of-the-owl`** | Runs the entire development loop from a task definition to a green, reviewed PR. | 🦉 **Draws the Rest of the Owl:** Plans, implements, writes tests, self-reviews and fixes, and QAs the change with evidence — then opens a humanized PR and polls CI and code review, fixing findings and resolving threads until the PR is green and clean. Long-running and autonomous; does everything except merge, so the human keeps that button. |
 | **`<repo>-review`** | Senior-level PR review against the base branch. | 🧠 **Multi-Lens & Self-Refutation:** Runs parallel sub-agents looking at correctness, security, architecture, and agentic evals. A final validation phase filters out false positives before posting. |
 | **`<repo>-debug`** | Rigid 5-phase bug resolution flow. | 🧪 **Test-First:** Reproduces the bug, writes a failing test, implements the fix, and runs the entire suite to verify. |
 | **`<repo>-plan`** | Multi-phase planning and execution. | 📋 **Plan Gate:** Writes a detailed `plan.md` checklist and halts, waiting for your explicit approval before modifying files. |
@@ -106,8 +107,6 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 | **`<repo>-grant-permissions`** | Stops the agent asking permission for every routine dev command. | 🔑 **Stack-Aware Allow-List:** Detects your stack — including `scripts/` and Makefile runners a bare `Bash(pytest *)` rule misses — and writes a curated allow-list into each agent's own permission file, so tests, lint, build, git and the package manager stop prompting while secret files stay denied. Proposes the list and shows it before writing; never loosens anything silently. Honest about its boundary: curated mode trusts the agent to run repo code, and per-tool denies don't stop Bash reads of secret files. Broad mode is opt-in. |
 
 *Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
-
-<sub>🦉 And `<repo>-rest-of-the-owl` — hand it a task definition and it draws *the rest of the owl*: plans, implements, reviews and fixes, opens a humanized PR, then polls CI and code review, fixing findings and resolving threads until the PR is green and clean. Does everything except merge — the human keeps that button.</sub>
 
 <sub>🥚 And `<repo>-slop-coded` — the evil twin of `humanize` that turns clean prose into maximal AI slop. For laughs and stress-testing the scrubber; never run it on a real deliverable.</sub>
 
