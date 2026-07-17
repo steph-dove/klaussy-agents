@@ -101,6 +101,11 @@ RUNNER_TOKENS = frozenset(
 # string that merely mentions commit.
 GIT_COMMIT_RE = re.compile(r"(^|[\s;&|])git(\s+-[^\s]+\s+\S+)*\s+commit(\s|$)")
 
+# Matches a `git add` earlier in the same command line, as in
+# `git add -A && git commit -m ...`. That add hasn't run when this hook fires,
+# so the files it will stage are still working-tree-only — see `_stages_files`.
+GIT_ADD_RE = re.compile(r"(^|[\s;&|])git(\s+-[^\s]+\s+\S+)*\s+add(\s|$)")
+
 # Conventional Commits: type(scope)!: subject. The repo mandates this format;
 # an inline `-m` message that doesn't match blocks the commit.
 CONVENTIONAL_RE = re.compile(
@@ -146,6 +151,17 @@ def _commits_all(command: str) -> bool:
         if tok.startswith("-") and not tok.startswith("--") and "a" in tok:
             return True
     return False
+
+
+def _stages_files(command: str) -> bool:
+    """True if the command stages files before committing (`git add -A && git commit`).
+
+    The add hasn't run when this pre-shell hook fires, so nothing is in the index
+    yet and a `--cached` lookup comes back empty — which would silently skip every
+    path-scoped check and let the commit through unjudged. Treated like
+    `git commit -a`: fold the working tree into the paths the checks see.
+    """
+    return bool(GIT_ADD_RE.search(command))
 
 
 def _skips_verify(command: str) -> bool:
@@ -349,7 +365,7 @@ def main() -> int:
         if subjects and not CONVENTIONAL_RE.match(subjects[0]):
             print(_bad_commit_message(subjects[0]), file=sys.stderr)
             return 2
-        paths = _changed_paths(include_unstaged=_commits_all(command))
+        paths = _changed_paths(include_unstaged=_commits_all(command) or _stages_files(command))
         for cmd in (
             SECRET_SCAN_CMD,
             FORMAT_CMD,
