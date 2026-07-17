@@ -7,7 +7,10 @@ and the cross-agent `multi/commit_guard.py`) share the filtering logic, so each
 test runs against both.
 """
 
+import contextlib
 import importlib.util
+import io
+import json
 from importlib import resources
 
 import pytest
@@ -247,3 +250,63 @@ def test_run_wraps_windows_cmd_shim(guard, monkeypatch):
     assert seen["argv"][:2] == ["cmd", "/c"]
     assert seen["argv"][2] == "C:\\tools\\npx.cmd"
     assert seen["argv"][3:] == ["eslint", "--fix", "x.js"]
+
+
+# --- staging detection ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        ("git add -A && git commit -m 'feat: x'", True),
+        ("git add . && git commit -m 'feat: x'", True),
+        ("git add src/a.py && git commit -m 'feat: x'", True),
+        ("git -C /repo add -A && git commit -m 'feat: x'", True),
+        ("git add -A; git commit -m 'feat: x'", True),
+        ("git commit -m 'feat: x'", False),
+        ("git commit -m 'feat: add support'", False),
+        ("git log --grep=add", False),
+    ],
+)
+def test_stages_files_detects_add_on_the_same_line(guard, command, expected):
+    assert guard._stages_files(command) is expected
+
+
+def _drive_main(guard, monkeypatch, command: str) -> list[bool]:
+    """Run main() on `command`; return the include_unstaged it asked _changed_paths for."""
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+    }
+    asked: list[bool] = []
+
+    def fake_changed_paths(include_unstaged):
+        asked.append(include_unstaged)
+        return ["a.py"]
+
+    monkeypatch.setattr(guard, "_changed_paths", fake_changed_paths)
+    monkeypatch.setattr(guard, "_run", lambda cmd: 0)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    with contextlib.redirect_stderr(io.StringIO()):
+        guard.main()
+    return asked
+
+
+@pytest.mark.parametrize(
+    "command, include_unstaged",
+    [
+        # Regression: `git add -A && git commit` fires this hook before the add
+        # runs, so a --cached-only lookup saw zero paths and silently skipped
+        # every check — the commit went through unjudged.
+        ("git add -A && git commit -m 'feat: x'", True),
+        ("git commit -am 'feat: x'", True),
+        # No add on the line, so the index is authoritative — unrelated working
+        # tree edits must not be dragged into the gate and block the commit.
+        ("git commit -m 'feat: x'", False),
+    ],
+)
+def test_main_widens_to_working_tree_only_when_staging_is_pending(
+    guard, monkeypatch, command, include_unstaged
+):
+    assert _drive_main(guard, monkeypatch, command) == [include_unstaged]
