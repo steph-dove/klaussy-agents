@@ -320,7 +320,7 @@ def comment_lint(
         findings.extend(analyze_comments(str(path), text, scope))
 
     for finding in findings:
-        console.print(finding.render())
+        console.print(finding.render(), soft_wrap=True)
     if findings:
         raise typer.Exit(1)
 
@@ -345,7 +345,7 @@ def import_lint(
     """
     findings = scan_imports([str(f) for f in files], diff=diff)
     for finding in findings:
-        console.print(finding.render())
+        console.print(finding.render(), soft_wrap=True)
     if findings:
         raise typer.Exit(1)
 
@@ -368,7 +368,7 @@ def secret_scan(
     """
     findings = scan_secrets([str(f) for f in files], diff=diff)
     for finding in findings:
-        console.print(finding.render())
+        console.print(finding.render(), soft_wrap=True)
     if findings:
         raise typer.Exit(1)
 
