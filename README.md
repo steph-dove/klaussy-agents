@@ -191,7 +191,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.2** (the commit guard now runs when a commit stages its own files, and `comment-lint` findings stay on one line).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.3** (the humanize rules now ban empty emphasis like `actual`/`really`, invented consensus like `most people expect this`, and swipes at the author like `nobody asked for this`).
 
 ---
 
