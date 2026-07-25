@@ -12,6 +12,7 @@ Conservative by design — high-confidence, meaning-preserving edits only:
 - strip sentence-initial filler openers (and re-capitalize),
 - drop trailing chatbot scaffolding lines,
 - drop filler/ranking praise leads ("Great catch, ...", "Nice find. ..."),
+- drop empty qualifiers ("actual", "actually"),
 - tighten a few verbose phrasings.
 
 Code is never touched: fenced ```blocks``` and `inline code` pass through
@@ -32,7 +33,7 @@ _OPENERS = (
     r"|I noticed that|I wanted to point out that"
     r"|I want to (?:point out|note|mention|flag) that|Please note that"
     r"|Just to (?:note|mention)|Worth noting,?|Note that"
-    r"|Personally|Honestly|Frankly|Quite frankly|To be honest"
+    r"|Actually|Personally|Honestly|Frankly|Quite frankly|To be honest"
     r"|In my (?:honest )?opinion|IMO|IMHO|If you ask me"
     r"|At the end of the day|Generally speaking|Now,? more than ever"
     r"|Furthermore|Moreover|Additionally|Consequently|Nevertheless|Indeed)"
@@ -82,6 +83,25 @@ _THANK_BOT_LEAD_RE = re.compile(r"(^|\n)[ \t]*" + _THANK_BOT + r"[ \t,!.?]*(\w)"
 _THANK_BOT_LINE_RE = re.compile(r"(^|\n)[ \t]*" + _THANK_BOT + r"[ \t,!.?]*(?=\n|$)", re.IGNORECASE)
 _APOLOGY_LEAD_RE = re.compile(r"(^|\n)[ \t]*" + _APOLOGIES + r"[ \t,!.?]*(\w)", re.IGNORECASE)
 _APOLOGY_LINE_RE = re.compile(r"(^|\n)[ \t]*" + _APOLOGIES + r"[ \t,!.?]*(?=\n|$)", re.IGNORECASE)
+# Sentence-initial "Actually," is handled by the opener list; these cover the
+# mid-sentence and trailing uses. The adjective is only dropped after a
+# determiner that doesn't inflect, so "an actual bug" is left to the prompt.
+_ACTUALLY_TRAIL_RE = re.compile(
+    r"(?<=\w)[ \t]*,?[ \t]*\bactually\b(?=[ \t]*(?:[.,;:!?)\]]|$|\n))", re.IGNORECASE
+)
+_ACTUALLY_MID_RE = re.compile(r"(?<=\w)[ \t]+actually\b", re.IGNORECASE)
+# "... works. Actually it does." — mid-line sentence starts, which the opener
+# list (anchored to the start of a line) never sees.
+_ACTUALLY_SENTENCE_RE = re.compile(r"([.!?][ \t]+)actually\b[ \t,]*(\w)", re.IGNORECASE)
+# The word after "actual" must be its noun: a verb, conjunction, or preposition
+# there means "the actual" was the noun ("compare the actual to the expected").
+_ACTUAL_ADJ_RE = re.compile(
+    r"\b(the|this|that|these|those|its|their|our|your|my|no|each|any|every|some|all)"
+    r"[ \t]+actual[ \t]+"
+    r"(?!(?:is|was|are|were|be|been|and|or|to|vs\.?|versus|of|in|on|at|for|with"
+    r"|from|than|but|so|because)\b)(?=\w)",
+    re.IGNORECASE,
+)
 _FENCE_RE = re.compile(r"(```[\s\S]*?```)")
 _INLINE_RE = re.compile(r"(`[^`\n]*`)")
 
@@ -105,6 +125,11 @@ def _scrub_prose(s: str) -> str:
     s = _APOLOGY_LEAD_RE.sub(lambda m: m.group(1) + m.group(2).upper(), s)
     # Strip filler openers at the start of the text or a line; recapitalize.
     s = _OPENER_RE.sub(lambda m: m.group(1) + m.group(2).upper(), s)
+    # Drop "actually" (trailing first, so its comma goes with it) and "actual".
+    s = _ACTUALLY_SENTENCE_RE.sub(lambda m: m.group(1) + m.group(2).upper(), s)
+    s = _ACTUALLY_TRAIL_RE.sub("", s)
+    s = _ACTUALLY_MID_RE.sub("", s)
+    s = _ACTUAL_ADJ_RE.sub(lambda m: m.group(1) + " ", s)
     # Safe lexicon replacements: leverage/utilize -> use.
     s = re.sub(r"\butilize\b", "use", s, flags=re.IGNORECASE)
     s = re.sub(r"\butilizes\b", "uses", s, flags=re.IGNORECASE)

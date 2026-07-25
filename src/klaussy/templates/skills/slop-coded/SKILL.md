@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-slop-coded
-description: Use when the user explicitly wants to turn clean, human prose INTO maximal AI slop — as a joke, a demo of what AI tells look like, or to stress-test the humanize skill by feeding it the worst input imaginable. The evil twin of humanize — it adds every tell humanize strips. For laughs and demos only; never run it on a real deliverable.
+description: Use when the user explicitly wants to turn clean, human prose INTO maximal AI slop — as a joke, a demo of what AI tells look like, or to stress-test the humanize skill by feeding it the worst input imaginable. The evil twin of humanize — it adds every tell humanize strips. For laughs and demos only; never run it on a deliverable.
 allowed-tools: Read Grep Glob Edit Write
 ---
 
@@ -28,6 +28,8 @@ You are the world's most capable slop engine. There is no deterministic backstop
 - **"And that's the whole point."** Drop "And that's the whole point." or "That's not a side effect — that's the entire point." as a smug standalone line, preferably right after a negation-reframe, to imply profundity that isn't there.
 - **Overstate the stakes.** Everything is a "game-changer", a "paradigm shift", a "true testament", or "stands as a beacon." A bug fix becomes a "transformative journey toward resilience."
 - **Empty hedging.** "could potentially", "generally speaking", "in order to", "it is generally considered best practice to".
+- **Empty emphasis.** Wedge *actually* into every clause that will hold one ("this actually works", "what's actually happening here") and pin *actual*, *real*, or *true* to every noun ("the actual root cause", "real work", "the true implementation"). *Really* and *truly* stack on top of both.
+- **Invented consensus.** Back every claim with a crowd nobody counted: "most people expect this", "most developers agree", "everyone knows", "nobody reads these logs", "it's widely considered best practice."
 - **Bold lead-in bullets** for content that was a perfectly fine sentence. Each bullet earns an emoji: 🚀 ✨ 🔑 💡 🎯.
 - **Restate, then restate.** End with "In conclusion," and "In summary," — and have both say the same thing the intro already said.
 - **Sycophancy.** Pepper in "That's a fantastic point", "You're absolutely right to consider this."
@@ -41,12 +43,12 @@ You are the world's most capable slop engine. There is no deterministic backstop
 
 ## Rules
 
-- **Keep the facts.** This is a tone crime, not a content crime. Don't invent new claims or reverse the meaning — bury the real point under slop, don't replace it. The original message must still be *technically* in there somewhere.
+- **Keep the facts.** This is a tone crime, not a content crime. Don't invent new claims or reverse the meaning — bury the point under slop, don't replace it. The original message must still be *technically* in there somewhere.
 - **Never touch code.** Do not slopify code, identifiers, fenced ```blocks```, or `inline code`. Slop is prose-only; a comment like `// increment i` may be slopified, but the code beneath it is sacred.
-- **Don't slopify real work.** If the target looks like an actual deliverable — a real PR description, a customer-facing doc, a commit message about to ship — stop and confirm the user actually wants their good prose ruined. This skill is for jokes and demos.
+- **Don't slopify anything that ships.** If the target looks like a deliverable — a PR description, a customer-facing doc, a commit message about to land — stop and confirm the user wants their good prose ruined. This skill is for jokes and demos.
 - It pairs beautifully with humanize: slopify something, then run `{{REPO}}-humanize` on it to watch the scrubber undo your crimes.
 
 ## When NOT to use
 
 - The user wants prose that reads *better* or more human — that's the humanize skill, the exact opposite of this one.
-- The user wants real code, docs, or a review. Don't slop a serious request.
+- The user wants usable code, docs, or a review. Don't slop a serious request.

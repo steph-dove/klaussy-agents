@@ -108,7 +108,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 *Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
 
-<sub>🥚 And `<repo>-slop-coded` — the evil twin of `humanize` that turns clean prose into maximal AI slop. For laughs and stress-testing the scrubber; never run it on a real deliverable.</sub>
+<sub>🥚 And `<repo>-slop-coded` — the evil twin of `humanize` that turns clean prose into maximal AI slop. For laughs and stress-testing the scrubber; never run it on a deliverable.</sub>
 
 ---
 
@@ -191,7 +191,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.2** (the commit guard now runs when a commit stages its own files, and `comment-lint` findings stay on one line).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.3** (the humanize rules now ban empty emphasis like `actual`/`really`, invented consensus like `most people expect this`, and swipes at the author like `nobody asked for this`).
 
 ---
 

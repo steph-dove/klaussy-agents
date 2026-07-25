@@ -5,6 +5,36 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.19.3] - 2026-07-25
+
+### Added
+
+- **Three new rules in the shared humanize block**, so every prose-output skill
+  picks them up. No `actual` or `actually`, and no swapping in
+  `real`/`really`/`genuinely`/`truly` — all of them are empty emphasis, and "it
+  actually works" is "it works". No invented consensus (`most people expect
+  this`, `everyone does it this way`, `it's widely considered best practice`) —
+  argue from the code, a repo convention, or a linkable source, or own the claim.
+  And no `nobody asked for this` or its paraphrases, which read as a swipe at the
+  author instead of an objection about the code.
+- **The scrubber enforces the first rule deterministically.** `Actually` joins the
+  filler-opener list, and new rules drop the adverb mid-sentence, at a sentence
+  start, and trailing with its comma. The adjective goes only after a determiner
+  that doesn't inflect, so "an actual bug" never becomes "an bug", and only when
+  the next word can head a noun phrase, so "compare the actual to the expected"
+  is left intact. `real` stays prompt-side entirely, since deleting it flips
+  meaning ("real user data, not fixtures").
+- **`slop-coded` gained the matching tells** (empty emphasis, invented consensus)
+  so the evil twin still produces what humanize strips.
+
+### Changed
+
+- The `review` and `slop-coded` skill templates drop their own uses of the words
+  the new rules ban.
+
+**Note:** `examples/fastapi` and `examples/httpx` still carry the 0.19.2 skill
+output and will be regenerated in a later release.
+
 ## [0.19.2] - 2026-07-17
 
 ### Fixed
