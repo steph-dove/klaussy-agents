@@ -68,3 +68,48 @@ class TestExtendedScrubber:
         assert humanize("Thanks @dependabot! We should merge this.") == "We should merge this."
         assert humanize("Thank you for the review, @codecov-bot!") == ""
         assert humanize("Thanks, bot.") == ""
+
+
+class TestActuallyStripping:
+    def test_opener_is_stripped_and_recapitalized(self):
+        assert humanize("Actually, this races on startup.") == "This races on startup."
+        assert humanize("Actually the lock is wrong.") == "The lock is wrong."
+
+    def test_second_sentence_opener_is_stripped(self):
+        assert humanize("It works. Actually it does.") == "It works. It does."
+        assert humanize("Fine. Actually, the lock is wrong.") == "Fine. The lock is wrong."
+
+    def test_mid_sentence_adverb_is_dropped(self):
+        assert humanize("The retry actually fires twice.") == "The retry fires twice."
+        assert humanize("We actually need both branches.") == "We need both branches."
+
+    def test_trailing_adverb_takes_its_comma(self):
+        assert humanize("This works, actually.") == "This works."
+        assert humanize("The cache is stale actually!") == "The cache is stale!"
+
+    def test_adjective_is_dropped_after_a_determiner(self):
+        assert humanize("Read the actual query.") == "Read the query."
+        assert humanize("This is their actual root cause.") == "This is their root cause."
+
+    def test_actual_as_a_noun_is_left_alone(self):
+        # "the actual" is the noun in test/review prose, not a modifier.
+        assert humanize("Compare the actual to the expected.") == (
+            "Compare the actual to the expected."
+        )
+        assert (
+            humanize("The actual is 3, the expected is 4.") == "The actual is 3, the expected is 4."
+        )
+        assert humanize("Check the actual vs expected output.") == (
+            "Check the actual vs expected output."
+        )
+
+    def test_adjective_left_alone_where_dropping_it_would_break_grammar(self):
+        # "an actual bug" would become "an bug" — left to the prompt-side rule.
+        assert humanize("That is an actual bug.") == "That is an actual bug."
+
+    def test_no_midword_clipping(self):
+        assert humanize("The actuals feed the report.") == "The actuals feed the report."
+        assert humanize("Check factual claims.") == "Check factual claims."
+
+    def test_code_is_preserved(self):
+        assert humanize("Call `get_actual()` here.") == "Call `get_actual()` here."

@@ -6,7 +6,7 @@ Loaded by `{{REPO}}-review` Phase 2 when the diff is ≥ 150 lines. The sub-agen
 
 For each selected sub-agent, build the prompt body as:
 
-1. The full **Common scaffold** block, with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced with the actual diff and commit log gathered in Phase 1.
+1. The full **Common scaffold** block, with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced with the diff and commit log gathered in Phase 1.
 2. The sub-agent's `## Lens` section verbatim.
 3. The sub-agent's `## Additional rules` section (if it has one).
 
@@ -150,7 +150,7 @@ For each finding, be specific about the failure mode (the exact input or state t
 - Were tests added or updated for the changes?
 - Are edge cases covered?
 - Are failure paths tested?
-- Do tests actually assert meaningful behavior (not just "doesn't crash")?
+- Do tests assert meaningful behavior (not just "doesn't crash")?
 - Are mocks/stubs appropriate, or do they hide real behavior?
 ```
 
@@ -280,7 +280,7 @@ quote the doc section (or note its absence) and explain what's missing and why i
 matters.
 
 ### Decision quality
-- **Problem/context is concrete** — the doc states the actual problem and forces at
+- **Problem/context is concrete** — the doc states the problem and forces at
   play, not a vague preamble. Flag a problem statement so generic it could precede
   any decision.
 - **The decision is explicit** — there is an unambiguous "we will do X" outcome, not
@@ -303,7 +303,7 @@ matters.
   ideally the old one is marked superseded). Flag a decision that silently contradicts
   an existing ADR in the repo without superseding it.
 - **Code-vs-decision consistency** — if the same PR also changes code, verify the code
-  actually implements the decided design. Flag drift between "we will do X" and code
+  implements the decided design. Flag drift between "we will do X" and code
   that does Y. This is the highest-value check a PR-time review can make that a
   standalone doc review cannot.
 
@@ -316,7 +316,7 @@ matters.
 - **Sprint**: only one option; only short-term effects considered.
 - **Fairy Tale**: shallow justification, pros only, no cons.
 - **Ghost architecture**: code makes an architecturally significant choice that the doc
-  doesn't actually record (or vice versa).
+  doesn't record (or vice versa).
 - **Rubber-stamp**: a "decision" written after the fact to legitimize code already
   merged, with no real evaluation.
 
@@ -355,7 +355,7 @@ For EACH finding, apply this rubric. Read whatever files you need — the refere
 1. Read the full file at the finding's location, not just the diff hunk.
 2. Trace the code path: follow function calls, imports, type definitions, and control flow across files.
 3. Argue the author's side, then refute it. Write the strongest one-line case that this is NOT a real problem (the input can't occur, a caller already guards it, the framework handles it). Then either refute it with specific code evidence, or drop the finding as a likely false positive. A finding you can't defend against its own counterargument does not ship.
-4. Drop the finding if: the issue is already handled elsewhere (validation in a caller, error caught upstream); the code path can't actually be reached as the finding assumes; the finding misreads the logic from missing context; the concern is about unchanged code out of scope for this PR; or a dependency/framework already guarantees the behavior.
+4. Drop the finding if: the issue is already handled elsewhere (validation in a caller, error caught upstream); the code path can't be reached as the finding assumes; the finding misreads the logic from missing context; the concern is about unchanged code out of scope for this PR; or a dependency/framework already guarantees the behavior.
 5. Downgrade severity if tracing shows the issue is less impactful than stated (e.g. a "High" race that only affects a debug-only path is "Low" or "Nit").
 
 Return ONLY the findings that survive, each in this exact format, with severity reflecting any downgrade:

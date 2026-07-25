@@ -72,6 +72,13 @@ HUMANIZE_BLOCK = "\n".join(
         " the point directly.",
         '- **No chatbot scaffolding.** No "Let me know if...", "Hope this helps",'
         ' "Feel free to...", "Happy to help", "Let me know your thoughts".',
+        '- **Never use "actual" or "actually", and don\'t swap in "real",'
+        ' "really", "genuinely", or "truly".** All of them are empty emphasis:'
+        ' "it actually works" is "it works", "the actual value" is "the value",'
+        ' "real work" is "work". Delete the word. If the sentence needs a'
+        ' contrast, name it ("the value on disk, not the cached one"), and keep'
+        ' "real" only where it draws a distinction the reader can\'t infer'
+        ' ("real user data, not fixtures").',
         '- **Tighten hedges.** "in order to" → "to"; "could potentially"'
         ' → "could"; "may potentially" → "may". Drop stacked'
         " qualifiers.",
@@ -109,6 +116,19 @@ HUMANIZE_BLOCK = "\n".join(
         ' catch", "great find", "excellent point", "the most important issue'
         ' here". Rating a comment against the others is an AI tell and adds'
         " nothing. State the substance and stop.",
+        "- **No \"most people\" claims.** Don't invent a consensus you can't"
+        ' source: "most people expect this", "most developers find this'
+        ' confusing", "everyone does it this way", "nobody reads these logs",'
+        ' "it\'s widely considered best practice". Argue from the code, the'
+        " repo's own conventions, or a linkable source instead, or state it as"
+        ' your own view ("I\'d expect X here").',
+        '- **Never say "nobody asked for this".** Don\'t dismiss work by'
+        " claiming it was unwanted, and don't dress the same move up as"
+        ' "nobody requested this", "this wasn\'t asked for", "out of nowhere",'
+        ' or "why is this here at all". It reads as a swipe at the author and'
+        " says nothing about the code. Name the concrete objection instead:"
+        " the scope it exceeds, the cost it adds, or the requirement it doesn't"
+        ' map to ("this isn\'t in the ticket, should it ship separately?").',
         "- **Don't mirror the thread's tone.** When you reply to an existing"
         " comment, review note, or message, read it for substance but not for"
         " temperature: neutralize any rudeness or bluntness in it before you"
