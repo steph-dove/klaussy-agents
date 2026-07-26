@@ -61,6 +61,24 @@ def test_gemini_hooks_use_launcher(repo: Path):
         assert "python3" not in c and "python " not in c
 
 
+def test_kimi_hooks_use_launcher_with_repo_relative_paths(repo: Path):
+    # Kimi's hook schema is event/matcher/command/timeout and an extra key fails
+    # the config load, so one string must serve every OS with no per-OS override.
+    import tomllib
+
+    from klaussy.agents.backends import KimiBackend
+
+    KimiBackend().emit_hooks(repo, force=True)
+    hooks = tomllib.loads((repo / ".kimi-code" / "klaussy-hooks.toml").read_text())["hooks"]
+    assert hooks
+    for h in hooks:
+        assert set(h) <= {"event", "matcher", "command", "timeout"}
+        assert h["command"].startswith("klaussy-hook --repo-relative ")
+        assert "python3" not in h["command"] and "python " not in h["command"]
+        # No POSIX-only shell constructs: these would break under cmd/PowerShell.
+        assert not any(tok in h["command"] for tok in ("$(", "[ -f", ";", "&&", "exec "))
+
+
 # --- klaussy-hook launcher --------------------------------------------------
 
 
@@ -96,4 +114,45 @@ def test_launcher_no_args_allows(monkeypatch):
     from klaussy import _hooklauncher
 
     monkeypatch.setattr(sys, "argv", ["klaussy-hook"])
+    assert _hooklauncher.main() == 0
+
+
+def _launch_repo_relative(relpath: str, monkeypatch, cwd: Path) -> int:
+    from klaussy import _hooklauncher
+
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(sys, "argv", ["klaussy-hook", "--repo-relative", relpath])
+    return _hooklauncher.main()
+
+
+@pytest.fixture()
+def git_repo(tmp_path: Path) -> Path:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    return tmp_path
+
+
+def test_launcher_repo_relative_runs_guard_from_a_subdirectory(git_repo: Path, monkeypatch):
+    # Kimi's hooks are global config, so the guard path resolves against the repo
+    # the session is in — and must survive being invoked from a nested cwd.
+    guard = git_repo / ".kimi-code" / "hooks" / "g.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_text("import sys\nsys.exit(2)\n")
+    nested = git_repo / "src" / "deep"
+    nested.mkdir(parents=True)
+    assert _launch_repo_relative(".kimi-code/hooks/g.py", monkeypatch, nested) == 2
+
+
+def test_launcher_repo_relative_no_ops_outside_a_scaffolded_repo(tmp_path: Path, monkeypatch):
+    # Outside a git repo (or in one klaussy never touched) the globally-wired
+    # hook has to stay inert rather than error on every tool call.
+    assert _launch_repo_relative(".kimi-code/hooks/g.py", monkeypatch, tmp_path) == 0
+
+
+def test_launcher_repo_relative_without_a_path_allows(monkeypatch, tmp_path: Path):
+    from klaussy import _hooklauncher
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["klaussy-hook", "--repo-relative"])
     assert _hooklauncher.main() == 0

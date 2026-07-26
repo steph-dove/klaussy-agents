@@ -5,6 +5,35 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **Kimi Code CLI (Moonshot) as a tenth backend** — `klaussy init --agents kimi`.
+  Conventions go to `.kimi-code/AGENTS.md` rather than the root `AGENTS.md` the
+  Codex/Antigravity/opencode backends own: Kimi discovers AGENTS.md at a fixed
+  set of paths with no subdirectory scanning, so path-scoped rules are inlined
+  under their globs instead of split into nested files it would never read. The
+  pre-plan guardrails ride that same file, since Kimi's context-injection hook
+  isn't available from the repo. Skills land in `.kimi-code/skills/` (Kimi also
+  reads `.agents/skills/`, but Codex and Cline already write there).
+- **Kimi hooks and permissions as paste-in snippets.** Kimi loads `[[hooks]]` and
+  `[[permission.rules]]` only from the user-level `~/.kimi-code/config.toml` —
+  its project-local `.kimi-code/local.toml` accepts a `[workspace]` table only,
+  and an unknown key fails the whole config load. So the guards are committed to
+  `.kimi-code/hooks/` and the wiring is written to `.kimi-code/klaussy-hooks.toml`
+  and `.kimi-code/klaussy-permissions.toml` to paste once. Commit, comment-humanize and
+  dependency guards match `^Bash$`, the read-injection guard matches `^Read$`
+  (anchored, so it skips `ReadMediaFile`), and the self-review guard runs on
+  `Stop` via a new `kimi` dialect that blocks with exit 2 + stderr. Web-fetch
+  scanning is left out: Kimi's `PostToolUse` can't block.
+- **`klaussy-hook --repo-relative <path>`** — the launcher resolves a guard
+  against the enclosing git repo and fails open outside one. Kimi's hooks are
+  global config, so the command can't hardcode a repo path, and its four-field
+  hook schema has no per-OS override; doing the resolution in the launcher keeps
+  one command string working in sh, cmd, and PowerShell alike. Kimi is ✅/✅ in
+  the README cross-platform matrix.
+
 ## [0.19.3] - 2026-07-25
 
 ### Added

@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
-> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex, Google Antigravity, Cline, Aider, and OpenCode.
+> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi.
 
-Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **nine major AI coding environments**—matching each agent's native file formats and capability profiles.
+Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **ten major AI coding environments**—matching each agent's native file formats and capability profiles.
 
 > **📣 Out of stealth.** `klaussy` has been six months in the making — developed in private and hardened by a hands-on group of testers wiring it into their own repos and daily agent workflows. After months of iteration and real-world use, it's now open to everyone.
 
@@ -38,10 +38,13 @@ klaussy init
 *   **💻 Cursor**: Interactive MDC rules (`.cursor/rules/*.mdc`) with auto-apply matching, terminal permissions allow-list, and `.cursorignore` read blocks.
 *   **🐙 GitHub Copilot**: Instructions with custom `applyTo` file matchers (`.instructions.md`), and skills nested in `.github/skills/`.
 *   **♊ Gemini CLI**: Hierarchical `GEMINI.md` scoping (loaded only when touching subdirectories), settings tool allow-lists, and `.geminiignore` filtering.
-*   **📜 Codex CLI**: Structured `AGENTS.md` root-and-nesting rules, generic skills, and `.codex/config.toml` sandbox configurations.
+*   **📜 Codex CLI (OpenAI)**: Structured `AGENTS.md` root-and-nesting rules, generic skills, and `.codex/config.toml` sandbox configurations. This is OpenAI's coding agent — if you work in GPT-5.x through Codex, this is your target.
 *   **🧬 Cline**: `.clinerules/` Markdown rules with `paths:` glob activation, event-named `.clinerules/hooks/` guards (commit, read/web-injection, plan guidance), and `.clineignore` read blocks.
 *   **🛩️ Aider**: Flat `CONVENTIONS.md` wired in via `.aider.conf.yml`'s `read:` key, `auto-lint`/`lint-cmd` + `test-cmd` gating, and `.aiderignore` read blocks. Model-agnostic — point it at any model, including a local Ollama one. (No skills/hooks: aider has neither mechanism.)
 *   **🔓 OpenCode**: Root `AGENTS.md` conventions plus modular `.opencode/rules/*.md` path rules wired via `opencode.json`'s `instructions` glob, `.opencode/skills/`, last-match-wins `permission` read/bash rules in `opencode.json`, and a Bun plugin (`.opencode/plugins/klaussy.js`) that bridges tool hooks to the shared Python guards.
+*   **🌙 Kimi Code CLI (Moonshot / Kimi K2)**: Flat `.kimi-code/AGENTS.md` conventions (Kimi reads no nested `AGENTS.md`, so path rules are inlined under their globs, with the pre-plan guidance appended) and `.kimi-code/skills/`. Hooks and permissions are a special case: Kimi loads `[[hooks]]` and `[[permission.rules]]` **only** from the user-level `~/.kimi-code/config.toml`, so klaussy commits the guards to `.kimi-code/hooks/` and writes paste-in snippets (`klaussy-hooks.toml`, `klaussy-permissions.toml`) beside them. Paste once and the guards run against whichever repo the session is in.
+
+**A note on models vs. agents.** These targets are *agent tools*, not model vendors — klaussy writes the files each tool reads, so what matters is which CLI or IDE you drive, not which model answers. OpenAI's agent is **Codex CLI**, so that's where GPT users point klaussy. Aider and OpenCode are model-agnostic and will happily run GPT, Claude, Gemini, Kimi, or a local Ollama model behind the same scaffolding.
 
 ---
 
@@ -134,6 +137,7 @@ The tricky part is that a committed hook command can't portably name a Python in
 | **GitHub Copilot** | ✅ | ✅ | native per-OS `bash` / `powershell` split |
 | **OpenCode** | ✅ | ✅ | Bun plugin resolves the interpreter at runtime |
 | **Codex CLI** | ✅ | ✅ | per-OS override: `command` (`python3`) + `commandWindows` (`py -3`) |
+| **Kimi Code CLI** | ✅ | ✅ | `klaussy-hook --repo-relative` — launcher resolves the repo root at run time |
 | **Cursor** | ⚠️ | ⚠️ | docs don't specify the Windows shell or interpreter for hook commands |
 | **Antigravity** | ⚠️ | ⚠️ | shell hook execution isn't documented; treat Windows as unverified |
 | **Cline** | ❌ | — | Cline hooks are **macOS/Linux only** by spec; the guards are simply inert on Windows |
@@ -141,6 +145,7 @@ The tricky part is that a committed hook command can't portably name a Python in
 
 - **Cursor / Antigravity** run guards via the interpreter/shebang their docs describe; their Windows hook execution isn't documented, so treat it as best-effort until confirmed.
 - Codex's Windows variant resolves the repo root via the same `git rev-parse` the POSIX command uses; it assumes a POSIX-compatible or PowerShell hook shell.
+- Kimi's hooks live in the **user's** global config, so the command can't hardcode a repo path — and its four-field hook schema (an unknown key fails the whole config load) leaves no room for a per-OS override or a shell one-liner. `klaussy-hook --repo-relative <path>` resolves the enclosing repo inside the launcher instead, and fails open in repos klaussy hasn't scaffolded, so one global entry stays correct everywhere and inert where it doesn't apply.
 
 ---
 
