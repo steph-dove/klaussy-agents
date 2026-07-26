@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
-## [Unreleased]
+## [0.20.0] - 2026-07-26
 
 ### Added
 
@@ -33,6 +33,14 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   hook schema has no per-OS override; doing the resolution in the launcher keeps
   one command string working in sh, cmd, and PowerShell alike. Kimi is ✅/✅ in
   the README cross-platform matrix.
+
+### Documentation
+
+- README: Kimi in the hero line, the supported-agents list and the cross-platform
+  table, and the agent count moved from nine to ten. The Codex row is now labelled
+  **Codex CLI (OpenAI)** — klaussy always supported OpenAI's agent but never said
+  so — alongside a note that these targets are agent tools rather than model
+  vendors, so GPT users reach klaussy through Codex, aider, or opencode.
 
 ## [0.19.3] - 2026-07-25
 
