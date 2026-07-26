@@ -196,7 +196,7 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.19.3** (the humanize rules now ban empty emphasis like `actual`/`really`, invented consensus like `most people expect this`, and swipes at the author like `nobody asked for this`).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.20.0** (Kimi Code CLI joins as a tenth agent backend, and `klaussy-hook` gains `--repo-relative` so a globally-configured hook resolves whichever repo the session is in).
 
 ---
 
