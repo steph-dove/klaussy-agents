@@ -3,7 +3,7 @@
 # Klaussy-Agents
 
 [![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/klaussy-agents?logo=pypi&logoColor=white&color=blue&label=downloads)](https://pypistats.org/packages/klaussy-agents)
+[![PyPI downloads](https://static.pepy.tech/personalized-badge/klaussy-agents?period=total&units=international_system&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/klaussy-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
