@@ -35,8 +35,10 @@ klaussy-mcp = "klaussy.mcp_server:main"
 klaussy-hook = "klaussy._hooklauncher:main"
 
 [project.optional-dependencies]
-mcp = ["mcp[cli]>=1.0.0"]
-dev = ["pytest>=7.0", "ruff>=0.4.0", "mcp[cli]>=1.0.0"]
+# mcp 2.0.0 renamed FastMCP to MCPServer and dropped mcp.server.fastmcp, which
+# mcp_server.py still imports. Capped until that migration lands.
+mcp = ["mcp[cli]>=1.0.0,<2"]
+dev = ["pytest>=7.0", "ruff>=0.4.0", "mcp[cli]>=1.0.0,<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
