@@ -93,7 +93,7 @@ Prompts the agent to run a last-pass self-review of its own diff before declarin
 
 ## 🚀 Advanced Repository-Scoped Skills
 
-Every generated skill is namespaced to your repo, carries an auto-trigger description, and is adapted to the agent's capability profile (such as mapping Claude's parallel subagent tools to Codex/Cursor/Antigravity equivalents):
+Every generated skill is namespaced to your repo, carries an auto-trigger description, and is adapted to the agent's capability profile (such as mapping Claude's parallel subagent tools to Codex/Cursor/Antigravity equivalents). Skills that touch a ticket, a pull/merge request, or CI are also adapted to your hosting provider, detected from `origin`: a GitLab repo's skills ship `glab mr` commands and discussion semantics, not `gh pr`. A provider klaussy can't identify (a self-hosted install on a neutral hostname) gets a block that tells the agent to ask rather than guess at an API.
 
 | Skill | What it does | Magic Feature |
 | :--- | :--- | :--- |
@@ -120,7 +120,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 
 1. **Discover:** Wraps `klaussy-repo-conventions` to auto-analyze your codebase and compile `CLAUDE.md`.
 2. **Translate:** Parses rules and dynamically injects them into the `<repo>-review` skill so reviews check path-scoped rules.
-3. **Scaffold:** Detects your stack (Python, Go, Node, Rust, Make) to generate custom permissions (`settings.json`, `config.toml`) and allowed tool prefixes.
+3. **Scaffold:** Detects your stack (Python, Go, Node, Rust, Make) to generate custom permissions (`settings.json`, `config.toml`) and allowed tool prefixes, and detects your hosting provider from `origin` to substitute the matching forge commands into the skills that need them.
 4. **Isolate:** Writes `.cursorignore` and `.geminiignore` with secret-excluding patterns.
 
 ---

@@ -66,6 +66,6 @@ Write the output to `pr-description.md` in the repo root.
 
 ## When NOT to use
 
-- The user wants to actually open a PR (`gh pr create`) — this skill only writes the description text into a file.
+- The user wants the PR or MR opened for real — this skill only writes the description text into a file, so hand the file to whichever create command their host takes.
 - The branch has no commits ahead of `{{BASE_BRANCH}}` — there's nothing to describe; tell the user instead.
 - The user wants a release-notes-style summary spanning multiple PRs — different shape; don't try to fit it in this template.

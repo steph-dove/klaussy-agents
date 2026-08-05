@@ -8,9 +8,11 @@ Address the review feedback on the current PR. Every comment gets a response: a 
 
 ## Phase 1: Gather the feedback
 
-1. **Get the review comments.** If `gh` is available, pull them for the current branch's PR: `gh pr view --json reviews,comments` and `gh api repos/{owner}/{repo}/pulls/<n>/comments` for inline (line-level) comments. If `gh` isn't available or there's no PR, ask the user to paste the feedback.
+1. **Get the review comments** for the current branch's request, using the adapter below. Pull the inline (line-level) comments as well as the summary review bodies; the inline ones are where the substance usually is. If there's no request yet, no CLI, or no credentials, ask the user to paste the feedback and carry on from there.
 2. **Read CLAUDE.md** and any `.claude/rules/*.md` covering the touched files — a fix must still satisfy the repo's conventions.
 3. **Build the change list.** For each comment, capture: the file/line, what's asked, and the reviewer's intent (not just the literal words). Group comments that touch the same code so you fix each spot once.
+
+{{FORGE}}
 
 ## Phase 2: Triage each comment
 
