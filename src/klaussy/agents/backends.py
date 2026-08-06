@@ -943,6 +943,20 @@ class OpenCodeBackend(GenericBackend):
             # opencode loads path-scoped rule files only when listed here; the
             # glob is harmless when `.opencode/rules/` is empty or absent.
             "instructions": [".opencode/rules/*.md"],
+            "provider": {
+                "ollama": {
+                    "npm": "@ai-sdk/openai",
+                    "name": "ollama",
+                    "options": {"baseURL": "http://127.0.0.1:11434/v1"},
+                    "models": {
+                        "qwen3-coder:30b": {"name": "qwen3-coder:30b"},
+                        "qwen2.5-coder:32b": {"name": "qwen2.5-coder:32b"},
+                        "qwen2.5-coder:14b": {"name": "qwen2.5-coder:14b"},
+                        "qwen2.5-coder:7b": {"name": "qwen2.5-coder:7b"},
+                        "deepseek-coder-v2": {"name": "deepseek-coder-v2"},
+                    },
+                }
+            },
             "permission": {"read": read_rules, "bash": bash_rules},
         }
 

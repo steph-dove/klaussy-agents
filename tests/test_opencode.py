@@ -154,6 +154,17 @@ class TestOpenCodeSettings:
         assert config["permission"]["bash"]["pytest *"] == "allow"
         assert config["permission"]["bash"]["*"] == "ask"
 
+    def test_ollama_provider_points_at_a_local_server(self, repo):
+        # The provider block is what lets opencode talk to a local Ollama; the
+        # OpenAI-compatible /v1 suffix on the loopback URL is load-bearing.
+        OpenCodeBackend().emit_settings(repo, force=True)
+        config = json.loads((repo / "opencode.json").read_text())
+        ollama = config["provider"]["ollama"]
+        assert ollama["npm"] == "@ai-sdk/openai"
+        assert ollama["options"]["baseURL"].endswith("/v1")
+        assert "127.0.0.1:11434" in ollama["options"]["baseURL"]
+        assert ollama["models"], "a provider with no models offers nothing to select"
+
     def test_wildcard_default_is_first_so_specific_rules_win(self, repo):
         # opencode is last-match-wins: the broad "*" must precede the specific
         # allow/deny rules, or it would re-allow secret reads / re-gate the
