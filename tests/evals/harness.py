@@ -134,11 +134,13 @@ def run_skill(
     *,
     instruction: str | None = None,
     max_tokens: int = 1024,
+    timeout: int = 240,
 ) -> str:
     """Run `skill`'s spec against `context`, returning the model's final output.
 
     `max_tokens` is accepted for call-site compatibility but unused: the headless
-    CLI controls output length.
+    CLI controls output length. Raise `timeout` when a long spec asks for a long
+    answer — the default is a harness limit, not a failing spec.
     """
     _ = max_tokens
     system = (
@@ -148,7 +150,7 @@ def run_skill(
         " output, exactly as the skill specifies, with no preamble."
     )
     user = context if instruction is None else f"{instruction}\n\n{context}"
-    return complete(system, user)
+    return complete(system, user, timeout=timeout)
 
 
 # --- assertion helpers -------------------------------------------------------
