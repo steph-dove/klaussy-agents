@@ -43,6 +43,7 @@ SKILL_NAMES = [
     "release",
     "address-review",
     "new-worktree",
+    "restack",
     "adr-generator",
     "security-audit",
     "slop-coded",
