@@ -317,12 +317,7 @@ def _overlaps(finding: Finding, scope: set[int]) -> bool:
 
 
 def comment_records(path: str, text: str) -> list[_Record]:
-    """Comment records for one file, picked by extension. Empty when unsupported.
-
-    Split out of `analyze` so callers that want the comments themselves — rather
-    than findings about them — don't reimplement the dispatch. `split_prep` uses
-    it to size how much of a diff is comment rather than code.
-    """
+    """Comment records for one file, picked by extension. Empty when unsupported."""
     ext = Path(path).suffix.lower()
     if ext in _PY_EXT:
         records = _python_comments(text)

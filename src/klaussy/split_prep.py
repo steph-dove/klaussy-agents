@@ -319,8 +319,6 @@ def build_edges(repo: Path, ref: str, paths: set[str]) -> tuple[list[tuple[str, 
         if language == "python":
             imports = _python_imports(source)
             if imports is None:
-                # Unparseable: report it rather than treat "no imports found" as
-                # "depends on nothing", which would bury it in the bottom layer.
                 ungraphed.append(path)
                 continue
             for module, level in imports:
