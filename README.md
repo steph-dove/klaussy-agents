@@ -27,6 +27,15 @@ klaussy init
 
 *Auto-detects your base branch and stack, then scaffolds all targets. To target specific agents, run `klaussy init --agents claude,cursor`.*
 
+Then use the skills. Every one is namespaced to your repo, so in a repo called `payments-service` you'd hand a whole task to the owl:
+
+```
+/payments-service-rest-of-the-owl https://linear.app/acme/issue/PAY-1234
+/payments-service-rest-of-the-owl add a --dry-run flag to the reconciler CLI
+```
+
+*A ticket link or a plain description both work. See [Using the skills](#using-the-skills) for the naming rule and the rest of the set.*
+
 ---
 
 ## 🤖 Supported Agents & Targets
@@ -157,6 +166,29 @@ The tricky part is that a committed hook command can't portably name a Python in
 pip install klaussy-agents
 klaussy init
 ```
+
+### Using the skills
+
+After `klaussy init`, the skills are in your repo and invoked by name. The name is always `<your repo name>-<skill>`, lowercased with anything that isn't a letter or digit turned into a hyphen — so `My_App` becomes `my-app-review`, and `Payments Service` becomes `payments-service-review`.
+
+```
+/<your repo name>-rest-of-the-owl <task link or description>
+```
+
+Hand it a ticket URL or type the task out, and it runs the whole loop: plan, implement, test, self-review, QA with evidence, open a humanized PR, then poll CI and review until the PR is green. It stops before merging, so you keep that button.
+
+The ones you'll reach for daily:
+
+```
+/<repo>-review                      # senior-level review of the branch
+/<repo>-debug the checkout total is wrong for EU orders
+/<repo>-restack                     # rebase a stack of dependent PRs
+/<repo>-grant-permissions           # stop the agent asking about routine commands
+```
+
+Most skills also trigger on their own when the work matches — describe a bug and `debug` picks it up. Seven are explicit-only, because you don't want them firing on their own: `commit`, `pr`, `precommit`, `release`, `restack`, `new-worktree`, and `document`.
+
+*On other agents the same skills land in that agent's own directory (`.cursor/skills/`, `.gemini/skills/`, `.opencode/skills/`, `.github/skills/`, `.agents/skills/`) and you invoke them however that agent invokes skills. The slash form above is Claude Code's.*
 
 ### As a Claude Code Plugin
 ```
