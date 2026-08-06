@@ -1,10 +1,12 @@
-"""Forge detection and the {{FORGE}} adapter block."""
+"""Forge detection, the {{FORGE}} adapter block, and the permissions that match it."""
 
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from klaussy.agents.backends import _shell_prefixes
 from klaussy.agents.base import build_skill_payloads
 from klaussy.forge import (
     FORGE_BITBUCKET,
@@ -13,8 +15,11 @@ from klaussy.forge import (
     FORGE_UNKNOWN,
     FORGES,
     detect_forge,
+    detect_forge_cli,
     forge_block,
+    forge_cli,
 )
+from klaussy.settings import _build_allowed_tools, generate_settings
 from klaussy.skills import sanitize_skill_namespace, scaffold_skills
 
 # Skills carrying the full adapter block. The rest reference a host only in
@@ -82,6 +87,10 @@ class TestBlock:
         assert "notes/<note-id>" in forge_block(FORGE_GITLAB)
         assert "acli jira workitem view" in forge_block(FORGE_BITBUCKET)
         assert "silently ignoring" in forge_block(FORGE_BITBUCKET)
+        # Verified by introspecting the live GraphQL schema: threadId is the
+        # only required input, and it comes from reviewThreads, not the comment.
+        assert "resolveReviewThread(input: {threadId: $id})" in forge_block(FORGE_GITHUB)
+        assert "reviewThreads(first: 50)" in forge_block(FORGE_GITHUB)
 
     def test_github_placeholders_survive_as_single_braces(self):
         # gh fills repos/{owner}/{repo} itself; doubling them would break the call.
@@ -94,6 +103,44 @@ class TestBlock:
 
     def test_unrecognized_name_degrades_to_unknown(self):
         assert forge_block("perforce") == forge_block(FORGE_UNKNOWN)
+
+
+class TestPermissions:
+    """The adapter tells the agent to run a CLI; the allow-list has to match."""
+
+    def test_cli_per_forge(self):
+        assert forge_cli(FORGE_GITHUB) == "gh"
+        assert forge_cli(FORGE_GITLAB) == "glab"
+        # No first-party CLI exists for these, so allow-listing one would be noise.
+        assert forge_cli(FORGE_BITBUCKET) is None
+        assert forge_cli(FORGE_UNKNOWN) is None
+
+    def test_detect_cli_from_the_repo(self, tmp_path: Path):
+        assert detect_forge_cli(_git_repo(tmp_path, "git@gitlab.com:g/r.git")) == "glab"
+        assert detect_forge_cli(tmp_path / "nope") is None
+
+    def test_claude_settings_allow_the_detected_cli(self, tmp_path: Path):
+        repo = _git_repo(tmp_path, "git@github.com:owner/repo.git")
+        generate_settings(repo=repo)
+        allow = json.loads((repo / ".claude" / "settings.json").read_text())["permissions"]["allow"]
+        assert "Bash(gh *)" in allow
+        assert "Bash(glab *)" not in allow
+
+    def test_no_cli_rule_when_the_host_has_none(self, tmp_path: Path):
+        repo = _git_repo(tmp_path, "git@bitbucket.org:ws/repo.git")
+        generate_settings(repo=repo)
+        allow = json.loads((repo / ".claude" / "settings.json").read_text())["permissions"]["allow"]
+        assert not [rule for rule in allow if "gh *" in rule or "glab *" in rule]
+
+    def test_other_agents_get_the_prefix_too(self):
+        stack = dict.fromkeys(["python", "node", "go", "rust", "make"], False)
+        assert "glab" in _shell_prefixes(stack, "glab")
+        assert "gh" not in _shell_prefixes(stack, "glab")
+        assert _shell_prefixes(stack) == ["git"]
+
+    def test_stack_rules_are_untouched(self):
+        stack = {"python": True, "node": False, "go": False, "rust": False, "make": False}
+        assert "Bash(pytest *)" in _build_allowed_tools(stack, "gh")
 
 
 class TestSubstitution:

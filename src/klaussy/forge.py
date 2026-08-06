@@ -79,6 +79,23 @@ def detect_forge(repo: Path) -> str:
     return FORGE_UNKNOWN
 
 
+_CLIS = {FORGE_GITHUB: "gh", FORGE_GITLAB: "glab"}
+
+
+def forge_cli(forge: str) -> str | None:
+    """Return the CLI a forge is driven with, or None where none exists.
+
+    Bitbucket has no first-party CLI, and allow-listing a command nobody has
+    is noise, so it gets None rather than a guess.
+    """
+    return _CLIS.get(forge)
+
+
+def detect_forge_cli(repo: Path) -> str | None:
+    """Return the CLI for the repo's detected host."""
+    return forge_cli(detect_forge(repo))
+
+
 def forge_block(forge: str) -> str:
     """Return the {{FORGE}} adapter block for a forge name."""
     name = forge if forge in FORGES else FORGE_UNKNOWN
