@@ -14,10 +14,10 @@ from klaussy.checklist import generate_checklist
 from klaussy.claude_md import run_init
 from klaussy.comment_lint import analyze as analyze_comments
 from klaussy.comment_lint import changed_lines
-from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
 from klaussy.import_lint import scan_paths as scan_imports
+from klaussy.pr_template import scaffold_pr_template
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
 
@@ -132,7 +132,7 @@ def init(
                 review_template=review_template,
             )
         )
-    steps.append(("PR template", lambda: scaffold_github(repo=repo, force=force)))
+    steps.append(("PR template", lambda: scaffold_pr_template(repo=repo, force=force)))
     steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
 
     for name, step in steps:
@@ -237,13 +237,32 @@ def hooks(
             console.print(f"[yellow]⚠ Skipped {key} hooks[/yellow]")
 
 
-@app.command()
+@app.command("pr-template")
+def pr_template(
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+    forge: str | None = typer.Option(
+        None,
+        "--forge",
+        help="Host to target (github/gitlab/bitbucket). Detected from origin if omitted.",
+    ),
+) -> None:
+    """Generate the pull/merge request template where this repo's host reads it."""
+    try:
+        scaffold_pr_template(repo=repo, force=force, forge=forge)
+    except ValueError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@app.command(hidden=True)
 def github(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
 ) -> None:
-    """Generate PR template for the repository."""
-    scaffold_github(repo=repo, force=force)
+    """Deprecated: use `klaussy pr-template`."""
+    console.print("[yellow]⚠ `klaussy github` is now `klaussy pr-template`.[/yellow]")
+    scaffold_pr_template(repo=repo, force=force)
 
 
 @app.command()

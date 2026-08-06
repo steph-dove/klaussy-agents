@@ -21,9 +21,9 @@ from pathlib import Path
 from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klaussy.checklist import generate_checklist
 from klaussy.claude_md import run_init
-from klaussy.github import scaffold_github
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as _humanize_text
+from klaussy.pr_template import scaffold_pr_template
 from klaussy.session import scaffold_session
 from klaussy.skills import SKILL_NAMES
 
@@ -35,6 +35,7 @@ __all__ = [
     "skills",
     "settings",
     "hooks",
+    "pr_template",
     "github",
     "checklist",
     "session",
@@ -136,7 +137,7 @@ def init(
         steps.extend(
             BACKENDS[key].steps(repo, force=force, base_branch=branch, review_template=template)
         )
-    steps.append(("PR template", lambda: scaffold_github(repo=repo, force=force)))
+    steps.append(("PR template", lambda: scaffold_pr_template(repo=repo, force=force)))
     steps.append(("shared session", lambda: scaffold_session(repo=repo, force=force)))
     steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
     return _run_steps(repo, selected, steps)
@@ -189,9 +190,16 @@ def hooks(repo: PathLike = ".", *, agents: Agents = None, force: bool = False) -
     return _run_steps(repo, selected, steps)
 
 
+def pr_template(
+    repo: PathLike = ".", *, force: bool = False, forge: str | None = None
+) -> Path | None:
+    """Write the host's request template; returns its path, or None if none was written."""
+    return scaffold_pr_template(repo=Path(repo).resolve(), force=force, forge=forge)
+
+
 def github(repo: PathLike = ".", *, force: bool = False) -> Path | None:
-    """Generate the PR template; returns its path, or None if one already exists."""
-    return scaffold_github(repo=Path(repo).resolve(), force=force)
+    """Deprecated alias for `pr_template`."""
+    return pr_template(repo, force=force)
 
 
 def session(repo: PathLike = ".", *, force: bool = False) -> Path:

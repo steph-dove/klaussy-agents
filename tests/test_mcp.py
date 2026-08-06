@@ -18,6 +18,9 @@ def test_one_tool_per_cli_command_plus_status():
         "klaussy_skills",
         "klaussy_settings",
         "klaussy_hooks",
+        "klaussy_pr_template",
+        # Deprecated alias for klaussy_pr_template, kept so pinned MCP configs
+        # keep working. Drop it (and this entry) in the next major version.
         "klaussy_github",
         "klaussy_humanize",
         "klaussy_status",

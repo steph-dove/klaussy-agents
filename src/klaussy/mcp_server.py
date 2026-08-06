@@ -142,16 +142,27 @@ def klaussy_hooks(repo: str = ".", force: bool = False, agents: str = "all") -> 
 
 
 @mcp.tool()
-def klaussy_github(repo: str = ".", force: bool = False) -> str:
-    """Generate a PR template for the repository.
+def klaussy_pr_template(repo: str = ".", force: bool = False, forge: str = "") -> str:
+    """Generate the pull/merge request template where this repo's host reads it.
 
-    Created only if the repo doesn't already have one (checks the root,
-    `.github/`, and `docs/`) unless `force` is set.
+    The host comes from `origin` unless `forge` names one (github/gitlab/
+    bitbucket). GitHub gets `.github/PULL_REQUEST_TEMPLATE.md`, GitLab gets
+    `.gitlab/merge_request_templates/`, and Bitbucket is skipped since it has
+    no tracked-file equivalent. Written only if the repo doesn't already have
+    one unless `force` is set.
     """
-    args = ["github", "--repo", repo]
+    args = ["pr-template", "--repo", repo]
     if force:
         args.append("--force")
+    if forge:
+        args.extend(["--forge", forge])
     return _run_klaussy(*args, cwd=repo)
+
+
+@mcp.tool()
+def klaussy_github(repo: str = ".", force: bool = False) -> str:
+    """Deprecated alias for `klaussy_pr_template`."""
+    return klaussy_pr_template(repo=repo, force=force)
 
 
 @mcp.tool()
