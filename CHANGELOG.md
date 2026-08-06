@@ -5,6 +5,72 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.22.0] - 2026-08-05
+
+### Added
+
+- **Skills adapt to your hosting provider.** Skills that touch a ticket, a
+  pull/merge request, or CI hardcoded `gh`, which quietly made them
+  GitHub-only. The provider is now detected once from `origin` and one tailored
+  command block is substituted into `restack`, `address-review`, and
+  `rest-of-the-owl`, the same mechanism as the shared humanize block. A GitLab
+  repo's skills ship `glab mr` commands and discussion semantics rather than
+  `gh pr` and review threads. Detection matches the *host*, so a repo named
+  `github-actions-demo` hosted elsewhere isn't misread, and enterprise hosts
+  like `github.acme.com` are picked up. A provider klaussy can't identify gets
+  a block that tells the agent to ask rather than invent an endpoint.
+- **The host's CLI is allow-listed.** Generated permissions include `Bash(gh *)`
+  or `Bash(glab *)` for the detected host, in both the Claude settings and the
+  prefix-based agents, and `grant-permissions` learned to look the CLI up from
+  `origin` — no marker file announces it the way `pyproject.toml` announces
+  pytest. Bitbucket gets nothing: it's driven with `curl`, which reaches far
+  past the forge, so that prompt is worth keeping.
+- **`klaussy pr-template` writes the template where the host reads it.** Every
+  init wrote `.github/PULL_REQUEST_TEMPLATE.md` regardless of provider, inert
+  on two of three. GitLab now gets `.gitlab/merge_request_templates/`, and
+  Bitbucket is skipped with a reason, since its default description is a repo
+  setting rather than a tracked file. An undetected host keeps the GitHub
+  layout and says so, with `--forge` to override.
+
+### Changed
+
+- **`klaussy github` is now `klaussy pr-template`** across the CLI, the MCP
+  tool (`klaussy_pr_template`), and the toolkit (`toolkit.pr_template()`). The
+  old names still work as deprecated aliases and will be removed in the next
+  major version.
+
+### Fixed
+
+- The Bitbucket command block was a caveat rather than commands, because
+  Atlassian's REST reference doesn't render for retrieval. Reading the
+  published OpenAPI spec directly established that threads are real (a reply is
+  a comment carrying `parent.id`), that resolution has its own endpoint, and
+  that retargeting is documented — along with the constraint nobody mentions,
+  that only open requests can be mutated.
+- GitLab thread resolution is documented per-discussion *and* per-note; the
+  block previously claimed the latter didn't exist. Boolean fields need `-F`,
+  since `-f` sends the literal string.
+
+### Added (opencode)
+
+- A local **Ollama provider** in the generated `opencode.json`, so a scaffolded
+  repo can point opencode at a model on the machine. Declaring it costs nothing
+  when Ollama isn't installed.
+
+### Internal
+
+- Evals for the restack skill, run against a live model, pinning what decides
+  whether history survives a restack: `--onto` off the parent's recorded old
+  tip, bottom-up order, leased force-pushes, and never the base branch. The
+  eval harness was substituting every token except `{{FORGE}}`, so it had been
+  judging a spec no scaffolded repo is ever served.
+
+### Documentation
+
+- README: how to invoke the skills after `klaussy init` — the
+  `/<your repo name>-<skill>` form, the naming rule for repo names with
+  capitals or spaces, and which skills never auto-trigger.
+
 ## [0.21.0] - 2026-08-05
 
 ### Added
