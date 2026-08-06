@@ -122,15 +122,26 @@ def _language(path: str) -> str:
     return "other"
 
 
+_ABSENT_AT_REF = ("does not exist in", "exists on disk, but not in")
+
+
 def _file_at(repo: Path, ref: str, path: str) -> str | None:
-    """File content at `ref`, or None when it isn't there (deleted, or unborn ref)."""
+    """File content at `ref`, or None when the path isn't there (e.g. deleted).
+
+    Any other git failure raises: swallowing one would report zero comments and
+    silently inflate the code-lines figure the split decision rests on.
+    """
     out = subprocess.run(
         ["git", "show", f"{ref}:{path}"],
         cwd=str(repo),
         capture_output=True,
         text=True,
     )
-    return out.stdout if out.returncode == 0 else None
+    if out.returncode == 0:
+        return out.stdout
+    if any(marker in out.stderr for marker in _ABSENT_AT_REF):
+        return None
+    raise RuntimeError(f"git show {ref}:{path} failed: {out.stderr.strip()}")
 
 
 # --- comment measurement ----------------------------------------------------
@@ -148,7 +159,8 @@ def _added_line_numbers(body: str) -> set[int]:
         if (m := _HUNK.match(line)) is not None:
             line_no = int(m.group(1))
             continue
-        if line_no == 0 or line.startswith(("+++", "---")):
+        # Headers precede the first hunk; prefix-matching them would eat an added `++i;`.
+        if line_no == 0:
             continue
         if line.startswith("+"):
             out.add(line_no)

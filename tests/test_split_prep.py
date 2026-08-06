@@ -11,6 +11,7 @@ from klaussy.split_prep import FileNode as FN
 from klaussy.split_prep import (
     _added_line_numbers,
     _docstring_lines,
+    _file_at,
     _python_imports,
     _resolve_jsts,
     _resolve_python,
@@ -64,6 +65,14 @@ class TestAddedLineNumbers:
 
     def test_no_newline_marker_is_ignored(self):
         body = "@@ -1,1 +1,1 @@\n+a\n\\ No newline at end of file\n"
+        assert _added_line_numbers(body) == {1}
+
+    def test_an_added_increment_line_is_not_mistaken_for_a_header(self):
+        body = "@@ -1,0 +1,3 @@\n+++i;\n+b\n+c\n"
+        assert _added_line_numbers(body) == {1, 2, 3}
+
+    def test_headers_before_the_first_hunk_are_still_skipped(self):
+        body = "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,0 +1,1 @@\n+only\n"
         assert _added_line_numbers(body) == {1}
 
 
@@ -138,6 +147,27 @@ class TestUnparseablePython:
         assert "app/broken.py" in payload.ungraphed
         assert all("app/broken.py" not in lyr.paths for lyr in payload.layers)
         assert any("app/ok.py" in lyr.paths for lyr in payload.layers)
+
+
+class TestFileAt:
+    def test_absent_path_is_none_not_an_error(self, tmp_path: Path):
+        repo = tmp_path / "r"
+        repo.mkdir()
+        _git(repo, "init")
+        _git(repo, "config", "user.email", "t@t.t")
+        _git(repo, "config", "user.name", "t")
+        _write(repo, "a.py", "x = 1\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "c")
+        assert _file_at(repo, "HEAD", "never-existed.py") is None
+        assert _file_at(repo, "HEAD", "a.py") == "x = 1\n"
+
+    def test_a_real_git_failure_raises_rather_than_zeroing_the_count(self, tmp_path: Path):
+        repo = tmp_path / "r2"
+        repo.mkdir()
+        _git(repo, "init")
+        with pytest.raises(RuntimeError, match="git show"):
+            _file_at(repo, "no-such-ref", "a.py")
 
 
 class TestJstsResolution:
