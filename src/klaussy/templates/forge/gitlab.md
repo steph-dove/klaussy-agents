@@ -10,7 +10,13 @@
 | CI status | `glab ci status`, then `glab ci trace <job>` on a failing job |
 | Read review comments | `glab api projects/:id/merge_requests/<iid>/discussions` |
 | Reply in a thread | `glab api --method POST projects/:id/merge_requests/<iid>/discussions/<discussion-id>/notes -f body=<text>` |
-| Resolve a thread | `glab api --method PUT projects/:id/merge_requests/<iid>/discussions/<discussion-id> -f resolved=true` |
+| Resolve a thread | `glab api --method PUT projects/:id/merge_requests/<iid>/discussions/<discussion-id> -F resolved=true` |
 | Retarget a request | `glab mr update <n> --target-branch <branch>` |
 
-Two things bite when porting a GitHub habit. API paths take the project-scoped `iid` from the MR's URL, not the global id shown in some responses. And a discussion resolves as a whole, there is no per-note resolve. If `:id` doesn't expand in the installed `glab`, pass the URL-encoded `namespace/project` instead.
+Three things bite when porting a GitHub habit:
+
+- **API paths take the project-scoped `iid`** from the MR's URL, not the global id that appears in some responses. If `:id` doesn't expand in the installed `glab`, pass the URL-encoded `namespace/project` instead.
+- **`-f` and `-F` are easy to swap.** `-f/--raw-field` sends a literal string, `-F/--field` infers the type. Booleans like `resolved=true` need `-F`, or GitLab receives the string `"true"`.
+- **Resolving is per-discussion by default.** `PUT .../discussions/<id>` with `resolved` closes the whole thread; a single note is resolved through `PUT .../discussions/<id>/notes/<note-id>` instead. Pick deliberately, they aren't interchangeable.
+
+`glab mr create` has no `--body-file`. `--description` takes the text directly (a lone `-` opens an editor), so a body written to a file has to be passed as text.

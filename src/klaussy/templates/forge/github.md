@@ -9,8 +9,10 @@
 | Request status | `gh pr view <n> --json state,mergeable,reviewDecision,baseRefName` |
 | CI status | `gh pr checks <n>`, then `gh run view <run-id> --log-failed` on a failure |
 | Read review comments | `gh api repos/{owner}/{repo}/pulls/<n>/comments` |
-| Reply in a thread | `gh api repos/{owner}/{repo}/pulls/<n>/comments -f body=<text> -F in_reply_to=<comment-id>` |
+| Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
 | Resolve a thread | `gh api graphql` with the `resolveReviewThread` mutation and the thread's node id |
 | Retarget a request | `gh pr edit <n> --base <branch>` |
 
-`{owner}/{repo}` are placeholders `gh` fills from the current repo, leave them literal. A reply belongs in the thread it answers, so `in_reply_to` is required; a comment posted without it lands as a new top-level review comment.
+`{owner}/{repo}` are placeholders `gh` fills from the current repo, leave them literal.
+
+A reply must name the thread it answers. The `replies` endpoint above takes only `body`; the alternative is `POST .../pulls/<n>/comments` with `-F in_reply_to=<comment-id>` (an integer, hence `-F`). Posting to `comments` without `in_reply_to` opens a new top-level review comment rather than replying.

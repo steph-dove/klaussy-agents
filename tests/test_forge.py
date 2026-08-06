@@ -75,6 +75,14 @@ class TestBlock:
         assert "discussions rather than pull requests" in forge_block(FORGE_GITLAB)
         assert "no first-party CLI" in forge_block(FORGE_BITBUCKET)
 
+    def test_details_checked_against_primary_docs(self):
+        """Pin the details that were wrong in the first draft, so they can't drift back."""
+        assert "/replies" in forge_block(FORGE_GITHUB)
+        assert "-F resolved=true" in forge_block(FORGE_GITLAB)
+        assert "notes/<note-id>" in forge_block(FORGE_GITLAB)
+        assert "acli jira workitem view" in forge_block(FORGE_BITBUCKET)
+        assert "silently ignoring" in forge_block(FORGE_BITBUCKET)
+
     def test_github_placeholders_survive_as_single_braces(self):
         # gh fills repos/{owner}/{repo} itself; doubling them would break the call.
         assert "repos/{owner}/{repo}/pulls" in forge_block(FORGE_GITHUB)
