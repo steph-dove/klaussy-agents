@@ -36,14 +36,16 @@ Follow **`{{REPO}}-review`** against the working diff (`git diff {{BASE_BRANCH}}
 
 ## Phase 4 — QA the change
 
-Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to a `Downloads/<repo>-<branch>` folder where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: a screen recording plus screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to a `Downloads/<repo>-<branch>` folder where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+
+**Capture a recording whenever the change can be recorded.** This run is autonomous, so the recording is often the only chance a human gets to watch the change work before they merge it. Anything with an interaction or a multi-step flow gets video — via the repo's Playwright/Cypress setup, your agent surface's browser control, the browser or OS recorder, whatever is available (the QA skill's *Capturing a recording* section ranks the options). Screenshots are the fallback when recording genuinely isn't possible, and that gap gets stated in the PR rather than glossed over.
 
 **QA is a gate, not a formality — clear it before you touch the PR.** The whole point of running QA here is to catch problems *before* they become CI failures or reviewer comments. If QA surfaces anything wrong — a screenshot that shows the change is broken or ugly, an endpoint returning the wrong response, a CLI erroring, a failing test — stop and fix it: loop back to Phase 2/3, correct the change, and re-QA. Do NOT open the PR (Phase 5) on a change that QA has shown to be broken and then rely on CI or the reviewer to catch it. Only advance once QA is genuinely clean (or the only gaps are ones you've explicitly flagged as un-QA-able and told the user about).
 
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `{{BASE_BRANCH}}`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (no CLI in the adapter below uploads images, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
+2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the recording and screenshots by filename (no CLI in the adapter below uploads images or video, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag the files into the PR, unless the repo has a media-hosting convention); for backend/CLI, paste the captured output. Say which file shows what, so the drag-and-drop is a mechanical step rather than a guessing game.
 3. Run the body through **`{{REPO}}-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
 4. Open the request against `{{BASE_BRANCH}}` with the adapter's create command. Capture its number/URL and report it.
 
@@ -69,7 +71,7 @@ For the feedback that arrives, follow **`{{REPO}}-address-review`**: triage each
 
 ## Phase 9 — Land the owl (but don't merge)
 
-When CI is green and all review threads are resolved, stop. Report: the PR link, its check status, which review comments you addressed and how, and the one thing left — the user's merge. Mark all TodoWrite tasks complete.
+When CI is green and all review threads are resolved, stop. Report: the PR link, its check status, which review comments you addressed and how, the path to the QA artifacts folder and which recordings still need dragging into the PR, and the one thing left — the user's merge. Mark all TodoWrite tasks complete.
 
 State plainly if you stopped early and why (waiting on review, blocked on a decision, a failure you wouldn't paper over).
 
