@@ -5,6 +5,45 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **New `split-pr` skill: turn an oversized change into a stack of dependent
+  PRs.** It works from committed history or an uncommitted tree, backs the
+  original up to a `<branch>-prestack` branch before touching anything, carves
+  layers bottom-up, and opens one request per layer targeting the layer below.
+  Two invariants are non-negotiable: the top of the stack must reproduce the
+  carve source exactly (`git diff` printing nothing), and every layer must build
+  and pass on its own — a layer that can't stand up means the seam wasn't real,
+  and the fix is to merge it into its neighbour rather than loosen a test.
+  Explicit-only, like `restack`; it creates a stack, `restack` repairs one.
+- **`klaussy split-prep` proposes the layers from the import graph** instead of
+  guessing from paths. Python is parsed with `ast` and JS/TS through its
+  import/require statements, edges are kept only where both ends are in the same
+  change, and the layers come off a topological sort — so a file in layer 1
+  provably imports nothing above it. Files that import each other are reported as
+  one unsplittable group; languages it can't parse are listed as ungraphed rather
+  than placed on a guess, since a wrong edge proposes an order that can't build.
+  Static imports only: runtime wiring (DI containers, registries, routing tables,
+  filename-ordered migrations) produces no edge, and the output says so.
+- **The split decision is made on code lines, not raw diff lines.** Comment bloat
+  is the most common reason a change looks like it needs splitting when it
+  doesn't, so `split-pr` tightens the comments the change added — following the
+  same `comment-cleanup.md` rules the precommit guard uses, committed on its own
+  — and only then measures and decides. "1,240 lines, 830 after stripping 410
+  lines of comment, one PR is fine" is a supported answer.
+
+### Changed
+
+- `comment_lint.comment_records()` is now a public function. The extractor
+  dispatch was buried inside `analyze()`, so a caller wanting the comments rather
+  than findings about them would have had to reimplement it; `split_prep` uses it
+  to size a diff, which keeps one definition of what counts as a comment.
+- Eval `run_skill()` takes a `timeout`. A long multi-phase spec asked to
+  enumerate a command plan can outrun the 240s default, and that's a harness
+  limit rather than a failing spec.
+
 ## [0.23.0] - 2026-08-05
 
 ### Changed

@@ -45,6 +45,7 @@ SKILL_NAMES = [
     "address-review",
     "new-worktree",
     "restack",
+    "split-pr",
     "adr-generator",
     "security-audit",
     "slop-coded",

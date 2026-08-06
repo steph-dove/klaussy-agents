@@ -20,6 +20,9 @@ from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.pr_template import scaffold_pr_template
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
+from klaussy.split_prep import prepare_split
+from klaussy.split_prep import render_dict as render_split_dict
+from klaussy.split_prep import render_markdown as render_split_markdown
 
 app = typer.Typer(name="klaussy", help="Multi-agent repo boilerplate generator.")
 console = Console()
@@ -416,6 +419,33 @@ def review_prep(
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
         sys.stdout.write(render_markdown(payload))
+
+
+@app.command(name="split-prep")
+def split_prep(
+    base: str | None = typer.Option(
+        None, "--base", "-b", help="Base branch/ref. Auto-detected (dev/main/master) if omitted."
+    ),
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+    ref: str = typer.Option("HEAD", "--ref", help="Tip of the work to analyse."),
+    as_json: bool = typer.Option(
+        False, "--json", help="Emit structured JSON instead of the markdown proposal."
+    ),
+) -> None:
+    """Propose stack layers for a large change, from its import graph.
+
+    Sizes the diff in code lines rather than raw lines, then reads bottom-first
+    layers off a topological sort of the imports that stay inside the change.
+    Files in an import cycle share a layer; ungraphable languages are listed
+    rather than guessed at.
+    """
+    payload = prepare_split(repo=repo, base_branch=base, ref=ref)
+    if as_json:
+        import json
+
+        sys.stdout.write(json.dumps(render_split_dict(payload), indent=2) + "\n")
+    else:
+        sys.stdout.write(render_split_markdown(payload))
 
 
 def main() -> None:

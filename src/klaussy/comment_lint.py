@@ -316,6 +316,19 @@ def _overlaps(finding: Finding, scope: set[int]) -> bool:
     return any(ln in scope for ln in range(finding.start, finding.end + 1))
 
 
+def comment_records(path: str, text: str) -> list[_Record]:
+    """Comment records for one file, picked by extension. Empty when unsupported."""
+    ext = Path(path).suffix.lower()
+    if ext in _PY_EXT:
+        records = _python_comments(text)
+        return _hash_line_comments(text) if records is None else records
+    if ext in _HASH_EXT:
+        return _hash_line_comments(text)
+    if ext in _SLASH_EXT:
+        return _slash_comments(text)
+    return []
+
+
 def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding]:
     """Return verbose-comment findings for one file's text. Empty when clean.
 
@@ -324,16 +337,8 @@ def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding
     pre-existing comments elsewhere in the file don't block a commit. `None`
     (the default) reports across the whole file.
     """
-    ext = Path(path).suffix.lower()
-    if ext in _PY_EXT:
-        records = _python_comments(text)
-        if records is None:
-            records = _hash_line_comments(text)
-    elif ext in _HASH_EXT:
-        records = _hash_line_comments(text)
-    elif ext in _SLASH_EXT:
-        records = _slash_comments(text)
-    else:
+    records = comment_records(path, text)
+    if not records:
         return []
     findings = _findings(path, text, records)
     if scope is not None:
