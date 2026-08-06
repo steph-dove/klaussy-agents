@@ -5,6 +5,8 @@ from pathlib import Path
 
 from rich.console import Console
 
+from klaussy.forge import detect_forge_cli
+
 console = Console()
 
 
@@ -19,8 +21,8 @@ def _detect_stack(repo: Path) -> dict[str, bool]:
     }
 
 
-def _build_allowed_tools(stack: dict[str, bool]) -> list[str]:
-    """Build allowedTools list based on detected stack."""
+def _build_allowed_tools(stack: dict[str, bool], forge_cli: str | None = None) -> list[str]:
+    """Build allowedTools list based on detected stack and hosting provider."""
     tools: list[str] = [
         "Read",
         "Edit",
@@ -29,6 +31,11 @@ def _build_allowed_tools(stack: dict[str, bool]) -> list[str]:
         "Grep",
         "Bash(git *)",
     ]
+
+    # The review, address-review, and restack skills all shell out to the host's
+    # CLI. Without this the agent prompts on every one of those calls.
+    if forge_cli:
+        tools.append(f"Bash({forge_cli} *)")
 
     if stack["python"]:
         tools.extend(
@@ -104,11 +111,14 @@ def generate_settings(*, repo: Path, force: bool = False) -> Path:
         raise SystemExit(1)
 
     stack = _detect_stack(repo)
-    allowed_tools = _build_allowed_tools(stack)
+    cli = detect_forge_cli(repo)
+    allowed_tools = _build_allowed_tools(stack, cli)
     deny_rules = _detect_sensitive_paths(repo)
 
     detected = [name for name, found in stack.items() if found]
     console.print(f"[dim]Detected stack: {', '.join(detected) or 'none'}[/dim]")
+    if cli:
+        console.print(f"[dim]Detected forge CLI: {cli}[/dim]")
     if deny_rules:
         console.print(f"[dim]Denied sensitive paths: {len(deny_rules) // 2} patterns[/dim]")
 

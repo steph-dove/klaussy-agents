@@ -33,6 +33,7 @@ from importlib import resources
 
 import pytest
 
+from klaussy.forge import FORGE_GITHUB, forge_block
 from klaussy.skills import HUMANIZE_BLOCK
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
@@ -48,12 +49,21 @@ _FRONTMATTER = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
 _DYNAMIC_SHELL = re.compile(r"```!\n.*?\n```", re.DOTALL)
 
 
-def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "main") -> str:
+def load_skill_body(
+    skill: str,
+    *,
+    repo: str = "myrepo",
+    base_branch: str = "main",
+    forge: str = FORGE_GITHUB,
+) -> str:
     """Return the substituted SKILL.md body for `skill`.
 
     Frontmatter and ```! dynamic-shell blocks are stripped: the eval supplies the
     context those blocks would gather (the diff, git log) directly in the user
     message, so the model isn't told to run commands it can't.
+
+    Every token the scaffolders substitute has to be substituted here too, or a
+    literal `{{FORGE}}` reaches the model as text.
     """
     text = resources.files("klaussy").joinpath(f"templates/skills/{skill}/SKILL.md").read_text()
     text = (
@@ -61,6 +71,7 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
         .replace("{{BASE_BRANCH}}", base_branch)
         .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
         .replace("{{REPO_SPECIFIC_CHECKS}}", "")
+        .replace("{{FORGE}}", forge_block(forge))
     )
     text = _FRONTMATTER.sub("", text, count=1)
     text = _DYNAMIC_SHELL.sub("", text)
