@@ -5,6 +5,34 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.21.0] - 2026-08-05
+
+### Added
+
+- **`<repo>-restack` skill** — rebases a stack of dependent branches after the
+  base moved, the bottom branch landed, or a mid-stack branch was amended. The
+  parent/child chain comes from git ancestry (`merge-base --is-ancestor`, with
+  the nearest ancestor winning) rather than from PR metadata, so it works the
+  same on GitHub, GitLab, Bitbucket, or no forge at all, and the confirmed
+  mapping is stored as `branch.<child>.klaussyParent` so later runs don't
+  re-derive it. Each branch is rebased `--onto` its new parent off the parent's
+  recorded old tip, which is what keeps a child from replaying its parent's
+  commits a second time, and the result is verified with `range-diff`. A parent
+  that landed by squash or rebase merge is detected by comparing trees
+  (`merge-tree --write-tree`), since those rewrite SHAs and slip past ancestry.
+  Force-pushes are leased and bottom-up, never on the base branch. Retargeting
+  the PR/MR base is the only forge-dependent step, runs last, and prints the
+  remaining manual steps rather than failing when no CLI is available.
+
+### Fixed
+
+- Cap `mcp` below 2.0 so the test suite runs against the supported FastMCP API.
+
+### Documentation
+
+- README: `<repo>-restack` in the skills table; the downloads badge reports
+  total installs rather than the last month.
+
 ## [0.20.0] - 2026-07-26
 
 ### Added
