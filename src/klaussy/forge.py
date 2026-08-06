@@ -85,8 +85,8 @@ _CLIS = {FORGE_GITHUB: "gh", FORGE_GITLAB: "glab"}
 def forge_cli(forge: str) -> str | None:
     """Return the CLI a forge is driven with, or None where none exists.
 
-    Bitbucket has no first-party CLI, and allow-listing a command nobody has
-    is noise, so it gets None rather than a guess.
+    Bitbucket is driven through REST, and `Bash(curl *)` would grant reach far
+    past the forge, so it stays None: that prompt is worth keeping.
     """
     return _CLIS.get(forge)
 

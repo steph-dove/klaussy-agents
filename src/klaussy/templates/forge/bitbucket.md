@@ -1,11 +1,23 @@
 ### Forge commands (Bitbucket / Atlassian)
 
-`origin` points at Bitbucket, which has no first-party CLI, so there is no command to copy. Use the REST API only if the user already has credentials configured (an app password, `BITBUCKET_TOKEN`, or a `~/.netrc` entry). Otherwise ask them to paste the ticket or request content, and hand back the steps to apply on their side.
+`origin` points at Bitbucket, which has no first-party CLI — Atlassian's `acli` covers Jira only. The REST API is the adapter, so these are `curl` calls, and they need credentials: an app password (`curl -u <user>:<app-password>`), a `BITBUCKET_TOKEN` bearer, or a `~/.netrc` entry. If none is configured, ask the user rather than hunting for one.
 
-- **Bitbucket Cloud**: `https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pullrequests/<id>`; comments live under `/comments`.
-- **Bitbucket Data Center** (self-hosted, formerly Stash): `<host>/rest/api/1.0/projects/<key>/repos/<slug>/pull-requests/<id>`. The payload shapes differ from Cloud, so establish which one this host is before composing a call.
-- **Jira tickets**: `acli jira workitem view` (the Atlassian CLI covers Jira only, it has no Bitbucket pull-request commands). Confirm the flags with `acli jira workitem view --help`. Without it, ask for the ticket text.
+Everything below is Bitbucket **Cloud**, base `https://api.bitbucket.org/2.0`, with `<ws>` the workspace and `<repo>` the slug.
 
-**Retargeting is the one to be careful with.** A `PUT` to the pull request is the documented way to change its destination branch, but Atlassian's reference doesn't spell out which fields are updatable, and the update is known to return `200` while silently ignoring parts of the body. Never report a retarget as done on the strength of a status code: re-read the pull request and confirm the destination actually changed, or hand the user the one-click path (the destination branch name in the PR header is editable in the UI).
+| Need | Call |
+| :--- | :--- |
+| Read a ticket | `acli jira workitem view` (Jira only, confirm flags with `--help`) |
+| Open a request | `POST /repositories/<ws>/<repo>/pullrequests` with `title` and `source.branch.name` |
+| Request status | `GET /repositories/<ws>/<repo>/pullrequests/<id>` — `state` is `OPEN`/`MERGED`/`DECLINED` |
+| CI status | `GET /repositories/<ws>/<repo>/pipelines?sort=-created_on`, then `/pipelines/<uuid>/steps` for a failing run |
+| Read review comments | `GET /repositories/<ws>/<repo>/pullrequests/<id>/comments` |
+| Reply in a thread | `POST …/comments` with `{"content": {"raw": "<text>"}, "parent": {"id": <comment-id>}}` |
+| Resolve a thread | `POST …/comments/<comment-id>/resolve` (`DELETE` the same path reopens it) |
+| Retarget a request | `PUT …/pullrequests/<id>` with `{"destination": {"branch": {"name": "<branch>"}}}` |
 
-Never guess an endpoint, a payload shape, or an auth scheme here. A wrong `POST` writes a comment on the wrong request and can't be taken back; asking costs a turn.
+Four things worth knowing before you use these:
+
+- **Threading is `parent`, not a separate endpoint.** A reply is an ordinary comment carrying `parent.id`; omit it and the comment lands at top level. Inline comments carry an `inline` object with `path` and line numbers.
+- **Only open pull requests can be mutated.** The retarget `PUT` is documented for changing a request's branches, but a merged or declined request rejects it.
+- **A `200` on that `PUT` is not proof.** Bitbucket accepts the whole pull-request object as the body and quietly ignores fields it won't change, so send only what you're changing and then re-read the request to confirm `destination.branch.name` actually moved.
+- **Bitbucket Data Center is a different API.** Self-hosted (formerly Stash) serves `<host>/rest/api/1.0/projects/<key>/repos/<slug>/pull-requests/<id>` with different payload shapes, and none of the above is verified against it. Establish which one this host is first, and check that instance's own API docs before composing a call.
