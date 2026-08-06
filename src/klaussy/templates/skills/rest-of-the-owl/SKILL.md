@@ -43,9 +43,11 @@ Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits:
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `{{BASE_BRANCH}}`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (note that `gh pr create` can't upload images, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
+2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (no CLI in the adapter below uploads images, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
 3. Run the body through **`{{REPO}}-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
-4. Open the PR with `gh pr create` (base `{{BASE_BRANCH}}`). Capture the PR number/URL and report it.
+4. Open the request against `{{BASE_BRANCH}}` with the adapter's create command. Capture its number/URL and report it.
+
+{{FORGE}}
 
 ## Phase 6 — Re-review the PR and fix
 
@@ -53,22 +55,13 @@ Now that the diff is a real PR, review it once more with **`{{REPO}}-review`** (
 
 ## Phase 7 — Poll CI and fix failures
 
-Watch the checks until they reach a terminal state:
+Watch the checks until they reach a terminal state, using the adapter's CI status command (poll on a sane cadence if it has no watch mode).
 
-```
-gh pr checks <number> --watch
-```
-
-For each failing check, pull its logs (`gh run view <run-id> --log-failed`), diagnose the *real* cause, fix it, commit, push, and re-watch. A flaky check gets one re-run before you treat it as a genuine failure — don't loop forever re-running a green-on-retry check, and don't paper over a real failure by disabling the test. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
+For each failing check, pull its logs with the adapter's log command, diagnose the *real* cause, fix it, commit, push, and re-watch. A flaky check gets one re-run before you treat it as a genuine failure — don't loop forever re-running a green-on-retry check, and don't paper over a real failure by disabling the test. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
 
 ## Phase 8 — Poll for code review and resolve
 
-Once CI is green, wait for review to land (human or bot). Poll on a sane cadence — check, wait, check — rather than hammering the API:
-
-```
-gh pr view <number> --json reviews,reviewDecision,comments
-gh api repos/{owner}/{repo}/pulls/<number>/comments   # inline review threads
-```
+Once CI is green, wait for review to land (human or bot). Poll on a sane cadence — check, wait, check — rather than hammering the API, using the adapter's status and review-comment commands. Inline comments and the summary review body come from different endpoints on every provider, so read both.
 
 For the feedback that arrives, follow **`{{REPO}}-address-review`**: triage each comment, apply the changes it warrants, draft a reply, and resolve the thread once handled. Push fixes, which re-triggers CI — loop back to Phase 7 if anything goes red.
 

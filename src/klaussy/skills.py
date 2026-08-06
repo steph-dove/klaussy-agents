@@ -7,6 +7,7 @@ from pathlib import Path
 from rich.console import Console
 
 from klaussy import __version__
+from klaussy.forge import build_forge_block
 
 console = Console()
 
@@ -256,6 +257,7 @@ def scaffold_skills(
     force: bool = False,
     review_template: Path | None = None,
     base_branch: str = "main",
+    forge: str | None = None,
 ) -> list[Path]:
     """Create .claude/skills/<repo>-<skill>/SKILL.md for each shipped skill."""
     repo = repo.resolve()
@@ -279,6 +281,7 @@ def scaffold_skills(
     claude_permissions_target = permission_target_markdown(
         "Claude Code", _CLAUDE_PERMISSIONS_FILE, _CLAUDE_PERMISSION_SYNTAX
     )
+    forge_adapter = build_forge_block(repo, forge)
 
     def _substitute(text: str) -> str:
         return (
@@ -286,6 +289,7 @@ def scaffold_skills(
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
             .replace("{{PERMISSIONS_TARGET}}", claude_permissions_target)
+            .replace("{{FORGE}}", forge_adapter)
         )
 
     for skill in SKILL_NAMES:

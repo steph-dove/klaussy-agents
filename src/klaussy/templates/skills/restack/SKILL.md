@@ -62,17 +62,13 @@ Conflicts are expected mid-stack and are not a reason to abort the whole run.
 2. **Never force-push `{{BASE_BRANCH}}`.**
 3. If a PR/MR needs its base retargeted (the parent changed or landed), do that *before* the push where the forge allows it, so the request doesn't briefly show its parent's commits as its own.
 
-## Phase 6: Retarget the review requests (forge-specific, optional)
+## Phase 6: Retarget the review requests (optional)
 
-Rebasing is done and pushed by this point. This phase only fixes the "base branch" field on open review requests. Identify the host with `git remote get-url origin`, then use whichever adapter matches. CLI flags drift between versions, so confirm with `<cli> <command> --help` before running a command you haven't verified.
+Rebasing is done and pushed by this point. This phase only fixes the "base branch" field on open pull/merge requests whose parent changed or landed.
 
-| Host | Detect | List | Retarget |
-| :--- | :--- | :--- | :--- |
-| GitHub | `github.com` or GHE host, `gh auth status` | `gh pr list --author @me --state open --json number,headRefName,baseRefName` | `gh pr edit <n> --base <branch>` |
-| GitLab | `gitlab.*` host, `glab auth status` | `glab mr list --author=@me -F json` | `glab mr update <n> --target-branch <branch>` |
-| Bitbucket / Atlassian | `bitbucket.org` or a self-hosted Stash/Bitbucket Server host | no first-party CLI, read the open requests from the web UI or the REST API if the user has a token configured | same, or hand the user the exact steps |
+{{FORGE}}
 
-**When no adapter matches, or the CLI isn't installed or authenticated, that is not a failure.** Finish the git work and print what's left: each branch, its new parent, the review-request URL if you can construct one from the remote, and the one field to change. Never invent a CLI or an API call you can't verify, and never ask the user to install a hosting CLI to complete a rebase.
+**A missing, unauthenticated, or nonexistent CLI is not a failure here.** The git work is already complete. Print what's left: each branch, its new parent, the request URL if you can construct one from the remote, and the one field to change. Never ask the user to install a hosting CLI to finish a rebase.
 
 ## Phase 7: Verify (git only)
 

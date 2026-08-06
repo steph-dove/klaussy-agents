@@ -20,6 +20,7 @@ from importlib import resources
 from pathlib import Path
 
 from klaussy.checklist import build_enrichment_block
+from klaussy.forge import build_forge_block
 from klaussy.skills import HUMANIZE_BLOCK, SKILL_NAMES, sanitize_skill_namespace
 
 
@@ -109,11 +110,12 @@ def build_skill_payloads(
     repo: Path,
     base_branch: str = "main",
     review_template: Path | None = None,
+    forge: str | None = None,
 ) -> list[SkillPayload]:
     """Build canonical payloads for every bundled skill.
 
     Loads each template, substitutes {{REPO}} / {{BASE_BRANCH}} /
-    {{REPO_SPECIFIC_CHECKS}}, and parses out frontmatter. The review enrichment
+    {{REPO_SPECIFIC_CHECKS}} / {{FORGE}}, and parses out frontmatter. The review enrichment
     is computed once here (shared with the Claude `generate_checklist` path via
     `build_enrichment_block`) so every agent's review skill is identically
     enriched. Auxiliary skill files (e.g. review's `sub-agents.md`) are carried
@@ -122,6 +124,7 @@ def build_skill_payloads(
     repo = repo.resolve()
     namespace = sanitize_skill_namespace(repo.name)
     enrichment = build_enrichment_block(repo)
+    forge_adapter = build_forge_block(repo, forge)
     templates = resources.files("klaussy").joinpath("templates/skills")
 
     def substitute(text: str) -> str:
@@ -130,6 +133,7 @@ def build_skill_payloads(
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{REPO}}", namespace)
             .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+            .replace("{{FORGE}}", forge_adapter)
         )
 
     payloads: list[SkillPayload] = []
