@@ -87,9 +87,7 @@ class TestBlock:
         assert "notes/<note-id>" in forge_block(FORGE_GITLAB)
         assert "acli jira workitem view" in forge_block(FORGE_BITBUCKET)
         assert "quietly ignores fields" in forge_block(FORGE_BITBUCKET)
-        # From the published OpenAPI spec and confirmed on a live public repo:
-        # threading is a parent id, resolution is its own endpoint, and the
-        # retarget path is destination.branch.name.
+        # Shapes taken from the published OpenAPI spec, confirmed on a live repo.
         bitbucket = forge_block(FORGE_BITBUCKET)
         assert '"parent": {"id": <comment-id>}' in bitbucket
         assert "/resolve" in bitbucket
