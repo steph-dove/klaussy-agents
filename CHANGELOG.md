@@ -5,6 +5,36 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.23.0] - 2026-08-05
+
+### Changed
+
+- **QA captures screen recordings, not just screenshots.** The `qa` skill
+  treated a screenshot as the evidence for a UI change, but a still frame shows
+  one moment of a flow rather than the flow working. Video is now the expected
+  artifact wherever the change has an interaction or more than one step, with
+  screenshots as the fallback. A new section ranks the capture options and takes
+  the first one already available: the repo's own e2e tooling (Playwright's
+  `video` config, Cypress, Puppeteer's `page.screencast`), then the agent
+  surface's browser control, then the browser's or the OS's recorder, then
+  `asciinema` for terminal sessions. Nothing gets installed just to record.
+  Backend changes visible through a dashboard get recorded too, as do
+  interactive CLI sessions. Artifacts land in the same
+  `Downloads/<repo>-<branch>` folder as before, now with names that say what
+  they show and a warning to move videos out of the test runner's output
+  directory before the next run overwrites them.
+- **`rest-of-the-owl` requires a recording where one is possible.** The run is
+  unattended, so the recording is often the only chance a human gets to watch
+  the change work before merging. The PR body now names each media file and what
+  it shows, since no forge CLI uploads images or video and the user drags them
+  in by hand, and the final report says which artifacts still need attaching.
+
+Two new rules come with this: a recording is the evidence rather than a nice
+extra, and don't record secrets — capture the app window instead of the whole
+desktop, and check the file before pointing anyone at it. The `run` skill is
+deliberately unchanged; it drives the app so the agent can observe, while `qa`
+is what produces artifacts for someone else.
+
 ## [0.22.0] - 2026-08-05
 
 ### Added
