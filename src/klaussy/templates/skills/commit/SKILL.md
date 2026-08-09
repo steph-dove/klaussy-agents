@@ -47,6 +47,7 @@ Rules:
 - Body wraps at 80 characters.
 - Match the style of the recent commits shown above.
 - Focus on "why" in the body, not "what" (the diff already shows "what").
+- **Skip the body when the subject already says it.** A rename, a version bump, a typo fix needs one line. Write a body only when there's a why the subject can't carry, and keep it to a sentence or two.
 - If the branch name has a ticket reference (e.g. FEAT-1234), include it in the body.
 
 {{HUMANIZE}}

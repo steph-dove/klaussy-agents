@@ -36,7 +36,7 @@ Output format:
 
 ## Changes
 
-<!-- Bullet list of key changes, grouped logically -->
+<!-- Key changes, grouped logically. Aim for 3-6 bullets; one line each. -->
 
 ## Test Plan
 
@@ -57,6 +57,7 @@ Rules:
 - Focus on the "why" not just the "what".
 - If the branch name has a ticket reference, include it in the summary.
 - Keep it concise. No filler.
+- **A short PR gets a short description.** One bullet under Changes is a fine answer for a one-file fix; padding it out to fill the template wastes the reviewer's time. Drop the Notes section entirely when there's nothing a reviewer needs flagged, rather than writing "N/A" or inventing something.
 - If there are database changes, call them out explicitly.
 - If there are new dependencies, mention them.
 

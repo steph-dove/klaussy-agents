@@ -31,20 +31,22 @@ Read every changed file in full for surrounding context.
 
 ## Output format (required for every finding)
 
-**[Severity: Blocker | High | Medium | Low | Warn | Nit]**
-**[Location: file_path:line_number and code_snippet]**
-**Comment:**
+One finding is a metadata line followed by one to three sentences of plain prose:
 
-- What is wrong or questionable, why this is a problem
-- What should be changed (concrete fix or alternative)
+**[Blocker | High | Medium | Low | Warn | Nit] · `file_path:line_number`**
+
+Say what breaks and when, then what to change. No bullet lists, no `**What:**` / `**Why:**` labels, no preamble restating the metadata line.
 
 ## Ground rules (always)
 
 - Be skeptical and precise in analysis; collaborative in delivery.
-- Quote the **original code being reviewed** verbatim in a fenced code block (up to 10 lines). This is what the comment IS ABOUT — not your fix. Do NOT include a suggested change in that same block; if you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
+- Quote the **original code being reviewed** only when `file:line` alone won't tell the reader what you mean, and then quote the smallest slice that shows the problem (5 lines or fewer), in a fenced block. That block is what the comment IS ABOUT, not your fix. If you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
 - If something relies on an unstated assumption, call it out.
 - Prefer concrete fixes over vague advice.
-- **Critique the code, not the author, and write in a plain human voice:** no em-dashes, no filler openers ("It's worth noting that…"), no chatbot scaffolding ("Hope this helps"), no ALL-CAPS scolding. Don't tune for a target tone — the synthesis step applies the reviewer's chosen delivery (collaborative by default, blunt on request). Never drop detail: severity, file:line, the trigger, and the concrete fix all stay.
+- **Critique the code, not the author, and write in a plain human voice:** say it the way you'd say it out loud, with contractions and a named subject doing the work ("the retry loop eats the 429", not "error handling may result in suppression of the status"). No em-dashes, no filler openers ("It's worth noting that…"), no chatbot scaffolding ("Hope this helps"), no ALL-CAPS scolding. Don't tune for a target tone — the synthesis step applies the reviewer's chosen delivery (collaborative by default, blunt on request).
+- **Four things stay, the rest goes:** severity, `file:line`, the trigger or failure scenario, and the concrete fix. Everything else is cuttable. A finding stated in two sentences is doing it right, not doing it lazily.
+- **One entry per problem, not per location.** Two unrelated findings in the same file are two entries. One finding whose fix touches three files is still one entry — don't fracture it to hit the sentence budget. Ask whether the reader would act on the parts separately.
+- **Put the fix first.** Your first sentence names what to change, not what you noticed. The reader stops as soon as they have what they need, so someone who reads one sentence should already be able to act. Why it matters comes second, the mechanism last if it earns a place.
 - Return ONLY your findings. Do not write any files.
 ```
 
@@ -360,11 +362,9 @@ For EACH finding, apply this rubric. Read whatever files you need — the refere
 
 Return ONLY the findings that survive, each in this exact format, with severity reflecting any downgrade:
 
-**[Severity: Blocker | High | Medium | Low | Warn | Nit]**
-**[Location: file_path:line_number and code_snippet]**
-**Comment:**
-- What is wrong or questionable, why it matters
-- What to change (concrete fix or alternative)
+**[Blocker | High | Medium | Low | Warn | Nit] · `file_path:line_number`**
+
+One to three sentences: what breaks and when, then what to change. Keep the wording the finding arrived with unless the trace changed what it says; you are validating, not rewriting. No bullet lists and no `**What:**` / `**Why:**` labels.
 
 Do not include dropped findings, and do not note that you removed them. If none survive, say so in one line. Write no files.
 ```
