@@ -13,7 +13,7 @@ Conservative by design — high-confidence, meaning-preserving edits only:
 - drop trailing chatbot scaffolding lines,
 - drop filler/ranking praise leads ("Great catch, ...", "Nice find. ..."),
 - drop empty qualifiers ("actual", "actually"),
-- tighten a few verbose phrasings.
+- swap stiff phrasings for their one-word equivalent ("prior to" -> "before").
 
 Code is never touched: fenced ```blocks``` and `inline code` pass through
 untouched. Non-strings pass through unchanged.
@@ -28,8 +28,8 @@ import re
 # openers ("Personally", "Honestly", ...) that prime a blunt/dismissive read of
 # whatever follows. Both are safe to drop with no loss of meaning.
 _OPENERS = (
-    r"(?:It'?s worth noting that|It'?s important to note that"
-    r"|It'?s worth mentioning that|It'?s important to remember that"
+    r"(?:It(?:'?s| is) worth noting that|It(?:'?s| is) important to note that"
+    r"|It(?:'?s| is) worth mentioning that|It(?:'?s| is) important to remember that"
     r"|I noticed that|I wanted to point out that"
     r"|I want to (?:point out|note|mention|flag) that|Please note that"
     r"|Just to (?:note|mention)|Worth noting,?|Note that"
@@ -105,9 +105,45 @@ _ACTUAL_ADJ_RE = re.compile(
 _FENCE_RE = re.compile(r"(```[\s\S]*?```)")
 _INLINE_RE = re.compile(r"(`[^`\n]*`)")
 
+# Stiff phrasings with one short equivalent that reads the same in every
+# sentence. Anything whose replacement depends on the surrounding clause ("a
+# number of", "in terms of") stays prompt-side, where a model can judge it.
+_PHRASINGS = [
+    (r"\butilize\b", "use"),
+    (r"\butilizes\b", "uses"),
+    (r"\butilizing\b", "using"),
+    (r"\bleverage\b", "use"),
+    (r"\bleverages\b", "uses"),
+    (r"\bleveraging\b", "using"),
+    (r"\bin order to\b", "to"),
+    (r"\bcould potentially\b", "could"),
+    (r"\bmay potentially\b", "may"),
+    (r"\bdue to the fact that\b", "because"),
+    (r"\bin the event that\b", "if"),
+    (r"\bprior to\b", "before"),
+    (r"\bsubsequent to\b", "after"),
+    (r"\bat this point in time\b", "now"),
+    (r"\bwith regard(?:s)? to\b", "about"),
+    (r"\b(?:is|are) able to\b", "can"),
+    (r"\b(?:was|were) able to\b", "could"),
+    (r"\bhas the ability to\b", "can"),
+    (r"\bhave the ability to\b", "can"),
+]
+_PHRASING_RES = [(re.compile(p, re.IGNORECASE), r) for p, r in _PHRASINGS]
+
+
+def _match_case(matched: str, replacement: str) -> str:
+    """Capitalize `replacement` iff `matched` was, so line-initial hits keep their capital."""
+    if matched[:1].isupper():
+        return replacement[:1].upper() + replacement[1:]
+    return replacement
+
 
 def _scrub_prose(s: str) -> str:
-    # Em / en dashes — the single strongest tell.
+    # Em / en dashes — the single strongest tell. A dash between two numbers is a
+    # range ("35–50 min"), so it collapses to a plain hyphen; spacing it out would
+    # read as a subtraction or a dropped clause.
+    s = re.sub(r"(?<=\d)\s*[–—]\s*(?=\d)", "-", s)
     s = re.sub(r"\s*—\s*", ", ", s)
     s = re.sub(r"\s*–\s*", " - ", s)
     # Drop overused AI emojis.
@@ -130,17 +166,9 @@ def _scrub_prose(s: str) -> str:
     s = _ACTUALLY_TRAIL_RE.sub("", s)
     s = _ACTUALLY_MID_RE.sub("", s)
     s = _ACTUAL_ADJ_RE.sub(lambda m: m.group(1) + " ", s)
-    # Safe lexicon replacements: leverage/utilize -> use.
-    s = re.sub(r"\butilize\b", "use", s, flags=re.IGNORECASE)
-    s = re.sub(r"\butilizes\b", "uses", s, flags=re.IGNORECASE)
-    s = re.sub(r"\butilizing\b", "using", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bleverage\b", "use", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bleverages\b", "uses", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bleveraging\b", "using", s, flags=re.IGNORECASE)
-    # A few safe, unambiguous tightenings.
-    s = re.sub(r"\bin order to\b", "to", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bcould potentially\b", "could", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bmay potentially\b", "may", s, flags=re.IGNORECASE)
+    # Safe lexicon and phrasing replacements (leverage -> use, prior to -> before).
+    for pattern, replacement in _PHRASING_RES:
+        s = pattern.sub(lambda m, r=replacement: _match_case(m.group(0), r), s)
     # Tidy whitespace introduced by the removals.
     s = re.sub(r"[ \t]{2,}", " ", s)
     s = re.sub(r"[ \t]+(\n)", r"\1", s)

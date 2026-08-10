@@ -21,25 +21,19 @@ git diff {{BASE_BRANCH}}...HEAD
 **If the target is empty (no arguments):**
 1. The diff above shows everything changed on this branch. If it's empty, fall back to `git diff` (unstaged) and `git diff --cached` (staged).
 2. Read the full files involved to understand the surrounding context — do not paraphrase from the diff alone.
-3. Explain what changed and why, covering:
-   - The purpose of the changes as a whole
-   - How the modified components interact
-   - Any non-obvious behavior or edge cases introduced
+3. Lead with two or three sentences: what the change does and why. Then add only what the diff won't tell them — how the moving parts interact, and any non-obvious behavior or edge case it introduces. If there's nothing non-obvious, stop after the lead. That's a complete answer, not a short one.
 
 **If the target is provided:**
 1. Read CLAUDE.md and any matching `.claude/rules/*.md` for the area the target lives in.
 2. Find the relevant code using Grep and Glob.
 3. Read the full files involved to understand context.
 4. Trace the call chain and data flow end-to-end.
-5. Explain how it works in plain language, covering:
-   - What it does and why it exists
-   - Key components and how they interact
-   - Important design decisions or trade-offs
-   - Any non-obvious behavior or edge cases
+5. Lead with two or three sentences answering the question directly. Then go deeper only where the code doesn't speak for itself: a component interaction that isn't visible from one file, a design decision with a live trade-off, an edge case that would surprise the reader. Skip the parts they can read for themselves.
 
 ## Rules
 
-- Tailor the depth to the question — "what does this function do" needs less than "how does auth work".
+- Tailor the depth to the question — "what does this function do" needs less than "how does auth work". Answer at the length you'd answer out loud; nobody asking a one-line question wants a document back.
+- Don't structure a short answer. Headings and bullet lists on three paragraphs of prose make it harder to read, not easier. Reach for them only when the explanation is genuinely long and the reader needs to navigate it.
 - Use concrete examples from the code, not abstract descriptions.
 - Cite file:line references when pointing at code.
 - If something looks like a bug or smells off, mention it once, then stay focused on explaining.

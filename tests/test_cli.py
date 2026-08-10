@@ -284,7 +284,9 @@ class TestChecklist:
         assert "snake_case" in content
         assert "`pytest`" in content
         assert "PYTHONPATH" in content
-        assert "Severity: Blocker" in content
+        # The rest of the review skill survived the checklist injection. Anchored on
+        # a heading, not body prose, so rewording a rule doesn't fail this.
+        assert "## Small PR Review" in content
 
     def test_generate_checklist_legacy_claude_md_fallback(self, repo_with_legacy_claude_md: Path):
         # Fallback path: .claude/CLAUDE.md instead of ./CLAUDE.md
@@ -1430,7 +1432,7 @@ class TestHumanize:
             text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
             assert "{{HUMANIZE}}" not in text, f"{skill} left a literal token"
             assert "Write like a person" in text, f"{skill} missing humanize block"
-            assert "No em-dashes" in text
+            assert "em-dashes" in text
 
     def test_non_prose_skills_have_no_humanize_block(self, repo: Path):
         # plan/debug/etc. didn't opt in — the token shouldn't appear there.
@@ -1560,7 +1562,18 @@ class TestHumanizeScrubber:
         from klaussy.humanize import humanize
 
         assert humanize("Leaks a connection — wrap it.") == "Leaks a connection, wrap it."
-        assert humanize("range 1–5 here") == "range 1 - 5 here"
+        assert humanize("the fix – finally – landed") == "the fix - finally - landed"
+
+    def test_keeps_numeric_ranges_tight(self):
+        """A dash between digits is a range, not a clause break.
+
+        Diverges from klaussy-desktop, which spaces every en-dash out: "35–50 min"
+        became "35 - 50 min", which reads as a subtraction or a dropped clause.
+        """
+        from klaussy.humanize import humanize
+
+        assert humanize("parses take 35–50 min") == "parses take 35-50 min"
+        assert humanize("pages 3—4 are wrong") == "pages 3-4 are wrong"
 
     def test_strips_leading_filler_opener_and_recapitalizes(self):
         from klaussy.humanize import humanize

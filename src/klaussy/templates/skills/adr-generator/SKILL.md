@@ -65,6 +65,8 @@ Chosen: **<option>**, because <justification>.
 <links to related ADRs, issues, or discussion>
 ```
 
+Keep each section to a few sentences. An ADR earns its keep by being read six months later, and a long one won't be. Context is the forces that made a decision necessary, not a history of the codebase; consequences are what changes for whoever touches this next, not an exhaustive risk register. If a section has nothing real in it, leave it out rather than padding it.
+
 Set status to `proposed` unless the user says the decision is already accepted. Write the file to the directory and filename scheme from Phase 1. Report the path back to the user and offer to mark it `accepted` once they confirm.
 
 {{HUMANIZE}}

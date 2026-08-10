@@ -33,8 +33,8 @@ State the triage before editing, so the user can redirect if they disagree.
 
 ## Phase 4: Reply and hand off
 
-1. **Draft a reply per comment** (or per group): what you changed and where, or — for a decline — the specific reason. Keep each to a sentence or two.
-2. **Summarize** the follow-up: which comments led to changes, which were declined and why, and the suggested commit message (`fix: address review feedback` or per the repo convention).
+1. **Draft a reply per comment** (or per group): what you changed and where, or — for a decline — the specific reason. One sentence is the target; two is the ceiling. "Fixed, moved the check into `validate_session`." is a complete reply.
+2. **Summarize** the follow-up for the user: which comments led to changes, which were declined and why, and the suggested commit message (`fix: address review feedback` or per the repo convention). A few lines, not a report; they can read the diff.
 3. **Do not push, resolve threads, or re-request review** unless the user asks — leave those actions to them.
 
 {{HUMANIZE}}

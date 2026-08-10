@@ -5,6 +5,56 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.25.0] - 2026-08-07
+
+### Changed
+
+- **The shared humanize block now covers voice and shape, not just tells.** It
+  was a list of things not to write; stripping those leaves prose that still
+  reads like a model wrote it, because the register never changed. Two sections
+  were added. *Voice*: say it out loud, contractions, verbs instead of noun
+  phrases ("this validates the token", not "performs validation of the token"),
+  a named subject doing the work, one idea per sentence. *Shape*: explicit
+  budgets, lead with the change rather than the discovery, three sentences to a
+  paragraph, prose instead of headings and bold field labels. Overlapping rules
+  were merged (praise, ranking, and thanking a bot were three rules for one
+  habit), and the em-dash rule moved above everything else, since the restructure
+  had buried the strongest tell twenty bullets deep.
+- **Review findings are prose, not a form.** The per-finding template of four
+  bold field labels is gone: one finding is a metadata line plus one to three
+  sentences leading with the fix. "Preserve full detail" became "four things stay
+  (severity, `file:line`, trigger, fix), everything else is cuttable", and the
+  final summary lost its checkbox grid and its "Review method" footer. The same
+  format applies in the sub-agent scaffold and the validation sub-agent, so
+  nothing re-inflates on its way through synthesis. Unrelated problems get their
+  own entries; a single finding whose fix touches three files stays one entry.
+- The explain skill leads with a two or three sentence answer instead of filling
+  a four-bullet outline, and `pr`, `commit`, `address-review`, and
+  `adr-generator` grew caps against padding a short change into a long write-up.
+- **The scrubber keeps numeric ranges tight.** `35–50 min` becomes `35-50 min`
+  rather than `35 - 50 min`, which read as a subtraction. Deliberately diverges
+  from klaussy-desktop's previous behavior; that copy has been updated to match.
+
+### Added
+
+- **Stiff phrasings with one unambiguous short equivalent are now scrubbed
+  deterministically**: `prior to` → `before`, `due to the fact that` → `because`,
+  `in the event that` → `if`, `is able to` → `can`, `subsequent to` → `after`,
+  and a few more. Replacements preserve the first letter's case, which also fixes
+  a standing bug where a sentence-initial `Utilize` became a lowercase `use`.
+- Filler openers now match their uncontracted form, so "It is worth noting that"
+  is stripped alongside "It's worth noting that".
+- Evals for the two new axes: stiff input must come back in spoken register under
+  a word budget, and an over-structured finding (heading, metadata block, bold
+  field labels, bullets, sign-off) must flatten to prose.
+
+### Fixed
+
+- **klaussy-desktop's JS port is back in lockstep with `humanize.py`.** It had
+  been missing the `actual`/`actually` rules and the editorializing openers
+  (`Personally`, `Honestly`, `IMO`) entirely, on top of everything added here.
+  Both implementations now produce identical output across a 66-case corpus.
+
 ## [0.24.0] - 2026-08-06
 
 ### Added
