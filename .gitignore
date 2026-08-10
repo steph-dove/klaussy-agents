@@ -70,4 +70,6 @@ GEMINI.md
 .aiderignore
 .clineignore
 .clinerules/
+.kimi-code/
+.opencode/
 CONVENTIONS.md

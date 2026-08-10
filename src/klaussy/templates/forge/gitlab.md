@@ -20,3 +20,5 @@ Three things bite when porting a GitHub habit:
 - **Resolving is per-discussion by default.** `PUT .../discussions/<id>` with `resolved` closes the whole thread; a single note is resolved through `PUT .../discussions/<id>/notes/<note-id>` instead. Pick deliberately, they aren't interchangeable.
 
 `glab mr create` has no `--body-file`. `--description` takes the text directly (a lone `-` opens an editor), so a body written to a file has to be passed as text.
+
+**There is no native stack object to register.** A stack on GitLab is exactly a chain of `--target-branch` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the targets right and say plainly that the stack is branch-chained.
