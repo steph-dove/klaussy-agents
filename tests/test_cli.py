@@ -1575,6 +1575,32 @@ class TestHumanizeScrubber:
         assert humanize("parses take 35–50 min") == "parses take 35-50 min"
         assert humanize("pages 3—4 are wrong") == "pages 3-4 are wrong"
 
+    def test_stacked_tells_clear_in_one_run(self):
+        """Stripping one tell can expose the next; one run must catch them all.
+
+        Each rule only matches at the start of a line, so removing an opener
+        promotes whatever followed it to line-initial. Before the scrubber
+        iterated to a fixed point, callers had to run it twice.
+        """
+        from klaussy.humanize import humanize
+
+        assert humanize("It's worth noting that actually the loop leaks.") == "The loop leaks."
+        assert humanize("Great catch. Nice find. This leaks.") == "This leaks."
+        assert humanize("Personally, honestly, this is wrong.") == "This is wrong."
+        assert humanize("Thanks @dependabot! Great catch, this races.") == "This races."
+
+    def test_is_idempotent(self):
+        from klaussy.humanize import humanize
+
+        for text in [
+            "It is worth noting that furthermore this races.",
+            "Note that it is worth noting that this leaks.",
+            "Use `a — b` then:\n```\nx — y\n```\nbut this — changes.",
+            "Nit: rename foo to bar.",
+        ]:
+            once = humanize(text)
+            assert humanize(once) == once, f"second run changed {text!r}"
+
     def test_strips_leading_filler_opener_and_recapitalizes(self):
         from klaussy.humanize import humanize
 
@@ -1590,6 +1616,17 @@ class TestHumanizeScrubber:
             humanize("This races on startup.\nLet me know if you have questions!")
             == "This races on startup."
         )
+
+    def test_drops_happy_to_offers_beyond_happy_to_help(self):
+        """ "Happy to help" was the only variant matched, so offers like "happy to
+        dig into X" survived a review reply."""
+        from klaussy.humanize import humanize
+
+        assert humanize("Rethrown now.\nHappy to dig into a hybrid if I missed one.") == (
+            "Rethrown now."
+        )
+        # Mid-sentence "happy to" is ordinary prose, not a sign-off.
+        assert humanize("She was happy to see it land.") == "She was happy to see it land."
 
     def test_tightens_verbose_phrasings(self):
         from klaussy.humanize import humanize
@@ -1618,6 +1655,23 @@ class TestHumanizeScrubber:
 
 
 class TestHumanizeCli:
+    def test_rules_prints_the_shared_block(self):
+        """`--rules` is how another tool embeds the prompt-side rules.
+
+        klaussy-desktop builds its own review prompt when a worktree has no
+        scaffolded skill; without this it hand-maintained a copy that drifted.
+        """
+        from klaussy.skills import HUMANIZE_BLOCK
+
+        result = runner.invoke(app, ["humanize", "--rules"])
+        assert result.exit_code == 0
+        assert result.stdout.strip() == HUMANIZE_BLOCK.strip()
+
+    def test_rules_does_not_read_stdin(self):
+        result = runner.invoke(app, ["humanize", "--rules"], input="Fix this — now.")
+        assert result.exit_code == 0
+        assert "Fix this" not in result.stdout
+
     def test_stdin_to_stdout(self):
         result = runner.invoke(app, ["humanize"], input="Fix this — now.")
         assert result.exit_code == 0

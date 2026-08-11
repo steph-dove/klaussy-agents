@@ -43,7 +43,7 @@ _OPENERS = (
 _SCAFFOLD = (
     r"(?:Let me know if[^\n]*|Hope (?:this|that) helps[^\n]*"
     r"|I hope (?:this|that) helps[^\n]*|Feel free to[^\n]*"
-    r"|Happy to help[^\n]*|Let me know your thoughts[^\n]*)"
+    r"|(?:I'?m )?[Hh]appy to [^\n]*|Let me know your thoughts[^\n]*)"
 )
 
 # Thanking bots for review or comments. Stripped at the start of the text or a line.
@@ -139,7 +139,28 @@ def _match_case(matched: str, replacement: str) -> str:
     return replacement
 
 
+# Cap on the fixed-point loop below. Every rule only deletes or shortens, so the
+# text always converges; the cap just bounds a pathological input.
+_MAX_PASSES = 5
+
+
 def _scrub_prose(s: str) -> str:
+    """Scrub until the text stops changing.
+
+    Each rule strips one leading tell, which can expose another: "It's worth
+    noting that actually X" loses the opener and is left starting with
+    "Actually". A single pass would hand that back to the caller, so callers had
+    to run the scrubber twice to get a clean result.
+    """
+    for _ in range(_MAX_PASSES):
+        scrubbed = _scrub_once(s)
+        if scrubbed == s:
+            return s
+        s = scrubbed
+    return s
+
+
+def _scrub_once(s: str) -> str:
     # Em / en dashes — the single strongest tell. A dash between two numbers is a
     # range ("35–50 min"), so it collapses to a plain hyphen; spacing it out would
     # read as a subtraction or a dropped clause.
