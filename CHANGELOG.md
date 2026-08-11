@@ -5,6 +5,62 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.27.0] - 2026-08-11
+
+### Changed
+
+- **The humanize skill runs in four passes instead of one.** Cut (content only,
+  keeping every retained sentence word for word), voice (register only, with the
+  facts frozen), check (did the meaning survive), then the deterministic
+  scrubber. One prompt carrying every rule reliably applies the safe mechanical
+  ones and drops voice and length, which is why humanized prose stayed tidy and
+  generated-sounding however the rules were tuned. Splitting the job is what
+  fixed it: on a 330-word technical reply the four passes land at 120-167 words
+  with fragments and a stance, where the single pass sat near 200 and mirrored
+  the draft's paragraph count. Below roughly 40 words it does voice and scrub
+  only and says so.
+- **The check pass is the guard the register push needed.** Cutting and
+  restyling in separate turns means neither is verifying the claims survived, so
+  the third pass diffs the rewrite against the original for anything added
+  (including agreement the author never gave), dropped (a load-bearing noun,
+  number, identifier, or path), or reversed. Two measured failures motivated it:
+  a rewrite that turned "we invalidated the cache on every write" into "we
+  invalidated on every write", and one that inverted a concession.
+- **The shared block traded eleven bullets for three sections.** The mechanical
+  tells the scrubber deletes deterministically (filler openers, scaffolding,
+  apologies, praise, *actually*, *in order to*, *utilize*) collapsed to a single
+  line pointing at the scrubber, freeing attention for what a model has to
+  judge: a **Voice** section aimed at "a competent engineer typing this once, in
+  a hurry, who isn't going to read it back", and an **Answer what was asked,
+  then stop** section covering the closing principle, the mechanism nobody
+  asked for, and granting a point without inflating it. The block had measurably
+  hit capacity, where each new rule degraded compliance with the existing ones.
+
+### Added
+
+- **`klaussy humanize --rules`** prints the prompt-side block so another tool can
+  embed the current rules instead of maintaining a copy that drifts. Written for
+  klaussy-desktop, which builds its own review prompt when a worktree has no
+  scaffolded skill.
+- Evals for two surfaces that had none: replies to PR review feedback
+  (`test_address_review_eval.py`, covering a review bot, a hostile reviewer, a
+  request worth declining, and a one-word fix) and long-form humanizing
+  (`test_humanize_longform_eval.py`), which is where the failures actually live.
+  Every previously checked-in humanize fixture was short, and short prose always
+  passed.
+
+### Fixed
+
+- **The scrubber reaches a fixed point in one run.** Every rule matches at the
+  start of a line, so removing one tell promoted the next into that position
+  where nothing re-examined it: "It's worth noting that actually the loop leaks"
+  needed a second run to lose "Actually". It now iterates until the text stops
+  changing (7 of 8 sampled inputs needed that second pass).
+- Chatbot sign-offs beyond the exact phrase `Happy to help` are stripped, so
+  "Happy to dig into a hybrid if you see an angle I'm missing" no longer survives
+  a review reply. Mid-sentence prose ("she was happy to see it land") is left
+  alone.
+
 ## [0.26.0] - 2026-08-11
 
 ### Added

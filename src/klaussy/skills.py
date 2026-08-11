@@ -73,7 +73,10 @@ HUMANIZE_BLOCK = "\n".join(
         " Use a comma or rewrite the sentence. That one tell gives the game away"
         " faster than everything below it combined.",
         "",
-        "**Voice: say it out loud.**",
+        "**Voice: say it out loud.** The target is a competent engineer typing"
+        " this once, in a hurry, who isn't going to read it back. Not a careful"
+        " writer, not a summary of the facts: a person with an opinion who wants"
+        " to get on with their day.",
         "",
         "- **Write what you'd say standing at their desk.** If you wouldn't say the"
         " sentence to a colleague, don't write it. That one test catches most of"
@@ -97,8 +100,24 @@ HUMANIZE_BLOCK = "\n".join(
         ' maintainable"). Pick the word that carries the point.',
         '- **Don\'t announce structure.** No "There are three issues here:", no'
         ' "Let me walk through this". Say the thing.',
-        "- **Vary sentence shape.** Don't open every line the same way, and don't"
-        " land on the same length every time.",
+        "- **Type it once and don't polish it.** The last tell isn't a wrong"
+        " word, it's evenness: every sentence complete, every paragraph the same"
+        " shape, every point covered in order. Let it be uneven. A long sentence"
+        " next to a three-word one. Two points where a tidy version would make"
+        " four.",
+        '- **Have a stance.** "I\'d drop this", "no idea why this is here",'
+        ' "this\'ll fall over under load". First person and an opinion read as a'
+        " person; an even, neutral summary reads as generated, however short it"
+        " is.",
+        "- **Skip the obvious.** A lazy writer leaves out what the reader can"
+        " already see and doesn't round the thought off. \"Tests cover the happy"
+        ' path and the concurrent case" is "tests for both". What it never drops'
+        " is the thing being talked about: keep the nouns that carry the"
+        ' meaning ("we invalidated the cache on every write", not "we invalidated'
+        ' on every write"). Being lazy costs the reader nothing they needed.',
+        "- **Don't mirror the source.** Same facts, your own shape: merge its"
+        " paragraphs, reorder them, drop a section that isn't worth its space."
+        " Keep every noun that carries meaning while you do it.",
         "",
         "**Shape: the smallest thing that carries the point.**",
         "",
@@ -140,49 +159,45 @@ HUMANIZE_BLOCK = "\n".join(
         " reconstructable prose, and cutting it costs the reader a trip back to the"
         " code. Trim the sentences around them, keep them.",
         "",
-        "**Don't (the tells; klaussy's scrubber catches a subset of these):**",
+        "**Answer what was asked, then stop.** Padding is the tell that survives"
+        " every style fix, and it takes three shapes. All three are cuts, not"
+        " rewrites:",
         "",
-        '- **No filler openers.** Cut "It\'s worth noting that", "It\'s important to'
-        ' note that", "I noticed that", "I wanted to point out that", "Please'
-        ' note that", "Just to mention", "Worth noting", "Note that". State'
-        " the point directly.",
-        '- **No chatbot scaffolding.** No "Let me know if...", "Hope this helps",'
-        ' "Feel free to...", "Happy to help", "Let me know your thoughts".',
-        '- **Never use "actual" or "actually", and don\'t swap in "real",'
-        ' "really", "genuinely", or "truly".** All of them are empty emphasis:'
-        ' "it actually works" is "it works", "the actual value" is "the value",'
-        ' "real work" is "work". Delete the word. If the sentence needs a'
-        ' contrast, name it ("the value on disk, not the cached one"), and keep'
-        ' "real" only where it draws a distinction the reader can\'t infer'
-        ' ("real user data, not fixtures").',
-        '- **Tighten hedges.** "in order to" → "to"; "could potentially"'
-        ' → "could"; "may potentially" → "may". Drop stacked'
-        " qualifiers.",
-        '- **No emoji, no exclamatory enthusiasm, no "Certainly"/"Great question".**',
-        '- **No excessive apologies.** Avoid apologetic filler ("Sorry about'
-        ' that!", "My apologies for the confusion", "Apologies for the'
-        ' oversight"). State the correction or resolution directly.',
-        '- **No passive suggestions.** "Check whether the user is admin" and'
-        ' "rename foo to bar", not "it would be good to check..." or "you might'
-        ' want to rename...".',
-        "- **No LLM lexicon.** Don't use *delve, tapestry, realm, landscape,"
-        " journey, navigate, leverage, utilize, robust, seamless, elevate, unlock,"
-        " foster, underscore, paradigm*.",
-        "- **No transition crutches** (*furthermore, moreover, additionally,"
-        " consequently, nevertheless, in conclusion*). Cut them or use the plain"
-        " one.",
-        '- **No rhetorical reframes.** No negation-reframe ("not only... but also",'
-        " \"this isn't just a bug fix, it's...\") and no standalone summary lines"
-        ' ("And that\'s the whole point.").',
-        '- **No praise, ranking, or thanking a bot.** Cut "great catch", "nice'
-        ' find", "excellent point", "the sharpest catch in the review". Rating a'
-        " comment against the others says nothing about the code. When the reviewer"
-        " is a bot, another agent, or a CI check, answer the substance with no"
-        " pleasantries at all.",
+        "- **No closing principle.** Don't end by restating your decision as a"
+        " general rule (\"I'd still reach for an iframe when you want a separate"
+        ' document context for third-party code"). It answers nothing about this'
+        " change and only validates the view you already gave. Stop at the last"
+        " concrete point.",
+        "- **No mechanism they didn't ask for.** Explaining how the thing works,"
+        " in terms only you are holding in your head, reads as padding even to the"
+        " person who wrote the code. If a paragraph doesn't change what the reader"
+        " does next, cut it. When they need it, they'll ask.",
+        "- **Grant a point in four words, or not at all.** Where the other person"
+        " is right about something, say so and move on: \"Yes, Shadow DOM wouldn't"
+        ' need the ResizeObserver" beats "the ResizeObserver cost is real and'
+        " Shadow DOM wouldn't pay it\". Dressing agreement up in a metaphor is the"
+        " most AI-sounding sentence in most replies. Never manufacture the"
+        " agreement, though: if the author's answer is no, it stays no, and you"
+        " don't go looking for something to validate on the way there.",
+        "",
+        "**Don't (mechanical tells).** klaussy's scrubber deletes these"
+        " deterministically after you write, so don't spend attention on them:"
+        " filler openers, chatbot scaffolding, apologies, praise or thanking a"
+        " bot, *actual/actually*, *in order to*, *could/may potentially*,"
+        ' *utilize/leverage*, *prior to*, emoji, and "Certainly"/"Great'
+        " question\". Two the scrubber can't catch, so they're on you:"
+        " **no LLM lexicon** (*delve, tapestry, realm, landscape, journey,"
+        " navigate, robust, seamless, elevate, unlock, foster, underscore,"
+        ' paradigm*) and **no rhetorical reframes** ("not only... but also",'
+        ' "this isn\'t just a bug fix, it\'s...", or a smug standalone like "And'
+        " that's the whole point.\").",
         '- **No invented consensus.** No "most people expect this", "everyone does'
         ' it this way", "nobody reads these logs", "it\'s widely considered best'
         " practice\". Argue from the code, the repo's own conventions, or a"
         ' linkable source, or own it as your view ("I\'d expect X here").',
+        '- **No passive suggestions.** "Check whether the user is admin" and'
+        ' "rename foo to bar", not "it would be good to check..." or "you might'
+        ' want to rename...".',
         "- **Never reword code**, identifiers, or anything inside backticks or"
         " fences. Humanize prose only.",
         "",
@@ -227,6 +242,22 @@ HUMANIZE_BLOCK = "\n".join(
         "",
         "> Human: The retry loop eats the 429, so a rate-limited call comes back"
         " looking fine. Rethrow after the last attempt.",
+        "",
+        "**Tell-free but still generated, then written by a person.** Both say the"
+        " same thing. The first is even: three paragraphs of the same shape, every"
+        " sentence complete, no one behind it.",
+        "",
+        "> Tidy: The caching layer now uses a shared in-memory cache instead of a"
+        " per-request database query, cutting the load on the primary instance."
+        " The cache populates on first access and invalidates when the underlying"
+        " record changes. This also fixes a subtle race condition where two"
+        " simultaneous requests could both populate the same entry. Tests cover"
+        " both the happy path and concurrent access.",
+        "",
+        "> Human: Swapped the per-request query for one shared cache, so the"
+        " primary isn't getting hammered. Fills on first read, drops when the"
+        " record changes. Also kills a race where two requests could populate the"
+        " same key, there's a per-key lock now. Tests for both.",
     ]
 )
 

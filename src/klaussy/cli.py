@@ -20,6 +20,7 @@ from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.pr_template import scaffold_pr_template
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
+from klaussy.skills import HUMANIZE_BLOCK
 from klaussy.split_prep import prepare_split
 from klaussy.split_prep import render_dict as render_split_dict
 from klaussy.split_prep import render_markdown as render_split_markdown
@@ -279,13 +280,24 @@ def humanize(
     check: bool = typer.Option(
         False, "--check", help="Exit 1 if any file would change; don't modify."
     ),
+    rules: bool = typer.Option(
+        False, "--rules", help="Print the prompt-side humanization rules and exit."
+    ),
 ) -> None:
     """Deterministically humanize prose (strip AI tells), preserving all code.
 
     The canonical scrubber shared with klaussy-desktop. With no files it reads
     stdin and writes the result to stdout — so other tools can pipe through it
     (e.g. `printf '%s' "$comment" | klaussy humanize`).
+
+    `--rules` prints the prompt-side block instead of scrubbing. The scrubber is
+    a conservative subset of it, so a tool that builds its own review prompt can
+    embed these rules rather than maintaining a copy that drifts.
     """
+    if rules:
+        sys.stdout.write(HUMANIZE_BLOCK + "\n")
+        return
+
     if not files:
         sys.stdout.write(humanize_text(sys.stdin.read()))
         return
