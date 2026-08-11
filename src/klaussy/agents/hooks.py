@@ -617,8 +617,6 @@ def kimi_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = f"{KIMI_HOME}/hooks"
 
     def _cmd(name: str) -> str:
-        # Repo root resolves at run time (the hook is global config), and the
-        # string stays free of shell syntax so cmd/PowerShell run it unchanged.
         return f"klaussy-hook --repo-relative {hooks_dir}/{name}"
 
     entries: list[tuple[str, str, str]] = []  # (event, matcher, guard filename)
