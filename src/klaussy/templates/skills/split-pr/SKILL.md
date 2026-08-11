@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-split-pr
-description: Use when a change is too large to review in one pass and should ship as a stack of dependent PRs instead. Strips comment bloat so the size is honest, proposes layers from the import graph, then builds the branch chain and opens one request per layer targeting the layer below. Works from committed history or an uncommitted working tree. Creates a stack; use {{REPO}}-restack to repair one that already exists.
+description: Use when a change is too large to review in one pass and should ship as a stack of dependent PRs instead. Strips comment bloat so the size is honest, proposes layers from the import graph, then builds the branch chain, opens one request per layer targeting the layer below, and registers a native stack where the host has one. Works from committed history or an uncommitted working tree. Creates a stack; use {{REPO}}-restack to repair one that already exists.
 allowed-tools: Read Grep Glob Bash Edit
 disable-model-invocation: true
 ---
@@ -86,6 +86,8 @@ Present the plan as a map with a per-layer line count and a one-line rationale, 
 
 A wrong seam here is expensive to undo once three PRs are open. Confirm it.
 
+The user is already stopped here, so fold in anything else the run needs from them. Chief among them: if this host has a native stack (the adapter in Phase 6 says whether it does) and the tooling for it isn't installed, ask now whether to install it. Asking here costs nothing; asking in Phase 6 interrupts a push loop that's already halfway through.
+
 ## Phase 4: Carve the layers
 
 Work bottom-up, one layer at a time, branching each off the previous one.
@@ -117,6 +119,8 @@ git commit
 
 **Do not edit code while carving.** A split moves lines between branches; it doesn't change them. The comment pass already happened in Phase 2 and is baked into `<tip>` — don't tidy anything else on the way past, or check 1 below will fail and you won't know whether the cause was the carve or the tidying. If a layer needs a small bridge to stand alone (an import, an `__all__` entry, a stub the next layer replaces), that's part of the carve and worth calling out in the PR body. If you find an actual bug mid-split, write it down and fix it in a follow-up — a behavior change smuggled into a restructuring is invisible to review.
 
+**And the repo's own commit hooks will edit code while you carve, if you let them.** A hook that formats, lints with a fix flag, or runs a review that applies its own suggestions reads each layer commit as fresh authorship and rewrites it — the edit this phase forbids, arriving from the one direction you weren't watching. Turn them off for the carve (`--no-verify`, or whatever opt-out the repo documents) and say in the report that you did. Never interrupt one that's already running: a formatter killed halfway leaves its edits staged, the next commit swallows them, and the layer now differs from `<tip>` by changes nobody chose.
+
 ## Phase 5: Verify, before anything is pushed
 
 Two checks, and neither is optional.
@@ -130,7 +134,23 @@ If a layer can't be made to stand alone after a couple of attempts, that seam is
 
 ## Phase 6: Push and open the stack
 
-Bottom-up, one branch per command. Push each layer, then open its request against the layer below (the bottom layer targets `{{BASE_BRANCH}}`).
+Bottom-up, one branch per command. A layer's parent has to exist on the remote before a request can target it, so push and open in the same pass rather than pushing everything first:
+
+```
+git push -u origin <branch>-1-schema     → open request 1 against {{BASE_BRANCH}}
+git push -u origin <branch>-2-api        → open request 2 against <branch>-1-schema
+git push -u origin <branch>-3-ui         → open request 3 against <branch>-2-api
+```
+
+**Push guards run once per layer, and judge each one as if it were the whole change.** A layer that deliberately adds code nothing calls yet is the point of a stack and a finding to a guard, so expect refusals over exactly the seams you designed. A per-push review also re-reads the same lines once per layer, which is slow enough to look like a hang and can block the stack over something that has been sitting in the base branch for months. Bypass them for the push, say that you did, and let Phase 5 carry the weight instead: check 1 proves the stack is identical to a `<tip>` that nothing has escaped review on.
+
+**Pass the base explicitly on every request, and read it back.** This is the step that quietly doesn't happen: leave the base off and the forge CLI defaults to the repo's default branch, so all three requests land on `{{BASE_BRANCH}}` and each one shows the sum of everything beneath it — the exact review problem the split existed to solve, now spread across three pages. After opening each request, check its base field (`gh pr view <n> --json baseRefName` and the equivalents in the adapter below) and fix it with the retarget command if it isn't the branch below.
+
+**Then register a real stack if the host has one.** Chained bases make the diffs right; a native stack is what gives the request pages a stack map, navigation between layers, and cascading rebase, and it's what makes the set read as one change rather than three coincidences. The forge commands below say whether this host has such a thing and which command builds it.
+
+Where a stack needs tooling the machine doesn't have yet, **offer to install it** rather than shrugging and shipping chained bases — the adapter below names the command and it's a one-liner. Ask, don't install unprompted, and take no for an answer. Ideally ask back in Phase 3 alongside the plan approval, so the whole run interrupts the user once instead of twice. Where the host has no native stack at all, say so in the report; otherwise chained bases read as a step that was skipped rather than one that doesn't exist here.
+
+**Record the chain for `{{REPO}}-restack`:** `git config branch.<child>.klaussyParent <parent>` for every layer above the bottom. Restack reads exactly that config and otherwise has to re-derive the topology from ancestry.
 
 Each request body gets:
 
@@ -144,7 +164,7 @@ Run each body through **`{{REPO}}-humanize`** before it goes out.
 
 ## Phase 7: Report
 
-Give the user the stack map with request URLs in review order, the backup branch name and its recovery command, which layers were verified how, and the merge protocol: **land the bottom request first**, then run **`{{REPO}}-restack`** to rebase the rest and retarget their bases. Merging out of order puts the wrong commits in the wrong request.
+Give the user the stack map with request URLs in review order, each request's confirmed base branch, whether the host is carrying a native stack or just the chained bases, the backup branch name and its recovery command, which layers were verified how, and the merge protocol: **land the bottom request first**, then run **`{{REPO}}-restack`** to rebase the rest and retarget their bases. Merging out of order puts the wrong commits in the wrong request.
 
 Never merge the stack yourself.
 
@@ -155,11 +175,13 @@ Never merge the stack yourself.
 - **Size the change on code lines, never raw diff lines.** Comment bloat is the most common reason a change looks like it needs splitting when it doesn't.
 - **The comment pass only touches comments this change added,** never string literals, commented-out code, headers, or pragmas — and it lands as its own commit, never inside a layer.
 - **Carving never edits.** Moving lines between branches is the whole job; behavior changes belong in their own commit and their own review.
+- **The repo's own commit and push guards come off for the duration.** They rewrite staged content mid-carve and re-review identical lines once per layer. Check 1 is what makes that safe, and it's also what catches a guard that got a rewrite in before you noticed.
 - **The import graph is evidence, not a verdict.** It misses runtime wiring entirely; a layer that builds is the only proof a seam is real.
 - **Every layer builds and passes on its own,** or the seam is wrong. Fix the seam, not the test.
 - **Bottom-up for everything** — carve, verify, push, open, merge.
 - **Don't split someone else's commits without asking.**
-- **If the repo uses a stack tool** (Graphite, git-town, spr, ghstack), create the stack with its commands so its metadata stays consistent. Say which one you found.
+- **Every layer above the bottom targets the layer below it.** An omitted base silently becomes `{{BASE_BRANCH}}`; confirm each request's base after opening it, never assume.
+- **Ship an actual stack, not just a chain, wherever the host supports one.** If the repo already uses a stack tool (Graphite, git-town, spr, ghstack), build it with that tool's commands so its metadata stays consistent; otherwise use the host's native stack from the forge commands in Phase 6, offering to install its tooling if it's missing. Say which you used, and say so too when the host has neither.
 
 ## When NOT to use
 
@@ -168,4 +190,4 @@ Never merge the stack yourself.
 - The change is only coherent as a whole. Say so and keep it in one request; an artificial split makes every layer harder to judge.
 - A stack already exists and just needs rebasing after the base moved — that's **`{{REPO}}-restack`**.
 - The work isn't written yet. Use **`{{REPO}}-plan`** and build it in stackable order from the start; splitting after the fact is strictly more work.
-- The branches live in a fork or you lack push rights — the carve will succeed locally and every push will fail. Check first.
+- The branches live in a fork or you lack push rights — the carve will succeed locally and every push will fail, and a stack that spans repos isn't a stack any host will render. Check first.

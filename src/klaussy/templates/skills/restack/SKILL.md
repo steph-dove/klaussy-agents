@@ -82,7 +82,7 @@ Rebasing is done and pushed by this point. This phase only fixes the "base branc
 - Confirm the parent/child mapping with the user before the first rewrite. Everything after that depends on it.
 - One branch per push command, in order. Bulk-pushing a stack hides which branch failed.
 - Never delete branches as part of a restack, even ones that already landed.
-- If the repo uses a stack tool (Graphite, git-town, spr, ghstack), use its own restack command instead so its metadata stays consistent. Say which tool you found.
+- If the repo uses a stack tool (Graphite, git-town, spr, ghstack), use its own restack command instead so its metadata stays consistent. Say which tool you found. The same goes for a host-native stack — the forge commands in Phase 6 say whether this host has one and which command cascades the rebase across it; driving that by hand leaves the host's own record of the stack stale.
 
 ## When NOT to use
 

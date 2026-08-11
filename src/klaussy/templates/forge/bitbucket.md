@@ -15,9 +15,10 @@ Everything below is Bitbucket **Cloud**, base `https://api.bitbucket.org/2.0`, w
 | Resolve a thread | `POST …/comments/<comment-id>/resolve` (`DELETE` the same path reopens it) |
 | Retarget a request | `PUT …/pullrequests/<id>` with `{"destination": {"branch": {"name": "<branch>"}}}` |
 
-Four things worth knowing before you use these:
+Five things worth knowing before you use these:
 
 - **Threading is `parent`, not a separate endpoint.** A reply is an ordinary comment carrying `parent.id`; omit it and the comment lands at top level. Inline comments carry an `inline` object with `path` and line numbers.
 - **Only open pull requests can be mutated.** The retarget `PUT` is documented for changing a request's branches, but a merged or declined request rejects it.
 - **A `200` on that `PUT` is not proof.** Bitbucket accepts the whole pull-request object as the body and quietly ignores fields it won't change, so send only what you're changing and then re-read the request to confirm `destination.branch.name` actually moved.
+- **There is no native stack object to register.** A stack on Bitbucket is exactly a chain of `destination.branch.name` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the destinations right and say plainly that the stack is branch-chained.
 - **Bitbucket Data Center is a different API.** Self-hosted (formerly Stash) serves `<host>/rest/api/1.0/projects/<key>/repos/<slug>/pull-requests/<id>` with different payload shapes, and none of the above is verified against it. Establish which one this host is first, and check that instance's own API docs before composing a call.
