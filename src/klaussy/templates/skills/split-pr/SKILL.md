@@ -119,6 +119,8 @@ git commit
 
 **Do not edit code while carving.** A split moves lines between branches; it doesn't change them. The comment pass already happened in Phase 2 and is baked into `<tip>` — don't tidy anything else on the way past, or check 1 below will fail and you won't know whether the cause was the carve or the tidying. If a layer needs a small bridge to stand alone (an import, an `__all__` entry, a stub the next layer replaces), that's part of the carve and worth calling out in the PR body. If you find an actual bug mid-split, write it down and fix it in a follow-up — a behavior change smuggled into a restructuring is invisible to review.
 
+**And the repo's own commit hooks will edit code while you carve, if you let them.** A hook that formats, lints with a fix flag, or runs a review that applies its own suggestions reads each layer commit as fresh authorship and rewrites it — the edit this phase forbids, arriving from the one direction you weren't watching. Turn them off for the carve (`--no-verify`, or whatever opt-out the repo documents) and say in the report that you did. Never interrupt one that's already running: a formatter killed halfway leaves its edits staged, the next commit swallows them, and the layer now differs from `<tip>` by changes nobody chose.
+
 ## Phase 5: Verify, before anything is pushed
 
 Two checks, and neither is optional.
@@ -139,6 +141,8 @@ git push -u origin <branch>-1-schema     → open request 1 against {{BASE_BRANC
 git push -u origin <branch>-2-api        → open request 2 against <branch>-1-schema
 git push -u origin <branch>-3-ui         → open request 3 against <branch>-2-api
 ```
+
+**Push guards run once per layer, and judge each one as if it were the whole change.** A layer that deliberately adds code nothing calls yet is the point of a stack and a finding to a guard, so expect refusals over exactly the seams you designed. A per-push review also re-reads the same lines once per layer, which is slow enough to look like a hang and can block the stack over something that has been sitting in the base branch for months. Bypass them for the push, say that you did, and let Phase 5 carry the weight instead: check 1 proves the stack is identical to a `<tip>` that nothing has escaped review on.
 
 **Pass the base explicitly on every request, and read it back.** This is the step that quietly doesn't happen: leave the base off and the forge CLI defaults to the repo's default branch, so all three requests land on `{{BASE_BRANCH}}` and each one shows the sum of everything beneath it — the exact review problem the split existed to solve, now spread across three pages. After opening each request, check its base field (`gh pr view <n> --json baseRefName` and the equivalents in the adapter below) and fix it with the retarget command if it isn't the branch below.
 
@@ -171,6 +175,7 @@ Never merge the stack yourself.
 - **Size the change on code lines, never raw diff lines.** Comment bloat is the most common reason a change looks like it needs splitting when it doesn't.
 - **The comment pass only touches comments this change added,** never string literals, commented-out code, headers, or pragmas — and it lands as its own commit, never inside a layer.
 - **Carving never edits.** Moving lines between branches is the whole job; behavior changes belong in their own commit and their own review.
+- **The repo's own commit and push guards come off for the duration.** They rewrite staged content mid-carve and re-review identical lines once per layer. Check 1 is what makes that safe, and it's also what catches a guard that got a rewrite in before you noticed.
 - **The import graph is evidence, not a verdict.** It misses runtime wiring entirely; a layer that builds is the only proof a seam is real.
 - **Every layer builds and passes on its own,** or the seam is wrong. Fix the seam, not the test.
 - **Bottom-up for everything** — carve, verify, push, open, merge.
