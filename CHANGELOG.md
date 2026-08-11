@@ -5,6 +5,48 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.26.0] - 2026-08-11
+
+### Added
+
+- **The split-pr skill builds an actual stack now, not three pull requests that
+  happen to chain.** GitHub shipped native stacked pull requests, so where the
+  host has one the skill registers it and the request pages carry a stack map,
+  navigation between layers, and cascading rebase. The `{{FORGE}}` block for
+  GitHub gained the `gh stack` commands and the two constraints that decide
+  whether a stack is possible at all: every branch in one repo, and the
+  `gh-stack` extension installed. Where the extension is missing the skill
+  offers to install it, at the Phase 3 approval gate rather than mid-push, so
+  the run interrupts once instead of twice. GitLab and Bitbucket say plainly
+  that they have no native stack object, which turns "register a stack where the
+  host has one" into a definite answer everywhere instead of a hunt for a
+  feature that isn't there.
+- **The stack records its own topology.** Each layer above the bottom gets
+  `branch.<child>.klaussyParent` written to git config. The restack skill has
+  always read exactly that key and until now nothing wrote it, so every stack
+  split-pr built made restack re-derive the chain from commit ancestry.
+
+### Changed
+
+- **Phase 6 is a procedure rather than a sentence.** Push and open interleaved
+  bottom-up, because a parent has to exist on the remote before a child can
+  target it, and the base is passed explicitly on every request and then read
+  back off it. That field silently defaults to the repo's default branch when
+  omitted, which puts every layer on the base and makes each request show the
+  sum of everything under it, the exact review problem the split existed to
+  solve.
+- **The repo's own guards come off during a carve.** A commit hook that formats,
+  lints with a fix flag, or applies review suggestions treats each layer commit
+  as fresh authorship and rewrites it, which is the one edit the carve phase
+  forbids arriving from the direction nobody watches. A guard already running is
+  never interrupted either: a formatter killed halfway leaves its edits staged
+  for the next commit to swallow. At push time the same guards judge each layer
+  as though it were the whole change, so they refuse over exactly the seams that
+  were designed on purpose, and re-read the same lines once per layer. Both were
+  found by running the skill end-to-end rather than by reading it.
+- `kimi_hooks` no longer carries a comment restating its own docstring five
+  lines below it.
+
 ## [0.25.0] - 2026-08-07
 
 ### Changed
