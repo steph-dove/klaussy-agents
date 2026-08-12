@@ -1,6 +1,6 @@
 ---
 name: {{SKILL_PREFIX}}-session-context
-description: Use when reading, writing, listing, or managing uncommitted Open Knowledge Format (OKF) session notes for active multi-agent coordination across worktrees in klaussy-desktop.
+description: Use when reading, writing, listing, or managing uncommitted Open Knowledge Format (OKF) session notes for active multi-agent coordination across worktrees.
 ---
 
 ## Target
@@ -20,7 +20,7 @@ Supported operations:
 ## Instructions
 
 1. **When Reading Session Context:**
-   - Check if `$KLAUSSY_SESSION_NOTES_DIR` exists or locate `.git/klaussy-session/notes/$KLAUSSY_SESSION_ID/` in the worktree.
+   - Check if `$KLAUSSY_SESSION_NOTES_DIR` exists or locate `.git/klaussy-session/notes/$KLAUSSY_SESSION_ID/` (or `.git/klaussy-session/notes/`) in the worktree.
    - Read all Markdown (`.md`) files in that directory.
    - Inspect frontmatter metadata (`agent`, `provider`, `affected_files`, `tags`, `timestamp`) and note contents to learn about active work done by other agents in concurrent worktrees.
 
@@ -37,7 +37,7 @@ Supported operations:
      ---
      ```
    - Followed by a concise `# Title` and summary body of discoveries, port shifts, or breaking changes.
-   - Save the file to `$KLAUSSY_SESSION_NOTES_DIR/note-<timestamp>.md`.
+   - Save the file to `$KLAUSSY_SESSION_NOTES_DIR/note-<timestamp>.md` (or `.git/klaussy-session/notes/note-<timestamp>.md`).
 
 3. **Git Safety Rule:**
    - NEVER stage or commit `$KLAUSSY_SESSION_NOTES_DIR` or `.git/klaussy-session/` into Git.
