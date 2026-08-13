@@ -51,6 +51,7 @@ SKILL_NAMES = [
     "slop-coded",
     "rest-of-the-owl",
     "grant-permissions",
+    "session-context",
 ]
 
 VERSION_FILE = ".klaussy-version"

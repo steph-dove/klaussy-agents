@@ -197,6 +197,18 @@ class TestScaffoldSkills:
         assert f"name: {ns}-plan" in plan_md
         assert "{{REPO}}" not in plan_md
 
+    def test_every_skill_is_fully_substituted(self, repo: Path):
+        # A template that invents its own placeholder name still scaffolds, and
+        # still passes every per-skill test, so check the whole set at once.
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in SKILL_NAMES:
+            skill_md = repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md"
+            # `klaussy checklist` fills the enrichment block after scaffolding.
+            text = skill_md.read_text().replace("{{REPO_SPECIFIC_CHECKS}}", "")
+            assert "{{" not in text, f"{skill} has an unsubstituted placeholder"
+            assert f"name: {ns}-{skill}" in text, f"{skill} has a wrong frontmatter name"
+
     def test_base_branch_substitution(self, repo: Path):
         scaffold_skills(repo=repo, base_branch="develop")
         ns = sanitize_skill_namespace(repo.name)
