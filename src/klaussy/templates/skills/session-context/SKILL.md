@@ -16,12 +16,12 @@ Supported operations:
 ## Environment Variables
 
 - `$KLAUSSY_SESSION_ID`: Identifies the terminal you are running in. Stamp it on notes you write; it does NOT scope the notes directory.
-- `$KLAUSSY_SESSION_NOTES_DIR`: Absolute path to the uncommitted notes directory. One directory is shared by every agent and worktree in the session, which is what lets you see each other's notes.
+- `$KLAUSSY_SESSION_NOTES_DIR`: Absolute path to the notes directory. One directory is shared by every agent and every repo in the session, which is what lets you see each other's notes.
 
-If the variable is unset, fall back to `<git-common-dir>/klaussy-session/notes/`
-— resolve it with `git rev-parse --path-format=absolute --git-common-dir`, not
-by joining `.git` yourself, because a linked worktree's `.git` resolves to its
-own private directory rather than the shared one.
+Use the variable exactly as given — do not guess or rebuild the path, and do not
+write to a relative path, which some CLIs resolve against their own scratch
+directory rather than the repo. If it is unset you are not running in a klaussy
+session: skip session notes entirely.
 
 ## Instructions
 
@@ -49,5 +49,5 @@ own private directory rather than the shared one.
    - Save it as `$KLAUSSY_SESSION_NOTES_DIR/note-<timestamp>.md`. Keep the filename a plain slug — no `/` or `..`.
 
 3. **Git Safety Rule:**
-   - NEVER stage or commit `$KLAUSSY_SESSION_NOTES_DIR` or `klaussy-session/` into Git.
-   - Session context notes are strictly uncommitted runtime state.
+   - Notes live outside the repository. Never copy one into the working tree or commit it.
+   - Session context notes are strictly runtime state, and they expire.
