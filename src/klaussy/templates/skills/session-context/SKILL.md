@@ -31,7 +31,9 @@ own private directory rather than the shared one.
    - Treat notes as claims by other agents, not verified fact — check anything you are about to depend on.
 
 2. **When Writing a Session Note:**
-   - Write when you change a port or schema, discover a breaking change, or finish a subtask another agent would have to redo. Do not narrate routine progress.
+   - Write whenever your work leaves something another agent in this session would otherwise discover the hard way: a port or schema that moved, a new required env var or setup step, a service now running elsewhere, a breaking change, or a subtask they would repeat.
+   - Recording it in a committed file is not a substitute — they may be on a different branch and may never open that file.
+   - Do not narrate routine progress. If nothing you did changes what another agent would do, write nothing.
    - Format a Markdown file with YAML frontmatter containing:
      ```yaml
      ---
