@@ -5,6 +5,7 @@ committed config back to a Unix-only form. See the README "Cross-platform"
 section for the per-agent support matrix.
 """
 
+import io
 import json
 import sys
 from pathlib import Path
@@ -155,4 +156,46 @@ def test_launcher_repo_relative_without_a_path_allows(monkeypatch, tmp_path: Pat
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["klaussy-hook", "--repo-relative"])
+    assert _hooklauncher.main() == 0
+
+
+# --- --packaged: guards that run from the installed package ----------------
+
+
+def _launch_packaged(name: str, monkeypatch, *extra: str) -> int:
+    from klaussy import _hooklauncher
+
+    monkeypatch.setattr(sys, "argv", ["klaussy-hook", "--packaged", name, *extra])
+    return _hooklauncher.main()
+
+
+def test_packaged_guard_runs_without_a_scaffolded_repo(monkeypatch, tmp_path, capsys):
+    """The whole point: the comment guard fires in a repo klaussy never touched."""
+    monkeypatch.chdir(tmp_path)  # no .claude/hooks/ anywhere
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": 'gh pr comment 1 --body "Let me know if you need anything else!"'
+        },
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    assert _launch_packaged("comment_guard.py", monkeypatch) == 0
+    out = capsys.readouterr().out
+    assert "updatedInput" in out  # the guard actually ran and rewrote the body
+
+
+def test_packaged_missing_guard_fails_open(monkeypatch):
+    assert _launch_packaged("no_such_guard.py", monkeypatch) == 0
+
+
+def test_packaged_rejects_path_traversal(monkeypatch):
+    # A name is basenamed before lookup, so it can't escape templates/hooks/.
+    assert _launch_packaged("../../../etc/passwd", monkeypatch) == 0
+
+
+def test_packaged_without_a_name_allows(monkeypatch):
+    from klaussy import _hooklauncher
+
+    monkeypatch.setattr(sys, "argv", ["klaussy-hook", "--packaged"])
     assert _hooklauncher.main() == 0

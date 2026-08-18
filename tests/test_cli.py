@@ -1306,9 +1306,13 @@ class TestMultiAgentHooks:
             for h in entry["hooks"]
         ]
         assert cmds  # sanity
-        # Every command references the script via ${CLAUDE_PROJECT_DIR}, never a
-        # bare relative `.claude/hooks/...`.
-        assert all("${CLAUDE_PROJECT_DIR}/.claude/hooks/" in c for c in cmds)
+        # Every scaffolded guard names its script via ${CLAUDE_PROJECT_DIR}, never a
+        # bare relative path; the comment guard runs from the package, so it names none.
+        packaged = [c for c in cmds if "--packaged" in c]
+        assert packaged == ["klaussy-hook --packaged comment_guard.py"]
+        scaffolded = [c for c in cmds if "--packaged" not in c]
+        assert scaffolded
+        assert all("${CLAUDE_PROJECT_DIR}/.claude/hooks/" in c for c in scaffolded)
 
     def test_gemini_hook_commands_use_project_dir_env(self, repo: Path):
         from klaussy.agents.backends import GeminiBackend
