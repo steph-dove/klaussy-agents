@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.28.1] - 2026-08-17
+
+### Fixed
+
+- **Session notes now carry `type`, the one field the Open Knowledge Format
+  actually requires.** The session-context skill described these as OKF notes
+  while the frontmatter it told agents to write left `type` out, so every note
+  produced from the template was non-conformant against the spec the skill
+  cites. Extra keys are legal under OKF and a missing required key is not, so
+  the rest of the schema was fine; the claim was the part that was wrong. The
+  reading step now also covers `stale_after`, and tells agents that a note past
+  its expiry is history rather than current state.
+
+## [0.28.0] - 2026-08-13
+
+### Added
+
+- **`session-context` skill.** Scaffolds the protocol that lets agents working
+  one session read and write a shared notes channel, so a port that moved or a
+  decision one agent made stops being invisible to the others. Notes are
+  Markdown with YAML frontmatter, kept outside the repository, and the skill
+  covers both the read path (treat notes as claims to verify, not fact) and the
+  write path (write when another agent would otherwise discover it the hard
+  way, stay quiet about routine progress).
+
 ## [0.27.0] - 2026-08-11
 
 ### Changed
