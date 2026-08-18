@@ -51,8 +51,9 @@ def _find_body(tokens: list[str]) -> tuple[int, str, bool] | None:
     return None
 
 
-# Shell operators that end one command and start the next.
-_SEPARATORS = ";&|"
+# Characters that end one command and start the next. A newline counts: agents
+# routinely send multi-line scripts as a single Bash call.
+_SEPARATORS = ";&|\n"
 
 
 def _split_commands(command: str) -> list[str]:

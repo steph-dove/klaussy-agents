@@ -275,6 +275,10 @@ def test_split_commands_separates_chained_commands(mod_name, claude, multi):
     assert mod._is_comment_post(parts[0])
     assert not mod._is_comment_post(parts[1])
     assert len(mod._split_commands("gh pr comment 1 -b x&&git commit -F m")) == 2
+    # A newline separates commands too — agents send multi-line Bash regularly.
+    newline_chained = mod._split_commands('gh pr comment 1 --body "x"\ngit commit -F /tmp/m')
+    assert len(newline_chained) == 2
+    assert mod._find_body_file(shlex.split(newline_chained[0])) is None
     # A separator inside quotes is body text, not an operator — markdown tables
     # are full of pipes and must not split the command.
     tabled = mod._split_commands('gh pr comment 1 --body "| a | b |\n| - | - |"')
