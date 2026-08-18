@@ -27,7 +27,8 @@ session: skip session notes entirely.
 
 1. **When Reading Session Context:**
    - Read every Markdown (`.md`) file in the notes directory.
-   - Inspect frontmatter metadata (`agent`, `provider`, `affected_files`, `tags`, `timestamp`) and note contents to learn about active work done by other agents in concurrent worktrees.
+   - Inspect frontmatter metadata (`agent`, `provider`, `affected_files`, `tags`, `timestamp`, `stale_after`) and note contents to learn about active work done by other agents in concurrent worktrees.
+   - A note whose `stale_after` date has passed is history, not current state; read it, but do not act on it as though it still holds.
    - Treat notes as claims by other agents, not verified fact — check anything you are about to depend on.
 
 2. **When Writing a Session Note:**
@@ -37,6 +38,7 @@ session: skip session notes entirely.
    - Format a Markdown file with YAML frontmatter containing:
      ```yaml
      ---
+     type: session-note
      id: note-<timestamp>
      agent: <your-agent-name>
      provider: <provider-id>
@@ -45,6 +47,7 @@ session: skip session notes entirely.
      tags: [topic]
      ---
      ```
+   - `type` is the one field the Open Knowledge Format requires; keep it as `session-note` so other OKF tooling can read these.
    - Followed by a concise `# Title` and summary body of discoveries, port shifts, or breaking changes.
    - Save it as `$KLAUSSY_SESSION_NOTES_DIR/note-<timestamp>.md`. Keep the filename a plain slug — no `/` or `..`.
 
