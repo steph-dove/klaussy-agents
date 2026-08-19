@@ -5,6 +5,26 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.30.0] - 2026-08-18
+
+### Changed
+
+- **Session notes name their author the way OKF does.** The session-context
+  skill's write template asked agents for `agent:` and `provider:`, which are
+  OKF's `generated: { by, at }` with a worse spelling and no actor convention.
+  Agents are taught the spec key instead, and the read step now points at
+  `status` and `verified`, so an agent treats a deprecated note as history and
+  weights a human-reviewed claim above another agent's first guess. The older
+  keys are still read, so notes already on disk stay valid. Pairs with
+  klaussy-desktop 0.17.0 and klaussy-repo-conventions 1.9.0.
+
+### Fixed
+
+- **`klaussy.__version__` reports the installed version again.** The 0.29.0
+  release bumped `pyproject.toml` and left `__init__.py` at 0.28.1, so anything
+  reading the module attribute saw the wrong number. Both files move together
+  here.
+
 ## [0.29.0] - 2026-08-18
 
 ### Fixed
