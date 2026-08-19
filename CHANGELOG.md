@@ -5,6 +5,47 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.29.0] - 2026-08-18
+
+### Fixed
+
+- **The comment guard now actually runs.** klaussy ships fixes by having the
+  package upgraded, but the guard was delivered as a copy into each repo's
+  `.claude/hooks/`, with the hook command pointing at that copy. An upgrade
+  never rewrote those copies, and the launcher exits 0 in silence when one is
+  missing — so the guard a repo ran was frozen at whatever version scaffolded
+  it, and did nothing at all in repos klaussy had never been run in. Every
+  humanize fix shipped to that guard had been landing in a package the hook
+  wasn't executing. `klaussy-hook` gains a `--packaged` mode that resolves a
+  guard out of the installed package, and the comment guard is wired to it: it
+  names no repo path, so it runs in every repo at the installed version and an
+  upgrade reaches all of them at once. Guards that bake in repo conventions —
+  the commit guard's format and lint commands, the plan and self-review
+  dialects — stay per-repo copies.
+- **PR and issue bodies are humanized, not just literal comments.** The guard
+  only parsed a body passed as a single literal token, on three subcommands, so
+  `--body-file`/`-F` (the shape anything multi-line uses) and every
+  `gh pr create` body went straight past it. Those are now scrubbed in place
+  before `gh` reads them, and `pr create`, `pr edit`, `issue create` and
+  `issue edit` are covered. A file git reports as tracked is never rewritten,
+  and a file git can't answer for is left alone rather than assumed safe.
+  Writes go through a temp file and a rename, so a failed write can't hand `gh`
+  a truncated body. Parsing is scoped to the `gh` command and splits the line
+  quote-aware, so a chained `git commit -F msg.txt` isn't read as the comment
+  body — and a body holding a markdown table isn't split apart.
+- **Every outcome is reported.** Returning quietly once the guard knows a body
+  has tells was indistinguishable from the body being clean, which is the
+  failure it exists to prevent. Where the cross-agent guard can't scrub a body,
+  it blocks with the reason rather than allowing a post with a note that may
+  surface nowhere.
+
+### Changed
+
+- **`.claude/hooks/comment_guard.py` is no longer scaffolded**, and a copy left
+  behind by an earlier version is removed on the next run. The guard runs from
+  the package now, so a repo copy would be an inert file that reads as the
+  live one.
+
 ## [0.28.1] - 2026-08-17
 
 ### Fixed

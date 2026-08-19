@@ -41,7 +41,9 @@ COMMIT_GUARD_COMMAND = _cmd(COMMIT_GUARD_RELPATH)
 
 COMMENT_GUARD_SCRIPT_NAME = "comment_guard.py"
 COMMENT_GUARD_RELPATH = f".claude/hooks/{COMMENT_GUARD_SCRIPT_NAME}"
-COMMENT_GUARD_COMMAND = _cmd(COMMENT_GUARD_RELPATH)
+# Wired to the package, not a scaffolded copy: this guard bakes in nothing
+# repo-specific, and a copy only froze it at the scaffolding version.
+COMMENT_GUARD_COMMAND = f"klaussy-hook --packaged {COMMENT_GUARD_SCRIPT_NAME}"
 
 DEPENDENCY_GUARD_SCRIPT_NAME = "dependency_guard.py"
 DEPENDENCY_GUARD_RELPATH = f".claude/hooks/{DEPENDENCY_GUARD_SCRIPT_NAME}"
@@ -140,20 +142,6 @@ def _install_guard_script(repo: Path) -> Path:
     dest = repo / GUARD_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
     source = resources.files("klaussy").joinpath(f"templates/hooks/{GUARD_SCRIPT_NAME}")
-    dest.write_text(source.read_text())
-    mode = dest.stat().st_mode
-    dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    return dest
-
-
-def _install_comment_guard_script(repo: Path) -> Path:
-    """Copy the comment-humanizing guard into .claude/hooks/ and mark executable.
-
-    No commands are baked in: it shells out to `klaussy humanize` at run time, so
-    a plain copy is enough (unlike the commit guard's format/lint sentinels)."""
-    dest = repo / COMMENT_GUARD_RELPATH
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    source = resources.files("klaussy").joinpath(f"templates/hooks/{COMMENT_GUARD_SCRIPT_NAME}")
     dest.write_text(source.read_text())
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -335,9 +323,9 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     # plan itself.
     _install_guard_script(repo)
     _install_plan_guidance_script(repo, "claude")
-    # Comment guard rewrites an outgoing `gh` comment through `klaussy humanize`
-    # (PreToolUse updatedInput). No project-specific command, so always installed.
-    _install_comment_guard_script(repo)
+    # Drop the copy older versions scaffolded: the guard runs from the package
+    # now (see COMMENT_GUARD_COMMAND), and a leftover file reads as the live one.
+    (repo / COMMENT_GUARD_RELPATH).unlink(missing_ok=True)
     # Dependency gate blocks a `pip/npm/poetry/… install <pkg>` that adds a new
     # named dependency until the agent confirms it. No project-specific command,
     # so always installed.

@@ -85,7 +85,9 @@ def test_settings_scaffolds_then_rerun_marks_skipped(repo: Path):
 def test_hooks_scaffolds_guards(repo: Path):
     result = toolkit.hooks(repo, agents=["claude"])
     assert result.ok
-    assert (repo / ".claude" / "hooks" / "comment_guard.py").exists()
+    assert (repo / ".claude" / "hooks" / "git_commit_guard.py").exists()
+    # comment guard runs from the package (see COMMENT_GUARD_COMMAND), no copy
+    assert not (repo / ".claude" / "hooks" / "comment_guard.py").exists()
 
 
 def test_claude_hook_commands_use_launcher():
@@ -126,3 +128,12 @@ def test_fix_and_test_skills_scope_to_base_branch(repo: Path):
     # fix/test scope to the branch diff, not the whole repo (substitution applied).
     assert "develop...HEAD" in fix.read_text()
     assert "develop...HEAD" in test.read_text()
+
+
+def test_hooks_removes_a_stale_comment_guard_copy(repo: Path):
+    """A repo scaffolded by an older klaussy keeps an inert copy — clear it."""
+    stale = repo / ".claude" / "hooks" / "comment_guard.py"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("# scaffolded by an old klaussy\n")
+    assert toolkit.hooks(repo, agents=["claude"]).ok
+    assert not stale.exists()

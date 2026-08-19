@@ -13,6 +13,12 @@ guard under the same interpreter klaussy is installed on. `klaussy` is already a
 runtime dependency of the comment/commit guards (they shell out to it), so this
 adds nothing new to install.
 
+`--packaged <name>` runs a guard straight out of the installed klaussy package
+instead of a scaffolded copy. Guards that bake in repo conventions (commit,
+plan-guidance, self-review) must stay per-repo, but the comment humanizer bakes
+in nothing, so running it from the package lets a klaussy-desktop upgrade reach
+every repo at once, including ones klaussy never scaffolded.
+
 `--repo-relative <path>` resolves the guard against the enclosing git repo
 instead of an absolute path. Kimi Code CLI needs it: its hooks live in the user's
 global config, and its four-field `[[hooks]]` schema has no per-OS override or
@@ -49,8 +55,38 @@ def _resolve_in_repo(relpath: str) -> str | None:
     return os.path.join(out.stdout.strip(), relpath)
 
 
+def _run(script: str) -> int:
+    """Execute a guard, propagating its exit code and failing open on anything else."""
+    try:
+        runpy.run_path(script, run_name="__main__")
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 0
+    except Exception:
+        return 0
+    return 0
+
+
+def _run_packaged(name: str, extra: list[str]) -> int:
+    """Run a guard shipped inside the installed klaussy package.
+
+    `name` is basenamed before lookup so a hook command can't walk out of the
+    templates directory. Fails open like every other path here.
+    """
+    try:
+        from importlib import resources
+
+        ref = resources.files("klaussy").joinpath(f"templates/hooks/{os.path.basename(name)}")
+        # as_file materializes the resource for the zipped-install case; for a
+        # normal install it hands back the real path unchanged.
+        with resources.as_file(ref) as path:
+            sys.argv = [str(path), *extra]
+            return _run(str(path))
+    except Exception:
+        return 0
+
+
 def main() -> int:
-    """Run the guard script named in argv[1], propagating its exit code.
+    """Run the guard named in argv[1], propagating its exit code.
 
     A guard blocks by exiting non-zero (2); it allows by exiting 0 or returning.
     Anything that prevents the guard from running (missing file, import error)
@@ -59,6 +95,10 @@ def main() -> int:
     """
     if len(sys.argv) < 2:
         return 0
+    if sys.argv[1] == "--packaged":
+        if len(sys.argv) < 3:
+            return 0
+        return _run_packaged(sys.argv[2], sys.argv[3:])
     if sys.argv[1] == "--repo-relative":
         if len(sys.argv) < 3:
             return 0
@@ -70,10 +110,4 @@ def main() -> int:
     # Present the guard with its own name as argv[0] and any trailing args, so a
     # guard that inspects sys.argv sees what it would under a direct invocation.
     sys.argv = [script, *sys.argv[2:]]
-    try:
-        runpy.run_path(script, run_name="__main__")
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 0
-    except Exception:
-        return 0
-    return 0
+    return _run(script)
