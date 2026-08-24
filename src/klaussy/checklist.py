@@ -1,5 +1,7 @@
 """Generate a repo-tailored review skill from CLAUDE.md and .claude/rules/."""
 
+from __future__ import annotations
+
 import re
 from importlib import resources
 from pathlib import Path

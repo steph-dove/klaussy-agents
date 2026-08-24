@@ -133,9 +133,9 @@ class TestScopeRefusal:
     def test_a_lone_branch_is_not_a_stack(self):
         out = run_skill("restack", SINGLE_BRANCH_CONTEXT, instruction=PLAN_INSTRUCTION)
         # "When NOT to use": one branch off the base is a plain rebase. The tell
-        # that the model over-applied the skill is --onto machinery on a chain
+        # that the model over-applied the skill is rebase --onto machinery on a chain
         # of one.
-        assert "--onto" not in out, f"stack machinery applied to a single branch:\n{out}"
+        assert "rebase --onto" not in out, f"stack machinery applied to a single branch:\n{out}"
 
 
 class TestTheAssertionsCanFail:

@@ -7,6 +7,8 @@ substituted, the same shape as {{HUMANIZE}}. Detection reads `origin` only, so
 than guess.
 """
 
+from __future__ import annotations
+
 import subprocess
 from importlib import resources
 from pathlib import Path

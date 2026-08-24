@@ -1,5 +1,7 @@
 """Scaffold .claude/skills/ with namespaced Claude Code skills."""
 
+from __future__ import annotations
+
 import re
 from importlib import resources
 from pathlib import Path
