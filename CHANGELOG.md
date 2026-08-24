@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.30.1] - 2026-08-23
+
+### Fixed
+
+- **Type annotations & prompt eval refinements.** Added `from __future__ import annotations`
+  across core modules to standardize type evaluation. Refined prompt assertions in restack
+  and humanize evaluation suites.
+
 ## [0.30.0] - 2026-08-18
 
 ### Changed
