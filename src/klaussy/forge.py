@@ -7,6 +7,9 @@ substituted, the same shape as {{HUMANIZE}}. Detection reads `origin` only, so
 than guess.
 """
 
+from __future__ import annotations
+
+import os
 import subprocess
 from importlib import resources
 from pathlib import Path
@@ -58,7 +61,7 @@ def _host(url: str) -> str:
 
 
 def detect_forge(repo: Path) -> str:
-    """Identify the hosting provider from the repo's remote URL.
+    """Identify the hosting provider from the repo's remote URL or CI environment.
 
     Matches the host alone, never the whole URL: a repo named
     `github-actions-demo` hosted elsewhere would otherwise read as GitHub.
@@ -66,16 +69,22 @@ def detect_forge(repo: Path) -> str:
     else is reported as unknown rather than guessed at.
     """
     url = _remote_url(repo)
-    if not url:
-        return FORGE_UNKNOWN
+    if url:
+        host = _host(url)
+        if "github" in host:
+            return FORGE_GITHUB
+        if "gitlab" in host:
+            return FORGE_GITLAB
+        if "bitbucket" in host or "stash" in host:
+            return FORGE_BITBUCKET
 
-    host = _host(url)
-    if "github" in host:
-        return FORGE_GITHUB
-    if "gitlab" in host:
+    if os.getenv("GITLAB_CI") or os.getenv("CI_SERVER_HOST"):
         return FORGE_GITLAB
-    if "bitbucket" in host or "stash" in host:
+    if os.getenv("GITHUB_ACTIONS"):
+        return FORGE_GITHUB
+    if os.getenv("BITBUCKET_BUILD_NUMBER") or os.getenv("BITBUCKET_REPO_SLUG"):
         return FORGE_BITBUCKET
+
     return FORGE_UNKNOWN
 
 

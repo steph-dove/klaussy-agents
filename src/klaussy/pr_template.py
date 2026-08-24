@@ -6,6 +6,8 @@ The body is host-agnostic; only the path differs. GitHub reads
 default description is a repo setting, not a tracked file.
 """
 
+from __future__ import annotations
+
 from importlib import resources
 from pathlib import Path
 

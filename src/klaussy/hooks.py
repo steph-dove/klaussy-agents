@@ -1,5 +1,7 @@
 """Scaffold Claude Code hook configurations."""
 
+from __future__ import annotations
+
 import json
 import stat
 from importlib import resources
