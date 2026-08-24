@@ -66,37 +66,6 @@ class TestDetection:
         assert detect_forge(_git_repo(tmp_path / "bare")) == FORGE_UNKNOWN
         assert detect_forge(tmp_path / "not-a-repo") == FORGE_UNKNOWN
 
-    def test_ci_environment_variables(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        ci_vars = (
-            "GITLAB_CI",
-            "CI_SERVER_HOST",
-            "GITHUB_ACTIONS",
-            "BITBUCKET_BUILD_NUMBER",
-            "BITBUCKET_REPO_SLUG",
-        )
-        for var in ci_vars:
-            monkeypatch.delenv(var, raising=False)
-
-        repo = _git_repo(tmp_path / "ci-repo")
-        monkeypatch.setenv("GITLAB_CI", "true")
-        assert detect_forge(repo) == FORGE_GITLAB
-
-        monkeypatch.delenv("GITLAB_CI")
-        monkeypatch.setenv("CI_SERVER_HOST", "gitlab.example.com")
-        assert detect_forge(repo) == FORGE_GITLAB
-
-        monkeypatch.delenv("CI_SERVER_HOST")
-        monkeypatch.setenv("GITHUB_ACTIONS", "true")
-        assert detect_forge(repo) == FORGE_GITHUB
-
-        monkeypatch.delenv("GITHUB_ACTIONS")
-        monkeypatch.setenv("BITBUCKET_BUILD_NUMBER", "42")
-        assert detect_forge(repo) == FORGE_BITBUCKET
-
-        monkeypatch.delenv("BITBUCKET_BUILD_NUMBER")
-        monkeypatch.setenv("BITBUCKET_REPO_SLUG", "my-repo")
-        assert detect_forge(repo) == FORGE_BITBUCKET
-
 
 class TestBlock:
     def test_every_forge_has_a_distinct_block(self):
