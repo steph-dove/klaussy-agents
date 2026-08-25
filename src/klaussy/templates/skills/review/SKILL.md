@@ -61,7 +61,7 @@ Count the total **reviewable** lines changed (from Phase 1 step 3 — the trimme
 
 ## Small PR Review
 
-You are a senior/principal-level engineer reviewing a pull request. Treat this as a real production PR. Output ONLY PR-style review comments, as if leaving inline comments on GitHub/GitLab.
+You are a senior/principal-level engineer reviewing a pull request. Treat this as a real production PR. Output ONLY PR-style review comments, as if leaving inline comments on GitHub/GitLab/Bitbucket.
 
 ### Comment format (required for every comment):
 
