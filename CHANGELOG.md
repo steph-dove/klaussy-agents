@@ -5,13 +5,17 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
-## [Unreleased]
+## [0.30.3] - 2026-08-27
 
 ### Added
 
-- **`rest-of-the-owl` pre-flight permissions step.** Added automatic invocation guidance
+- **`rest-of-the-owl` pre-flight permissions & OKF note sharing.** Added automatic invocation guidance
   for `{{REPO}}-grant-permissions` so the full 9-phase autonomous dev loop runs unattended
-  without tool confirmation prompts interrupting execution.
+  without tool confirmation prompts interrupting execution. Enabled saving uncommitted plans as
+  Open Knowledge Format (OKF) session notes (`$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-plan.md`).
+- **Responsive QA video & Before/After visual comparison.** Updated `qa` and `rest-of-the-owl` templates
+  to mandate side-by-side Before/After tables and full-flow `.mp4` video recordings showcasing
+  responsive viewport resizing, plus programmatic asset uploads for direct markdown link embedding.
 
 ## [0.30.2] - 2026-08-24
 
