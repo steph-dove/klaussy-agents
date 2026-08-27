@@ -38,6 +38,15 @@ Output format:
 
 <!-- Key changes, grouped logically. Aim for 3-6 bullets; one line each. -->
 
+## Visual QA / Evidence (for UI & visual changes)
+
+<!-- Include Before & After comparison table and responsive demo video -->
+| Before | After |
+| :---: | :---: |
+| ![Before](image-url) | ![After](image-url) |
+
+<!-- Demo Video: [Watch Full Interaction Video](video-url) -->
+
 ## Test Plan
 
 <!-- How the changes were tested -->

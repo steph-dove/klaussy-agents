@@ -28,11 +28,11 @@ If routine dev permissions are not yet configured for this worktree, invoke **`{
 
 ## Phase 1 — Plan
 
-Follow **`{{REPO}}-plan`** (or **`{{REPO}}-implement`**'s lighter planning phase for a small, single-surface task). Produce a concrete build sequence. If the task definition leaves a real ambiguity, ask now — a wrong assumption here costs the whole owl.
+Follow **`{{REPO}}-plan`** (or **`{{REPO}}-implement`**'s lighter planning phase for a small, single-surface task). Produce a concrete build sequence. Save the approved plan as an uncommitted OKF session note in `$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-plan.md` (or `%KLAUSSY_SESSION_NOTES_DIR%\<agent-name>-plan.md` on Windows, or `plan.md` at worktree root) following the Open Knowledge Format protocol (YAML frontmatter with `type: session-note`, `tags: [plan, design, devloop]`, `generated: { by: <provider-id>/<agent-name>, at: <ISO-8601 timestamp> }`). If the task definition leaves a real ambiguity, ask now — a wrong assumption here costs the whole owl.
 
 ## Phase 2 — Implement
 
-Follow **`{{REPO}}-implement`**. Work the plan in small batches, keeping the suite green as you go. For a bug fix, write the failing test first. Do not scope-creep beyond the task definition.
+Follow **`{{REPO}}-implement`**. Work the plan in small batches, keeping the suite green as you go. For a bug fix, write the failing test first. Record any breaking changes or shared context notes in `$KLAUSSY_SESSION_NOTES_DIR/` (or `%KLAUSSY_SESSION_NOTES_DIR%` on Windows). Do not scope-creep beyond the task definition.
 
 ## Phase 3 — Local review and fix
 
@@ -40,16 +40,23 @@ Follow **`{{REPO}}-review`** against the working diff (`git diff {{BASE_BRANCH}}
 
 ## Phase 4 — QA the change
 
-Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits: a screen recording plus screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to a `Downloads/<repo>-<branch>` folder where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+Follow **`{{REPO}}-qa`**. It classifies the diff and runs only the QA that fits:
+- **UI / Frontend changes**:
+  - Capture **before and after screenshots** for visual comparison, formatted in a comparison table.
+  - Record a **full-flow video (.mp4)** demonstrating the complete interaction end-to-end. The video MUST showcase responsive UI behaviors by resizing (growing and shrinking) the window or viewport.
+  - Save all media in `Downloads/klaussy-qa-<branch>/` (`~/Downloads/klaussy-qa-<branch>/` on macOS/Linux, `%USERPROFILE%\Downloads\klaussy-qa-<branch>\` on Windows).
+  - Programmatically upload QA media assets (e.g. using `gh release upload`, `gh api` assets endpoint, or image host) so you have direct asset URLs ready to attach to the PR description.
+- **Backend / CLI changes**:
+  - Exercise endpoints, run integration suites, and capture execution output.
 
-**Capture a recording whenever the change can be recorded.** This run is autonomous, so the recording is often the only chance a human gets to watch the change work before they merge it. Anything with an interaction or a multi-step flow gets video — via the repo's Playwright/Cypress setup, your agent surface's browser control, the browser or OS recorder, whatever is available (the QA skill's *Capturing a recording* section ranks the options). Screenshots are the fallback when recording genuinely isn't possible, and that gap gets stated in the PR rather than glossed over.
+Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches.
 
 **QA is a gate, not a formality — clear it before you touch the PR.** The whole point of running QA here is to catch problems *before* they become CI failures or reviewer comments. If QA surfaces anything wrong — a screenshot that shows the change is broken or ugly, an endpoint returning the wrong response, a CLI erroring, a failing test — stop and fix it: loop back to Phase 2/3, correct the change, and re-QA. Do NOT open the PR (Phase 5) on a change that QA has shown to be broken and then rely on CI or the reviewer to catch it. Only advance once QA is genuinely clean (or the only gaps are ones you've explicitly flagged as un-QA-able and told the user about).
 
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `{{BASE_BRANCH}}`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the recording and screenshots by filename (no CLI in the adapter below uploads images or video, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag the files into the PR, unless the repo has a media-hosting convention); for backend/CLI, paste the captured output. Say which file shows what, so the drag-and-drop is a mechanical step rather than a guessing game.
+2. Draft the PR body from the task definition + what you actually built, using **`{{REPO}}-pr`**'s Summary / Changes / Test Plan structure. For UI changes, embed the Before/After comparison table and uploaded video links into the PR description; for backend/CLI, paste the captured output.
 3. Run the body through **`{{REPO}}-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
 4. Open the request against `{{BASE_BRANCH}}` with the adapter's create command. Capture its number/URL and report it.
 
