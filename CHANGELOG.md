@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **`rest-of-the-owl` pre-flight permissions step.** Added automatic invocation guidance
+  for `{{REPO}}-grant-permissions` so the full 9-phase autonomous dev loop runs unattended
+  without tool confirmation prompts interrupting execution.
+
 ## [0.30.2] - 2026-08-24
 
 ### Added
