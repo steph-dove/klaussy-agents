@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
-> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi.
+> **Write once, align everyone.** Keep your conventions in one central `CLAUDE.md` and let `klaussy` compile it into native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi across GitHub, GitLab, and Bitbucket repositories.
 
-Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **ten major AI coding environments**—matching each agent's native file formats and capability profiles.
+Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. With a single command, it scaffolds conventions, repo-namespaced skills, stack-appropriate settings, and interactive guardrails for **ten major AI coding environments** across **GitHub, GitLab, and Bitbucket**—matching each agent's native file formats and capability profiles.
 
 > **📣 Out of stealth.** `klaussy` has been six months in the making — developed in private and hardened by a hands-on group of testers wiring it into their own repos and daily agent workflows. After months of iteration and real-world use, it's now open to everyone.
 
@@ -67,7 +67,7 @@ Then use the skills. Every one is namespaced to your repo, so in a repo called `
 
 ### 2. Comment Humanizer (`comment_guard.py`)
 
-**Keeps commits and pull request comments clean.** Intercepts outgoing messages and pull request comments (e.g., `gh pr comment`). Automatically scrubs AI filler words, robotic formatting, and chatty openers, ensuring all generated communication reads like it was written by a human software engineer.
+**Keeps commits and pull/merge request comments clean.** Intercepts outgoing messages and pull/merge request comments across GitHub (`gh pr comment`), GitLab (`glab mr note`), and Bitbucket. Automatically scrubs AI filler words, robotic formatting, and chatty openers, ensuring all generated communication reads like it was written by a human software engineer.
 
 ### 3. Pre-Plan Guidance (`plan_guidance.py`)
 
@@ -79,7 +79,7 @@ Injects strict guardrails (e.g., minimal lines changed, no over-engineering, wri
 
 | Gate | What it catches |
 |---|---|
-| 🔑 **Secret scan** | Credentials headed for your history. Eight provider tokens flagged on sight (AWS access keys, GitHub, Slack, Google API, Stripe live and OpenAI keys, private key blocks, Slack webhooks), plus generic `api_key = "..."` assignments gated on length and Shannon entropy — so a real key blocks but `password = "postgres"` doesn't. `os.environ` lookups, `${TEMPLATE}` holes, and `changeme`/`your-key-here` stand-ins are known non-secrets and pass. |
+| 🔑 **Secret scan** | Credentials headed for your history. Provider tokens flagged on sight (AWS access keys, GitHub, GitLab, Bitbucket, Slack, Google API, Stripe live and OpenAI keys, private key blocks, Slack webhooks), plus generic `api_key = "..."` assignments gated on length and Shannon entropy — so a real key blocks but `password = "postgres"` doesn't. `os.environ` lookups, `${TEMPLATE}` holes, and `changeme`/`your-key-here` stand-ins are known non-secrets and pass. |
 | 📝 **Commit message** | Non-Conventional-Commits subjects, before the commit lands and needs amending. |
 | 🎨 **Format + lint** | Your project's own stack (`ruff`, `eslint`, …), scoped to the staged files. |
 | 🧟 **Commented-out code** | Dead code an agent parked in a comment "just in case" (`ruff --select ERA`). Flags, never deletes — commented code you meant to keep stays. |
@@ -102,7 +102,7 @@ Prompts the agent to run a last-pass self-review of its own diff before declarin
 
 ## 🚀 Advanced Repository-Scoped Skills
 
-Every generated skill is namespaced to your repo, carries an auto-trigger description, and is adapted to the agent's capability profile (such as mapping Claude's parallel subagent tools to Codex/Cursor/Antigravity equivalents). Skills that touch a ticket, a pull/merge request, or CI are also adapted to your hosting provider, detected from `origin`: a GitLab repo's skills ship `glab mr` commands and discussion semantics, not `gh pr`. A provider klaussy can't identify (a self-hosted install on a neutral hostname) gets a block that tells the agent to ask rather than guess at an API.
+Every generated skill is namespaced to your repo, carries an auto-trigger description, and is adapted to the agent's capability profile (such as mapping Claude's parallel subagent tools to Codex/Cursor/Antigravity equivalents). Skills that touch a ticket, a pull/merge request, or CI are also adapted to your hosting provider, detected from `origin`: a GitHub repo uses `gh pr` commands, a GitLab repo ships `glab mr` commands and discussion semantics, and a Bitbucket repo uses REST API endpoints and pipeline checks. A provider klaussy can't identify (a self-hosted install on a neutral hostname) gets a block that tells the agent to ask rather than guess at an API.
 
 | Skill | What it does | Magic Feature |
 | :--- | :--- | :--- |
