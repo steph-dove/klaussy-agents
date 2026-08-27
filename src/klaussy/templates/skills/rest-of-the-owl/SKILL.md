@@ -22,6 +22,10 @@ You orchestrate the repo's other skills as a pipeline. Each phase below names th
 
 Stop and hand back to the user (do not barrel ahead) if any phase hits something a human must decide: a missing secret or env var, an ambiguous requirement the task definition doesn't settle, a destructive migration, or a test failure that looks like a real bug in existing code rather than in your change.
 
+## Pre-flight — Permissions
+
+If routine dev permissions are not yet configured for this worktree, invoke **`{{REPO}}-grant-permissions`** first so file editing, test execution, git operations, and forge CLI commands run unprompted throughout the loop.
+
 ## Phase 1 — Plan
 
 Follow **`{{REPO}}-plan`** (or **`{{REPO}}-implement`**'s lighter planning phase for a small, single-surface task). Produce a concrete build sequence. If the task definition leaves a real ambiguity, ask now — a wrong assumption here costs the whole owl.
