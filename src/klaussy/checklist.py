@@ -8,7 +8,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from klaussy.skills import HUMANIZE_BLOCK, sanitize_skill_namespace
+from klaussy.skills import humanize_block, sanitize_skill_namespace
 
 console = Console()
 
@@ -325,7 +325,7 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
             text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment_block)
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{REPO}}", repo_namespace)
-            .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+            .replace("{{HUMANIZE}}", humanize_block(repo_namespace))
         )
 
     skill_dir.mkdir(parents=True, exist_ok=True)

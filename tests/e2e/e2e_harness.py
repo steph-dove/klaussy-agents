@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from klaussy.skills import HUMANIZE_BLOCK
+from klaussy.skills import humanize_block
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -51,7 +51,7 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)
-        .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+        .replace("{{HUMANIZE}}", humanize_block(repo))
         .replace("{{REPO_SPECIFIC_CHECKS}}", "")
     )
     text = _FRONTMATTER.sub("", text, count=1)

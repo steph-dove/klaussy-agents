@@ -284,7 +284,12 @@ def humanize(
         False, "--rules", help="Print the prompt-side humanization rules and exit."
     ),
 ) -> None:
-    """Deterministically humanize prose (strip AI tells), preserving all code.
+    """Deterministically scrub the mechanical AI tells from prose, preserving all code.
+
+    A conservative subset only: dashes, a fixed list of filler openers and
+    scaffolding phrases, a few hedges. It never cuts, shortens, or restyles
+    anything, so it is the backstop for a rewrite and not a humanize pass on its
+    own — that is the `<repo>-humanize` skill, which runs this last.
 
     The canonical scrubber shared with klaussy-desktop. With no files it reads
     stdin and writes the result to stdout — so other tools can pipe through it

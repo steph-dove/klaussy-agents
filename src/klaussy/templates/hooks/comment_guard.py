@@ -208,7 +208,12 @@ def _humanize_file(path: str) -> tuple[str, bool] | None:
         return (f"klaussy comment guard: {path} is tracked, so it wasn't scrubbed.", False)
     if not _write_atomic(Path(path), cleaned):
         return (f"klaussy comment guard: couldn't rewrite {path}, so it wasn't scrubbed.", False)
-    return (f"klaussy comment guard: humanized {path}.", True)
+    return (
+        f"klaussy comment guard: humanized {path}, mechanical tells only. "
+        "The guard can't cut or restyle anything, so run the repo's humanize "
+        "skill if the body still reads like a model wrote it.",
+        True,
+    )
 
 
 def main() -> int:

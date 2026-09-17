@@ -34,7 +34,7 @@ from importlib import resources
 import pytest
 
 from klaussy.forge import FORGE_GITHUB, forge_block
-from klaussy.skills import HUMANIZE_BLOCK
+from klaussy.skills import humanize_block
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -69,7 +69,7 @@ def load_skill_body(
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)
-        .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+        .replace("{{HUMANIZE}}", humanize_block(repo))
         .replace("{{REPO_SPECIFIC_CHECKS}}", "")
         .replace("{{FORGE}}", forge_block(forge))
     )
