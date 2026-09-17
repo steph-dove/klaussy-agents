@@ -34,7 +34,7 @@ from importlib import resources
 import pytest
 
 from klaussy.forge import FORGE_GITHUB, forge_block
-from klaussy.skills import humanize_block
+from klaussy.skills import HUMANIZE_BLOCK, humanize_block  # noqa: F401 (re-exported)
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
