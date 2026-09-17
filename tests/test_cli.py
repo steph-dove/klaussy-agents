@@ -1450,6 +1450,26 @@ class TestHumanize:
             assert "Write like a person" in text, f"{skill} missing humanize block"
             assert "em-dashes" in text
 
+    def test_prose_skills_name_the_humanize_skill(self, repo: Path):
+        """Agents were running `klaussy humanize` and calling the prose done.
+
+        The block has to point at the skill by name, with {{REPO}} resolved,
+        or the CLI stays the most discoverable thing in the file.
+        """
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in self.PROSE_SKILLS:
+            text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            assert f"`{ns}-humanize` skill" in text, f"{skill} doesn't name the humanize skill"
+            assert "The scrubber is not the humanize pass" in text
+            assert "{{REPO}}" not in text, f"{skill} left a literal token"
+
+    def test_rules_output_has_no_unresolved_token(self):
+        """`--rules` feeds tools with no scaffolded skill, so it carries no pointer."""
+        result = runner.invoke(app, ["humanize", "--rules"])
+        assert result.exit_code == 0
+        assert "{{REPO}}" not in result.stdout
+
     def test_non_prose_skills_have_no_humanize_block(self, repo: Path):
         # plan/debug/etc. didn't opt in — the token shouldn't appear there.
         scaffold_skills(repo=repo)

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from klaussy.checklist import build_enrichment_block
 from klaussy.forge import build_forge_block
-from klaussy.skills import HUMANIZE_BLOCK, SKILL_NAMES, sanitize_skill_namespace
+from klaussy.skills import SKILL_NAMES, humanize_block, sanitize_skill_namespace
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,7 @@ def build_skill_payloads(
             text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment)
             .replace("{{BASE_BRANCH}}", base_branch)
             .replace("{{REPO}}", namespace)
-            .replace("{{HUMANIZE}}", HUMANIZE_BLOCK)
+            .replace("{{HUMANIZE}}", humanize_block(namespace))
             .replace("{{FORGE}}", forge_adapter)
         )
 

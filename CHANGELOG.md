@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.30.4] - 2026-09-17
+
+### Fixed
+
+- **Humanize skill discoverability.** Agents kept running `klaussy humanize` and calling the
+  prose done, skipping the skill's four passes. The skill description now leads with the
+  rewrite, a new section says what the scrubber can't do, and the shared `{{HUMANIZE}}` block
+  names `{{REPO}}-humanize` in all ten prose skills. `humanize --help` and both comment guards
+  state the scrubber's ceiling. The bump is what makes scaffolded repos regenerate, since
+  `.klaussy-version` gates re-runs.
+
 ## [0.30.3] - 2026-08-27
 
 ### Added
