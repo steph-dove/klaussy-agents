@@ -6,7 +6,7 @@ Loaded by `httpx-review` Phase 2 when the diff is ≥ 150 lines. The sub-agents 
 
 For each selected sub-agent, build the prompt body as:
 
-1. The full **Common scaffold** block, with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced with the actual diff and commit log gathered in Phase 1.
+1. The full **Common scaffold** block, with `[PASTE THE FULL DIFF HERE]` and `[PASTE THE COMMIT LOG HERE]` replaced with the diff and commit log gathered in Phase 1.
 2. The sub-agent's `## Lens` section verbatim.
 3. The sub-agent's `## Additional rules` section (if it has one).
 
@@ -31,20 +31,22 @@ Read every changed file in full for surrounding context.
 
 ## Output format (required for every finding)
 
-**[Severity: Blocker | High | Medium | Low | Warn | Nit]**
-**[Location: file_path:line_number and code_snippet]**
-**Comment:**
+One finding is a metadata line followed by one to three sentences of plain prose:
 
-- What is wrong or questionable, why this is a problem
-- What should be changed (concrete fix or alternative)
+**[Blocker | High | Medium | Low | Warn | Nit] · `file_path:line_number`**
+
+Say what breaks and when, then what to change. No bullet lists, no `**What:**` / `**Why:**` labels, no preamble restating the metadata line.
 
 ## Ground rules (always)
 
 - Be skeptical and precise in analysis; collaborative in delivery.
-- Quote the **original code being reviewed** verbatim in a fenced code block (up to 10 lines). This is what the comment IS ABOUT — not your fix. Do NOT include a suggested change in that same block; if you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
+- Quote the **original code being reviewed** only when `file:line` alone won't tell the reader what you mean, and then quote the smallest slice that shows the problem (5 lines or fewer), in a fenced block. That block is what the comment IS ABOUT, not your fix. If you propose a fix, put it in a separate block prefixed with `Suggested change:` on its own line.
 - If something relies on an unstated assumption, call it out.
 - Prefer concrete fixes over vague advice.
-- **Critique the code, not the author, and write in a plain human voice:** no em-dashes, no filler openers ("It's worth noting that…"), no chatbot scaffolding ("Hope this helps"), no ALL-CAPS scolding. Don't tune for a target tone — the synthesis step applies the reviewer's chosen delivery (collaborative by default, blunt on request). Never drop detail: severity, file:line, the trigger, and the concrete fix all stay.
+- **Critique the code, not the author, and write in a plain human voice:** say it the way you'd say it out loud, with contractions and a named subject doing the work ("the retry loop eats the 429", not "error handling may result in suppression of the status"). No em-dashes, no filler openers ("It's worth noting that…"), no chatbot scaffolding ("Hope this helps"), no ALL-CAPS scolding. Don't tune for a target tone — the synthesis step applies the reviewer's chosen delivery (collaborative by default, blunt on request).
+- **Four things stay, the rest goes:** severity, `file:line`, the trigger or failure scenario, and the concrete fix. Everything else is cuttable. A finding stated in two sentences is doing it right, not doing it lazily.
+- **One entry per problem, not per location.** Two unrelated findings in the same file are two entries. One finding whose fix touches three files is still one entry — don't fracture it to hit the sentence budget. Ask whether the reader would act on the parts separately.
+- **Put the fix first.** Your first sentence names what to change, not what you noticed. The reader stops as soon as they have what they need, so someone who reads one sentence should already be able to act. Why it matters comes second, the mechanism last if it earns a place.
 - Return ONLY your findings. Do not write any files.
 ```
 
@@ -150,7 +152,7 @@ For each finding, be specific about the failure mode (the exact input or state t
 - Were tests added or updated for the changes?
 - Are edge cases covered?
 - Are failure paths tested?
-- Do tests actually assert meaningful behavior (not just "doesn't crash")?
+- Do tests assert meaningful behavior (not just "doesn't crash")?
 - Are mocks/stubs appropriate, or do they hide real behavior?
 ```
 
@@ -184,6 +186,10 @@ For each finding, be specific about the failure mode (the exact input or state t
 - Python import path (flat-layout): flat-layout: `import httpx`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
 - Single test directory: tests/: All tests in 'tests/' directory.
+- Data classes: NamedTuple: structured data (e.g. `_urlparse.ParseResult`) uses `typing.NamedTuple`, not dataclasses.
+- Sync/async duplication, not codegen: `Client`/`AsyncClient` in `_client.py` are hand-written mirrors of each other on top of shared `BaseClient` state — there is no unasync-style generation step, so request-handling changes need to be applied to both.
+- Exceptions always re-raised through httpx's hierarchy: transport code maps `httpcore.*` exceptions to `httpx.*` exceptions (`HTTPCORE_EXC_MAP` in `_transports/default.py`) rather than letting `httpcore` exception types leak to callers.
+- Transport is the test seam: tests and library users swap network behavior via `Client(transport=...)` (see `_transports/mock.py`, `asgi.py`, `wsgi.py`) rather than patching sockets or `httpcore` directly.
 - for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
 - for `httpx/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
@@ -197,23 +203,27 @@ For each finding, be specific about the failure mode (the exact input or state t
 
 ### Verification Commands
 Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
-- `scripts/lint # ruff check --fix, ruff format`
-- `mypy httpx tests # (or: venv/bin/mypy httpx tests)`
-- `scripts/test tests/test_client.py::test_get # pass pytest args straight through`
-- `pytest tests/models/test_responses.py -k test_json`
+- `coverage run -m pytest`
 - `pytest`
+- `ruff format httpx tests --diff`
+- `mypy httpx tests`
+- `ruff check httpx tests`
+- `ruff check --fix httpx tests`
+- `ruff format httpx tests`
+- `pytest.ini_options.filterwarnings = ["error", ...]`
+- `mypy`
 
 ### Known Pitfalls
 Flag if any of these are violated:
-- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles. `httpx/__init__.py`'s flat re-export style (`from ._client import *` etc., all at module top-level) makes it easy to introduce a cycle when a low-level module (e.g. `_models.py`) needs something from a higher-level one (e.g. `_client.py`) — prefer passing values in rather than importing upward.
-- 100% coverage is enforced (`scripts/coverage`, `--fail-under=100`) — untested branches (including new `except`/optional-dependency paths) fail CI, not just "reduce coverage."
-- `filterwarnings = ["error", ...]` in `pyproject.toml` means any warning raised during tests (deprecation, resource, etc.) fails the suite. Two warnings are explicitly allow-listed as ignored (a Trio custom-excepthook message and `trio.MultiError` deprecation, tracked against agronholm/anyio#508) — new third-party warnings from dependency upgrades can break CI even with no code change.
-- `scripts/test` shells out to `scripts/check` first (format/mypy/ruff) unless `$GITHUB_ACTIONS` is set, and runs `coverage run -m pytest`, not plain `pytest` — running `pytest` directly locally skips both the lint/type gate and coverage instrumentation, so a green local `pytest` run isn't equivalent to what CI enforces.
-- Optional dependency `ImportError`s are deferred to first use, not import time (`_decoders.py` for brotli/zstd, `_main.py` for the CLI, `_client.py` for the `socks`/`http2` transport extras) — a missing extra won't surface until the code path that needs it actually runs (e.g. decoding a `br`-encoded response), which can make missing-dependency bugs look like they "work" until a specific request shape is hit.
-- `ruff` ignores `B904` and `B028` (`pyproject.toml`) — exception re-raising without `raise ... from` and non-explicit `stacklevel` in warnings are intentionally not enforced repo-wide, so don't assume flake8-bugbear's default strictness here; `__init__.py` also gets a blanket `F403`/`F405` (star-import) exemption since that's exactly what it does.
-- `mypy` runs in `strict` mode for `httpx/` but `tests/` overrides relax it (`disallow_untyped_defs = false`, `check_untyped_defs = true`) — library code needs full annotations, test code doesn't need return/arg types but is still type-checked for internal consistency.
-- `trust_env` gates environment-based config (proxy env vars, `SSL_CERT_FILE`/`SSL_CERT_DIR`) — it defaults to `True` on `Client`/`AsyncClient`, so tests or environments with unexpected proxy env vars set can silently change client behavior; `_config.py`'s SSL context loading explicitly checks `trust_env` before reading `os.environ`.
+- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 - CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
+- Coverage gate, not just tests: `scripts/test` runs `scripts/coverage` afterward, which fails the build on *any* uncovered line, not just failing tests — a locally-green `pytest` run can still fail CI.
+- Warnings are fatal in tests: `filterwarnings = ["error", ...]` in `pyproject.toml` means any warning raised during the test suite (e.g. a `DeprecationWarning` from an httpx or third-party call) turns into a test failure. Two specific warnings (Trio's custom excepthook message, `trio.MultiError` deprecation) are allowlisted because they're noisy false positives from `anyio`/`trio`, not because they're safe to ignore in general.
+- `ruff` ignores `B904`/`B028`: exception re-raising inside `except` blocks is *not* required to use `raise ... from ...` project-wide (unlike the convention documented for `_decoders.py`), and `stacklevel` isn't enforced on warnings — don't assume ruff will catch a missing `from err`.
+- `verify=` as a string is deprecated (since v0.28.0): passing a path string to `verify=` on `Client`/`AsyncClient` raises a deprecation warning (which, per the point above, will fail tests if hit); pass an `ssl.SSLContext` or bool instead.
+- CLI is a soft dependency: `httpx/_main.py` (the `httpx` console script) needs the `cli` extra (`click`, `pygments`, `rich`); importing `httpx` itself does not require these, so CLI-only code must not be imported at package top level.
+- Sync/async logic must be updated in pairs: because `Client` and `AsyncClient` are separately written (not generated), a bug fix or behavior change in one's `send`/`request`/`_send_single_request` needs the equivalent edit in the other, or the two will silently diverge.
+- `__init__.py` blanket-imports are intentionally lint-exempt: `per-file-ignores` disables `F403`/`F405` (star-import warnings) only for `httpx/__init__.py`, since it re-exports the entire public API via `from ._x import *`.
 
 If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
 ```
@@ -278,6 +288,10 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 - Python import path (flat-layout): flat-layout: `import httpx`.
 - PEP 8 snake_case naming: Name functions, variables, and modules using snake_case style.
 - Single test directory: tests/: All tests in 'tests/' directory.
+- Data classes: NamedTuple: structured data (e.g. `_urlparse.ParseResult`) uses `typing.NamedTuple`, not dataclasses.
+- Sync/async duplication, not codegen: `Client`/`AsyncClient` in `_client.py` are hand-written mirrors of each other on top of shared `BaseClient` state — there is no unasync-style generation step, so request-handling changes need to be applied to both.
+- Exceptions always re-raised through httpx's hierarchy: transport code maps `httpcore.*` exceptions to `httpx.*` exceptions (`HTTPCORE_EXC_MAP` in `_transports/default.py`) rather than letting `httpcore` exception types leak to callers.
+- Transport is the test seam: tests and library users swap network behavior via `Client(transport=...)` (see `_transports/mock.py`, `asgi.py`, `wsgi.py`) rather than patching sockets or `httpcore` directly.
 - for `httpx/**/*.py`: Data classes: NamedTuple: Use NamedTuple for structured data. 2/2 structured classes use this pattern.
 - for `httpx/**/*.py`: lowercase constant naming: Name constants using lowercase style.
 - for `httpx/**/*.py`: Enum usage: Enum: Use Python enums for categorical values. Found 2 enum class(es). Types: Enum (1), IntEnum (1).
@@ -291,50 +305,98 @@ The following are documented Claude Code skill features. Do NOT flag their *pres
 
 ### Verification Commands
 Run these against the files this PR changed — not the whole repo. A repo-wide run buries the review in pre-existing violations from untouched files. Append the changed paths to each command (or use the tool's diff-aware mode); ignore findings outside this PR's diff:
-- `scripts/lint # ruff check --fix, ruff format`
-- `mypy httpx tests # (or: venv/bin/mypy httpx tests)`
-- `scripts/test tests/test_client.py::test_get # pass pytest args straight through`
-- `pytest tests/models/test_responses.py -k test_json`
+- `coverage run -m pytest`
 - `pytest`
+- `ruff format httpx tests --diff`
+- `mypy httpx tests`
+- `ruff check httpx tests`
+- `ruff check --fix httpx tests`
+- `ruff format httpx tests`
+- `pytest.ini_options.filterwarnings = ["error", ...]`
+- `mypy`
 
 ### Known Pitfalls
 Flag if any of these are violated:
-- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles. `httpx/__init__.py`'s flat re-export style (`from ._client import *` etc., all at module top-level) makes it easy to introduce a cycle when a low-level module (e.g. `_models.py`) needs something from a higher-level one (e.g. `_client.py`) — prefer passing values in rather than importing upward.
-- 100% coverage is enforced (`scripts/coverage`, `--fail-under=100`) — untested branches (including new `except`/optional-dependency paths) fail CI, not just "reduce coverage."
-- `filterwarnings = ["error", ...]` in `pyproject.toml` means any warning raised during tests (deprecation, resource, etc.) fails the suite. Two warnings are explicitly allow-listed as ignored (a Trio custom-excepthook message and `trio.MultiError` deprecation, tracked against agronholm/anyio#508) — new third-party warnings from dependency upgrades can break CI even with no code change.
-- `scripts/test` shells out to `scripts/check` first (format/mypy/ruff) unless `$GITHUB_ACTIONS` is set, and runs `coverage run -m pytest`, not plain `pytest` — running `pytest` directly locally skips both the lint/type gate and coverage instrumentation, so a green local `pytest` run isn't equivalent to what CI enforces.
-- Optional dependency `ImportError`s are deferred to first use, not import time (`_decoders.py` for brotli/zstd, `_main.py` for the CLI, `_client.py` for the `socks`/`http2` transport extras) — a missing extra won't surface until the code path that needs it actually runs (e.g. decoding a `br`-encoded response), which can make missing-dependency bugs look like they "work" until a specific request shape is hit.
-- `ruff` ignores `B904` and `B028` (`pyproject.toml`) — exception re-raising without `raise ... from` and non-explicit `stacklevel` in warnings are intentionally not enforced repo-wide, so don't assume flake8-bugbear's default strictness here; `__init__.py` also gets a blanket `F403`/`F405` (star-import) exemption since that's exactly what it does.
-- `mypy` runs in `strict` mode for `httpx/` but `tests/` overrides relax it (`disallow_untyped_defs = false`, `check_untyped_defs = true`) — library code needs full annotations, test code doesn't need return/arg types but is still type-checked for internal consistency.
-- `trust_env` gates environment-based config (proxy env vars, `SSL_CERT_FILE`/`SSL_CERT_DIR`) — it defaults to `True` on `Client`/`AsyncClient`, so tests or environments with unexpected proxy env vars set can silently change client behavior; `_config.py`'s SSL context loading explicitly checks `trust_env` before reading `os.environ`.
-- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)` / `### Write like a person, not a chatbot
+- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
+- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
+- Coverage gate, not just tests: `scripts/test` runs `scripts/coverage` afterward, which fails the build on *any* uncovered line, not just failing tests — a locally-green `pytest` run can still fail CI.
+- Warnings are fatal in tests: `filterwarnings = ["error", ...]` in `pyproject.toml` means any warning raised during the test suite (e.g. a `DeprecationWarning` from an httpx or third-party call) turns into a test failure. Two specific warnings (Trio's custom excepthook message, `trio.MultiError` deprecation) are allowlisted because they're noisy false positives from `anyio`/`trio`, not because they're safe to ignore in general.
+- `ruff` ignores `B904`/`B028`: exception re-raising inside `except` blocks is *not* required to use `raise ... from ...` project-wide (unlike the convention documented for `_decoders.py`), and `stacklevel` isn't enforced on warnings — don't assume ruff will catch a missing `from err`.
+- `verify=` as a string is deprecated (since v0.28.0): passing a path string to `verify=` on `Client`/`AsyncClient` raises a deprecation warning (which, per the point above, will fail tests if hit); pass an `ssl.SSLContext` or bool instead.
+- CLI is a soft dependency: `httpx/_main.py` (the `httpx` console script) needs the `cli` extra (`click`, `pygments`, `rich`); importing `httpx` itself does not require these, so CLI-only code must not be imported at package top level.
+- Sync/async logic must be updated in pairs: because `Client` and `AsyncClient` are separately written (not generated), a bug fix or behavior change in one's `send`/`request`/`_send_single_request` needs the equivalent edit in the other, or the two will silently diverge.
+- `__init__.py` blanket-imports are intentionally lint-exempt: `per-file-ignores` disables `F403`/`F405` (star-import warnings) only for `httpx/__init__.py`, since it re-exports the entire public API via `from ._x import *`.` / `### Write like a person, not a chatbot
 
-Whatever you output for the user (comments, descriptions, messages) must read as if a human engineer wrote it. These rules mirror klaussy's deterministic humanizer (klaussy-desktop `humanize-comment.js`):
+Whatever you output for a human (review comments, PR text, explanations, replies) must read like a colleague wrote it in a hurry, not like a model composed it. Two failure modes, and you have to beat both: sounding like AI, and saying more than the reader needs. These rules mirror klaussy's deterministic humanizer (klaussy-desktop `humanize-comment.js`):
 
-- **No em-dashes or en-dashes** (`—` / `–`) in prose. Use a comma or rewrite. This is the single biggest AI tell.
-- **No filler openers.** Cut "It's worth noting that", "It's important to note that", "I noticed that", "I wanted to point out that", "Please note that", "Just to mention", "Worth noting", "Note that". State the point directly.
-- **No chatbot scaffolding.** No "Let me know if...", "Hope this helps", "Feel free to...", "Happy to help", "Let me know your thoughts".
-- **Tighten hedges.** "in order to" → "to"; "could potentially" → "could"; "may potentially" → "may". Drop stacked qualifiers.
-- **No emoji, no exclamatory enthusiasm, no "Certainly"/"Great question".**
-- **No excessive apologies.** Avoid apologetic filler ("Sorry about that!", "My apologies for the confusion", "Apologies for the oversight"). State the correction or resolution directly.
-- **Prefer active, imperative verbs and avoid narration.** Use direct instructions (e.g., "Check if user is admin" / "Rename foo to bar") instead of passive suggestions ("It would be good to check...", "You might want to rename..."). Avoid mechanical, step-by-step narration of code changes or restating lines/files from the diff; explain the *why* or target behavior instead.
-- **Avoid the LLM lexicon & buzzwords.** Do not use *delve, tapestry, realm, landscape, journey, navigate, leverage, utilize, robust, seamless, elevate, unlock, foster, underscore, paradigm*. Replace corporate jargon (e.g. leverage/utilize) with simpler words (e.g. use).
-- **Avoid transition crutches.** Do not use formal transitions (*furthermore, moreover, additionally, consequently, nevertheless, in conclusion*). Use simpler ones or prune them entirely.
-- **Avoid rhetorical reframes and standalones.** Avoid the negation-reframe ("not only... but also", "this isn't just a bug fix — it's...") and standalone summary lines ("And that's the whole point.").
-- **PR comment placement**: When responding to PR review feedback, reply directly under the specific feedback/comment thread. Do not post replies in a separate/new top-level comment.
+Before anything else: **no em-dashes or en-dashes** (`—` / `–`) in prose. Use a comma or rewrite the sentence. That one tell gives the game away faster than everything below it combined.
+
+**Voice: say it out loud.** The target is a competent engineer typing this once, in a hurry, who isn't going to read it back. Not a careful writer, not a summary of the facts: a person with an opinion who wants to get on with their day.
+
+- **Write what you'd say standing at their desk.** If you wouldn't say the sentence to a colleague, don't write it. That one test catches most of what follows.
+- **Use contractions.** it's, doesn't, won't, that's, here's. Prose without them reads like a manual.
+- **Verbs, not noun phrases.** "This validates the token", not "this performs validation of the token". "We cache it", not "caching is applied". Turning verbs into nouns is the loudest tell after em-dashes.
+- **Name the thing doing the work.** "The retry loop eats the 429", not "error handling may result in suppression of the status".
+- **Short common words.** *before* not *prior to*, *if* not *in the event that*, *can* not *is able to*, *about* not *regarding*, *but* not *however*, *so* not *thus*, *use* not *utilize*.
+- **Fragments are fine.** "Same bug two lines down." is a complete thought; don't pad it into a sentence.
+- **One idea per sentence.** If a sentence has two clauses joined by a comma and a *which*, it's two sentences. Short sentences are easier to read than clever ones.
+- **One modifier, not three.** Cut the triads ("clear, concise, and maintainable"). Pick the word that carries the point.
+- **Don't announce structure.** No "There are three issues here:", no "Let me walk through this". Say the thing.
+- **Type it once and don't polish it.** The last tell isn't a wrong word, it's evenness: every sentence complete, every paragraph the same shape, every point covered in order. Let it be uneven. A long sentence next to a three-word one. Two points where a tidy version would make four.
+- **Have a stance.** "I'd drop this", "no idea why this is here", "this'll fall over under load". First person and an opinion read as a person; an even, neutral summary reads as generated, however short it is.
+- **Skip the obvious.** A lazy writer leaves out what the reader can already see and doesn't round the thought off. "Tests cover the happy path and the concurrent case" is "tests for both". What it never drops is the thing being talked about: keep the nouns that carry the meaning ("we invalidated the cache on every write", not "we invalidated on every write"). Being lazy costs the reader nothing they needed.
+- **Don't mirror the source.** Same facts, your own shape: merge its paragraphs, reorder them, drop a section that isn't worth its space. Keep every noun that carries meaning while you do it.
+
+**Shape: the smallest thing that carries the point.**
+
+- **Budgets.** A thread reply is one sentence. A single review comment is one to three. An explanation leads with two or three sentences that answer the question, then adds detail only where the reader can't infer it. Over budget means you're saying more than the reader needs, not that you write long.
+- **Unrelated problems are separate comments.** Two findings that happen to sit near each other read better apart. One finding that spans a few files because the fix touches them all is still one comment, don't fracture it. The test is whether the reader would act on them separately.
+- **Lead with the change, not the discovery.** Your first sentence names what to do ("set `soft_time_limit=3600` here"), not what you noticed ("this task inherits the app-wide limits"). The reader stops as soon as they have what they need, so someone who reads one sentence should already be able to act. Why it matters comes second, the mechanism last if it earns a place at all.
+- **Prose by default.** No headings, tables, or bold field labels. Bullets only for a real list of three or more parallel items, never as a wrapper around one paragraph.
+- **Three sentences to a paragraph.** A fourth one means a second paragraph or a second comment. Put a blank line between them, a wall of text is hard to get back into after looking away.
+- **No bookends.** Don't open by restating the request and don't close by summarizing what you just said. Start at the point, stop when it's made.
+- **Don't quote what they're already looking at.** In an inline comment the code is on screen. Point at it, don't paste it back.
+- **No status theater.** Severity labels, confidence scores, checkbox lists, and "Method:" footers only when the output format requires them.
+- **Cut detail, not just words.** The verbose tell isn't long words, it's over-explaining. Drop what the reader can reconstruct from the code, the diff, or the commit: explanatory parentheticals, restated identifiers, and "I did X to do Y" narration of changes the diff already shows. Keep the load-bearing fact, drop what merely supports it. This is the one place humanizing may drop content, never reverse or invent meaning.
+- **Keep the concrete parts.** A suggested diff or code block, a command to run, a `file:line`, a version number, a config key: none of that is reconstructable prose, and cutting it costs the reader a trip back to the code. Trim the sentences around them, keep them.
+
+**Answer what was asked, then stop.** Padding is the tell that survives every style fix, and it takes three shapes. All three are cuts, not rewrites:
+
+- **No closing principle.** Don't end by restating your decision as a general rule ("I'd still reach for an iframe when you want a separate document context for third-party code"). It answers nothing about this change and only validates the view you already gave. Stop at the last concrete point.
+- **No mechanism they didn't ask for.** Explaining how the thing works, in terms only you are holding in your head, reads as padding even to the person who wrote the code. If a paragraph doesn't change what the reader does next, cut it. When they need it, they'll ask.
+- **Grant a point in four words, or not at all.** Where the other person is right about something, say so and move on: "Yes, Shadow DOM wouldn't need the ResizeObserver" beats "the ResizeObserver cost is real and Shadow DOM wouldn't pay it". Dressing agreement up in a metaphor is the most AI-sounding sentence in most replies. Never manufacture the agreement, though: if the author's answer is no, it stays no, and you don't go looking for something to validate on the way there.
+
+**Don't (mechanical tells).** klaussy's scrubber deletes these deterministically after you write, so don't spend attention on them: filler openers, chatbot scaffolding, apologies, praise or thanking a bot, *actual/actually*, *in order to*, *could/may potentially*, *utilize/leverage*, *prior to*, emoji, and "Certainly"/"Great question". Two the scrubber can't catch, so they're on you: **no LLM lexicon** (*delve, tapestry, realm, landscape, journey, navigate, robust, seamless, elevate, unlock, foster, underscore, paradigm*) and **no rhetorical reframes** ("not only... but also", "this isn't just a bug fix, it's...", or a smug standalone like "And that's the whole point.").
+- **No invented consensus.** No "most people expect this", "everyone does it this way", "nobody reads these logs", "it's widely considered best practice". Argue from the code, the repo's own conventions, or a linkable source, or own it as your view ("I'd expect X here").
+- **No passive suggestions.** "Check whether the user is admin" and "rename foo to bar", not "it would be good to check..." or "you might want to rename...".
+- **Never reword code**, identifiers, or anything inside backticks or fences. Humanize prose only.
+
+**Stay civil while you cut.**
+
 - **Don't let trimming tip into terse.** Cutting filler shouldn't make prose read as curt or dismissive. Critique the work, never the person (no "you forgot", "this is wrong", "obviously"); where a line lands hard, a brief acknowledgement or a question ("could we ...?", "one risk is ...") takes the edge off. A light touch only, not filler praise or "great job" boilerplate.
-- **No superlatives or ranking praise.** Don't editorialize a point's importance: cut "this is the sharpest catch in the review", "best catch", "great find", "excellent point", "the most important issue here". Rating a comment against the others is an AI tell and adds nothing. State the substance and stop.
-- **Don't mirror the thread's tone.** When you reply to an existing comment, review note, or message, read it for substance but not for temperature: neutralize any rudeness or bluntness in it before you draft. Hostile or curt input must not prime a hostile or curt reply, answer as if the other person had phrased it civilly.
-- **Don't thank a bot.** When the reviewer is an automated tool or bot (a review bot, another agent, a CI check), respond to the substance without gratitude or pleasantries aimed at it, no "thanks for the review", "good catch", or addressing it as a person. Reserve those for a human reviewer, and even then keep them minimal.
-- **Be short, then cut more.** Lead with the point. Keep the decision and the one fact that justifies it, then stop. A reply in a thread is usually one sentence; a single review comment one to five. Don't pad to sound thorough or stack throat-clearing ahead of the point.
-- **Cut detail, not just words.** The verbose tell isn't long words, it's over-explaining. Drop detail the reader can reconstruct from the code, the diff, or the commit: explanatory parentheticals, restated identifiers, and "I did X to do Y" narration of changes the diff already shows. Keep the load-bearing fact; drop what's merely supporting. This is the one place humanizing may drop content, never reverse or invent meaning, but you need not preserve every clause.
-- Vary sentence shape; don't open every line the same way. Never reword code, identifiers, or anything inside backticks or fences. Humanize prose only.
+- **Never say "nobody asked for this"**, or the same move dressed up ("this wasn't asked for", "out of nowhere", "why is this here at all"). It's a swipe at the author and says nothing about the code. Name the concrete objection: the scope it exceeds, the cost it adds, or the requirement it doesn't map to ("this isn't in the ticket, should it ship separately?").
+- **Don't mirror the thread's tone.** Read an existing comment for substance, not temperature. Hostile or curt input must not prime a hostile or curt reply, answer as if it had been phrased civilly.
+- **Reply in the thread**, under the comment you're answering, not as a new top-level comment.
 
 **Same decision, half the words, dropping detail the reader can reconstruct:**
 
-> Verbose: Good call, done. attachment.reason already embeds the decline reason for declined envelopes (built in checkEnvelopeStatus as {name} declined on {date} - {declinedReason}), so I dropped the new declinedReason signer field and reverted NotificationService to use the existing reason field. Pushed in 1e9e938404.
+> Verbose: Done. attachment.reason already embeds the decline reason for declined envelopes (built in checkEnvelopeStatus as {name} declined on {date} - {declinedReason}), so I dropped the new declinedReason signer field and reverted NotificationService to use the existing reason field. Pushed in 1e9e938404.
 
-> Human: Good call. `attachment.reason` already carries the decline reason, so I dropped the new field and reverted NotificationService. Pushed in 1e9e938404.` placeholders** in klaussy-managed templates. These get substituted at scaffold time by `klaussy init` / `klaussy checklist`. Flag only if you see the literal `{{...}}` token in a *generated* SKILL.md or rules file under `.claude/` (substitution failed) — never in a template source under `templates/`.
+> Human: `attachment.reason` already carries the decline reason, so I dropped the new field and reverted NotificationService. Pushed in 1e9e938404.
+
+**Same finding, said out loud instead of written up:**
+
+> Stiff: The retry loop currently performs suppression of the 429 response, which may potentially result in a rate-limited request being interpreted as successful by the caller. It is recommended that the exception be re-raised following the final attempt.
+
+> Human: The retry loop eats the 429, so a rate-limited call comes back looking fine. Rethrow after the last attempt.
+
+**Tell-free but still generated, then written by a person.** Both say the same thing. The first is even: three paragraphs of the same shape, every sentence complete, no one behind it.
+
+> Tidy: The caching layer now uses a shared in-memory cache instead of a per-request database query, cutting the load on the primary instance. The cache populates on first access and invalidates when the underlying record changes. This also fixes a subtle race condition where two simultaneous requests could both populate the same entry. Tests cover both the happy path and concurrent access.
+
+> Human: Swapped the per-request query for one shared cache, so the primary isn't getting hammered. Fills on first read, drops when the record changes. Also kills a race where two requests could populate the same key, there's a per-key lock now. Tests for both.
+
+**The scrubber is not the humanize pass.** `klaussy humanize` deletes a fixed list of mechanical tells (dashes, filler openers, a few hedges) and changes nothing else. It can't cut a paragraph that shouldn't exist, turn a noun phrase back into a verb, drop the closing principle, or make three sentences one, and that's most of what makes prose read as generated. Anything a human will read gets the `httpx-humanize` skill: cut, voice, check, then scrub. Running the CLI, or `klaussy humanize --check`, is not that pass and doesn't stand in for it.` placeholders** in klaussy-managed templates. These get substituted at scaffold time by `klaussy init` / `klaussy checklist`. Flag only if you see the literal `{{...}}` token in a *generated* SKILL.md or rules file under `.claude/` (substitution failed) — never in a template source under `templates/`.
 - **Frontmatter fields** `name`, `description`, `when_to_use`, `allowed-tools`, `disable-model-invocation`, `user-invocable`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `argument-hint`, `arguments` — all documented in the skills frontmatter table. Don't flag a field's existence; flag wrong values.
 - **Glob patterns inside `allowed-tools`** — `Bash(git diff *)` matches `git diff` with any args (`git diff`, `git diff --cached`, `git diff main...HEAD`, `git diff <file>`, multi-flag invocations, etc.). The `*` is a glob, not a literal. Do NOT flag a body command as "missing from allowed-tools" just because the literal flags don't appear inside the parentheses; the glob covers them. Only flag when the body invokes a *different command* (e.g. `git status` when allowed-tools has only `Bash(git diff *)`).
 - **`.claude/rules/<name>.md` with YAML `paths:` frontmatter** — documented at `code.claude.com/docs/en/memory.md` under "Organize rules with .claude/rules/" → "Path-specific rules". Each rule file with `paths:` frontmatter loads only when Claude reads files matching the glob. Do NOT confuse this with Cursor's `.cursor/rules/*.mdc` (different tool, different format). Rule files without `paths:` load unconditionally alongside CLAUDE.md. Flag misuse (e.g. invalid YAML in the frontmatter, paths that don't match anything in the repo) but not the *presence* of this feature.
@@ -381,7 +443,7 @@ quote the doc section (or note its absence) and explain what's missing and why i
 matters.
 
 ### Decision quality
-- **Problem/context is concrete** — the doc states the actual problem and forces at
+- **Problem/context is concrete** — the doc states the problem and forces at
   play, not a vague preamble. Flag a problem statement so generic it could precede
   any decision.
 - **The decision is explicit** — there is an unambiguous "we will do X" outcome, not
@@ -404,7 +466,7 @@ matters.
   ideally the old one is marked superseded). Flag a decision that silently contradicts
   an existing ADR in the repo without superseding it.
 - **Code-vs-decision consistency** — if the same PR also changes code, verify the code
-  actually implements the decided design. Flag drift between "we will do X" and code
+  implements the decided design. Flag drift between "we will do X" and code
   that does Y. This is the highest-value check a PR-time review can make that a
   standalone doc review cannot.
 
@@ -417,7 +479,7 @@ matters.
 - **Sprint**: only one option; only short-term effects considered.
 - **Fairy Tale**: shallow justification, pros only, no cons.
 - **Ghost architecture**: code makes an architecturally significant choice that the doc
-  doesn't actually record (or vice versa).
+  doesn't record (or vice versa).
 - **Rubber-stamp**: a "decision" written after the fact to legitimize code already
   merged, with no real evaluation.
 
@@ -456,16 +518,14 @@ For EACH finding, apply this rubric. Read whatever files you need — the refere
 1. Read the full file at the finding's location, not just the diff hunk.
 2. Trace the code path: follow function calls, imports, type definitions, and control flow across files.
 3. Argue the author's side, then refute it. Write the strongest one-line case that this is NOT a real problem (the input can't occur, a caller already guards it, the framework handles it). Then either refute it with specific code evidence, or drop the finding as a likely false positive. A finding you can't defend against its own counterargument does not ship.
-4. Drop the finding if: the issue is already handled elsewhere (validation in a caller, error caught upstream); the code path can't actually be reached as the finding assumes; the finding misreads the logic from missing context; the concern is about unchanged code out of scope for this PR; or a dependency/framework already guarantees the behavior.
+4. Drop the finding if: the issue is already handled elsewhere (validation in a caller, error caught upstream); the code path can't be reached as the finding assumes; the finding misreads the logic from missing context; the concern is about unchanged code out of scope for this PR; or a dependency/framework already guarantees the behavior.
 5. Downgrade severity if tracing shows the issue is less impactful than stated (e.g. a "High" race that only affects a debug-only path is "Low" or "Nit").
 
 Return ONLY the findings that survive, each in this exact format, with severity reflecting any downgrade:
 
-**[Severity: Blocker | High | Medium | Low | Warn | Nit]**
-**[Location: file_path:line_number and code_snippet]**
-**Comment:**
-- What is wrong or questionable, why it matters
-- What to change (concrete fix or alternative)
+**[Blocker | High | Medium | Low | Warn | Nit] · `file_path:line_number`**
+
+One to three sentences: what breaks and when, then what to change. Keep the wording the finding arrived with unless the trace changed what it says; you are validating, not rewriting. No bullet lists and no `**What:**` / `**Why:**` labels.
 
 Do not include dropped findings, and do not note that you removed them. If none survive, say so in one line. Write no files.
 ```

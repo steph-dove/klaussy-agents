@@ -9,10 +9,11 @@ re-drives the model differ per agent, each confirmed from its primary docs:
   * GitHub Copilot agentStop   -> {"decision": "block",  "reason": ...}
   * Gemini CLI    AfterAgent   -> {"decision": "deny",   "reason": ...}
   * Cursor        stop         -> {"followup_message": ...}   (native loop_limit)
+  * Kimi Code CLI Stop         -> exit 2, reason on stderr    (no JSON stop field)
 
 opencode's session.idle is handled in its Bun plugin; Cline's TaskComplete is
 observe-only and aider has no hook mechanism, so users of those three get the
-same pass via the {{REPO}}-self-review skill instead.
+same pass via the <repo>-self-review skill instead.
 
 Loop-safe by two independent guards: each agent's native loop signal
 (`stop_hook_active` / `loop_count`), and a (session, HEAD) marker file — so the
@@ -35,7 +36,7 @@ import tempfile
 DIALECT: str = 'codex'
 
 # The review pass requested on stop — static, so it's inlined rather than baked.
-# Mirrors the {{REPO}}-self-review skill's checklist.
+# Mirrors the <repo>-self-review skill's checklist.
 DIRECTIVE = (
     "Before you finish, do one self-review pass over your uncommitted changes. "
     "Start with comments: delete every one that narrates the change or restates what "
@@ -167,6 +168,11 @@ def main() -> int:
             return 0
         if _already_fired(_session_id(payload), _head()):
             return 0
+        if DIALECT == "kimi":
+            # Kimi has no stop-hook output field: on a blockable event, exit 2
+            # blocks and stderr is what gets fed back to the model.
+            print(DIRECTIVE, file=sys.stderr)
+            return 2
         out = _emit(DIALECT)
         if out is not None:
             print(json.dumps(out))

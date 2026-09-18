@@ -293,6 +293,7 @@
         - `data/`
 - `tests/` — tests
   - `benchmarks/`
+  - `memory_benchmarks/`
   - `test_modules_same_name_body/`
     - `app/`
   - `test_request_params/`

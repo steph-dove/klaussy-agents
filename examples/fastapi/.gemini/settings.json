@@ -2,6 +2,7 @@
   "tools": {
     "allowed": [
       "run_shell_command(git)",
+      "run_shell_command(gh)",
       "run_shell_command(python)",
       "run_shell_command(pytest)",
       "run_shell_command(ruff)",
