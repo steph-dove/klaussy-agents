@@ -33,6 +33,9 @@ Refresh this repository's klaussy-generated boilerplate to match the latest klau
 
 ## When NOT to use
 
+- The user wants klaussy's files *gone* rather than refreshed — that's the
+  `klaussy-uninstall` skill. Re-running `init --force` rewrites them, it never
+  removes them.
 - The repo isn't klaussified yet — use the `klaussy-init` skill instead (running `klaussy init --force` on a clean repo works but the skill auto-detect is cleaner).
 - The user only wants to update one specific surface (just skills, just hooks, just settings) — they can run `klaussy skills`, `klaussy hooks`, or `klaussy settings` directly without `init --force`.
 - The user pinned an older klaussy version intentionally and doesn't want to upgrade — skip step 1 and re-run `klaussy init --force` against the existing version, but flag that this is unusual.
