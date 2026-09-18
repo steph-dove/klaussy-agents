@@ -5,7 +5,10 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
-## [Unreleased]
+## [0.30.5] - 2026-09-18
+
+Scaffolded repos pick the hook and skill fixes up on the next `klaussy init`; the
+bump is what lets them, since `.klaussy-version` gates re-runs.
 
 ### Fixed
 
