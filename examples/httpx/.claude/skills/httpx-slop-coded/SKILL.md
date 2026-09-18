@@ -1,6 +1,6 @@
 ---
 name: httpx-slop-coded
-description: Use when the user explicitly wants to turn clean, human prose INTO maximal AI slop — as a joke, a demo of what AI tells look like, or to stress-test the humanize skill by feeding it the worst input imaginable. The evil twin of humanize — it adds every tell humanize strips. For laughs and demos only; never run it on a deliverable.
+description: Use when the user explicitly wants to turn clean, human prose INTO maximal AI slop — as a joke, a demo of what AI tells look like, or to stress-test the humanize skill by feeding it the worst input imaginable. The evil twin of humanize — it adds every tell humanize strips. For laughs and demos only; never run it on a deliverable. Also known as `klaussy-slop-coded`.
 allowed-tools: Read Grep Glob Edit Write
 ---
 

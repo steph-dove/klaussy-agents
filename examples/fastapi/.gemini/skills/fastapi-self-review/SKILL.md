@@ -1,6 +1,6 @@
 ---
 name: fastapi-self-review
-description: Use right before declaring an implementation done — a last-pass review of your OWN uncommitted change against a fixed checklist (reuse, stdlib, comments, dead code, tests, scope). Catches the things that make a diff read as AI-written before a human ever sees it. Reviews the current diff; it does not write new features.
+description: Use right before declaring an implementation done — a last-pass review of your OWN uncommitted change against a fixed checklist (reuse, stdlib, comments, dead code, tests, scope). Catches the things that make a diff read as AI-written before a human ever sees it. Reviews the current diff; it does not write new features. Also known as `klaussy-self-review`.
 ---
 
 Review the change you just made before you call it complete. This is the gate between "I wrote code" and "it's done" — run it on your own diff and fix what it surfaces, don't just report.

@@ -11,6 +11,7 @@ from rich.console import Console
 from klaussy.skills import (
     SKILL_TEMPLATE_ROOT,
     TEMPLATE_SUFFIX,
+    apply_alias_to_frontmatter,
     humanize_block,
     sanitize_skill_namespace,
 )
@@ -335,7 +336,10 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
         )
 
     skill_dir.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(_substitute(template))
+    # Third emit path for this one skill, so it needs the alias too — otherwise
+    # `klaussy checklist` silently strips what `klaussy skills` just added.
+    rendered = apply_alias_to_frontmatter(_substitute(template), "review", repo_namespace)
+    output_file.write_text(rendered)
     console.print(f"[green]✔ Created {output_file.relative_to(repo)}[/green]")
 
     # Sub-agents.md uses {{REPO_SPECIFIC_CHECKS}} too (sub-agent 4's

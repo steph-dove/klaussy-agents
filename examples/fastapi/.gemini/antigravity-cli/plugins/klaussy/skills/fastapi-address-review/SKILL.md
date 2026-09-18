@@ -1,6 +1,6 @@
 ---
 name: fastapi-address-review
-description: Use when a PR has review feedback and the user wants it addressed — pull the review comments, triage each one, apply the changes it warrants, and draft replies. Closes the loop between a review and the follow-up commit; it does not re-review the code from scratch.
+description: Use when a PR has review feedback and the user wants it addressed — pull the review comments, triage each one, apply the changes it warrants, and draft replies. Closes the loop between a review and the follow-up commit; it does not re-review the code from scratch. Also known as `klaussy-address-review`.
 ---
 
 Address the review feedback on the current PR. Every comment gets a response: a change, or a reasoned reply explaining why not. Don't silently skip any.

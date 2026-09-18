@@ -1,6 +1,6 @@
 ---
 name: fastapi-precommit
-description: Use when reviewing a staged diff or an about-to-commit/push change for last-mile issues — silent failures, leaked secrets, debug leftovers, blatant correctness landmines, and excessive/narrating comments. Reports findings on the changed lines only; it does not refactor or rewrite code. This is the canonical source for the Klaussy desktop pre-commit gate, which inlines the diff and adds its own machine-readable output contract.
+description: Use when reviewing a staged diff or an about-to-commit/push change for last-mile issues — silent failures, leaked secrets, debug leftovers, blatant correctness landmines, and excessive/narrating comments. Reports findings on the changed lines only; it does not refactor or rewrite code. This is the canonical source for the Klaussy desktop pre-commit gate, which inlines the diff and adds its own machine-readable output contract. Also known as `klaussy-precommit`.
 ---
 
 Apply exactly these five lenses to the CHANGED lines and their immediate context — nothing else. If no diff is inlined for you, read the staged change with `git diff --cached` first.

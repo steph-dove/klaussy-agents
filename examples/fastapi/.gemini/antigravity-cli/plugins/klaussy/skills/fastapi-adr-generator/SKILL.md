@@ -1,6 +1,6 @@
 ---
 name: fastapi-adr-generator
-description: Use when the user wants to record an architectural decision — drafting an Architecture Decision Record (ADR) or RFC, documenting a design choice and its trade-offs, or capturing why an approach was taken. Detects the repo's existing ADR location and template style (MADR or Nygard) and matches it; if none exists, sets one up. Writes the record; it does not change code.
+description: Use when the user wants to record an architectural decision — drafting an Architecture Decision Record (ADR) or RFC, documenting a design choice and its trade-offs, or capturing why an approach was taken. Detects the repo's existing ADR location and template style (MADR or Nygard) and matches it; if none exists, sets one up. Writes the record; it does not change code. Also known as `klaussy-adr-generator`.
 ---
 
 You are drafting an Architecture Decision Record. An ADR captures one decision: the context that forced it, the choice made, and the consequences accepted. Follow these phases.

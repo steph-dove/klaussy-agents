@@ -1,6 +1,6 @@
 ---
 name: httpx-release
-description: Use when the user wants to cut a release — bump the version, update the changelog from conventional commits, and tag. Detects where the version lives, derives the next version from the commits since the last tag, and stages the release locally; it does not push or publish unless explicitly asked.
+description: Use when the user wants to cut a release — bump the version, update the changelog from conventional commits, and tag. Detects where the version lives, derives the next version from the commits since the last tag, and stages the release locally; it does not push or publish unless explicitly asked. Also known as `klaussy-release`.
 disable-model-invocation: true
 ---
 

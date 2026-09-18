@@ -1,6 +1,6 @@
 ---
 name: fastapi-split-pr
-description: Use when a change is too large to review in one pass and should ship as a stack of dependent PRs instead. Strips comment bloat so the size is honest, proposes layers from the import graph, then builds the branch chain, opens one request per layer targeting the layer below, and registers a native stack where the host has one. Works from committed history or an uncommitted working tree. Creates a stack; use fastapi-restack to repair one that already exists.
+description: Use when a change is too large to review in one pass and should ship as a stack of dependent PRs instead. Strips comment bloat so the size is honest, proposes layers from the import graph, then builds the branch chain, opens one request per layer targeting the layer below, and registers a native stack where the host has one. Works from committed history or an uncommitted working tree. Creates a stack; use fastapi-restack to repair one that already exists. Also known as `klaussy-split-pr`.
 disable-model-invocation: true
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: httpx-implement
-description: Use when the user pastes a ticket, design doc, or task description and wants it implemented. Multi-phase flow — understand, investigate (in plan mode), plan, implement, verify. Enforces strict scope rules and writes failing tests first for bug fixes.
+description: Use when the user pastes a ticket, design doc, or task description and wants it implemented. Multi-phase flow — understand, investigate (in plan mode), plan, implement, verify. Enforces strict scope rules and writes failing tests first for bug fixes. Also known as `klaussy-implement`.
 ---
 
 > **Adapted for Cursor.**

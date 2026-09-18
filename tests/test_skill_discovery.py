@@ -218,3 +218,32 @@ def test_published_skills_carry_no_unsubstituted_tokens(path):
     # directory, which is the failure this whole module exists to prevent.
     text = path.read_text()
     assert "{{" not in text, f"{path.name} still contains a substitution token"
+
+
+# --- the alias reaches every emit path --------------------------------------
+
+
+def test_alias_is_skipped_when_the_namespace_already_matches():
+    from klaussy.skills import describe_with_alias
+
+    assert describe_with_alias("Does a thing.", "review", "klaussy") == "Does a thing."
+    assert "klaussy-review" in describe_with_alias("Does a thing.", "review", "payments")
+
+
+def test_checklist_keeps_the_alias_on_the_review_skill(tmp_path, monkeypatch):
+    """`klaussy checklist` rewrites the review skill from the template.
+
+    It is the third emit path for that one skill, after scaffold_skills and
+    build_skill_payloads, and it used to strip the alias that `klaussy skills`
+    had just added.
+    """
+    from klaussy.checklist import generate_checklist
+
+    repo = tmp_path / "payments"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE.md - payments\n\n## Commands\n\n- **Test**: `pytest`\n"
+    )
+
+    out = generate_checklist(repo=repo, force=True, base_branch="main")
+    assert "Also known as `klaussy-review`." in out.read_text()

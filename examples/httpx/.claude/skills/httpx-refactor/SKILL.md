@@ -1,6 +1,6 @@
 ---
 name: httpx-refactor
-description: Use when the user wants to restructure code while preserving behavior exactly. Establishes a passing test baseline first, then makes incremental moves that each leave the suite green. Refuses to change behavior and structure in the same step.
+description: Use when the user wants to restructure code while preserving behavior exactly. Establishes a passing test baseline first, then makes incremental moves that each leave the suite green. Refuses to change behavior and structure in the same step. Also known as `klaussy-refactor`.
 allowed-tools: Read Grep Glob Bash Edit Write
 ---
 

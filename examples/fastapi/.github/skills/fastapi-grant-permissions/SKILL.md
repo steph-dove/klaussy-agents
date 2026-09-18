@@ -1,6 +1,6 @@
 ---
 name: fastapi-grant-permissions
-description: Use when the user is tired of approving the same routine dev work ("stop asking me yes", "allow the normal dev tools", "grant permissions"). Detects the repo's stack and writes a curated allow-list into the agent's own local permission file so the basics stop prompting — reading, editing and creating files, plus tests, lint, build, git, the package manager and the run command — while keeping secret files denied.
+description: Use when the user is tired of approving the same routine dev work ("stop asking me yes", "allow the normal dev tools", "grant permissions"). Detects the repo's stack and writes a curated allow-list into the agent's own local permission file so the basics stop prompting — reading, editing and creating files, plus tests, lint, build, git, the package manager and the run command — while keeping secret files denied. Also known as `klaussy-grant-permissions`.
 ---
 
 Grant the permissions a developer needs to work in this repo without a prompt on every routine command, while keeping sensitive files off-limits.

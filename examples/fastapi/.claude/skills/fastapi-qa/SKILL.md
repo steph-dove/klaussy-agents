@@ -1,6 +1,6 @@
 ---
 name: fastapi-qa
-description: Use when the user wants the current change QA'd and PR-ready evidence captured. Classifies the diff and runs the verification that actually fits it — screen recordings and screenshots for UI/frontend changes, endpoint or e2e runs for backend, command output for a CLI, tests for a library — then saves artifacts and writes a QA summary. Right-sizes QA to the change; it does not write features or fix bugs.
+description: Use when the user wants the current change QA'd and PR-ready evidence captured. Classifies the diff and runs the verification that actually fits it — screen recordings and screenshots for UI/frontend changes, endpoint or e2e runs for backend, command output for a CLI, tests for a library — then saves artifacts and writes a QA summary. Right-sizes QA to the change; it does not write features or fix bugs. Also known as `klaussy-qa`.
 allowed-tools: Read Grep Glob Bash Edit Write
 ---
 

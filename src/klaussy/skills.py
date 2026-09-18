@@ -351,7 +351,7 @@ ALIAS_PREFIX = "klaussy"
 _DESCRIPTION_LINE = re.compile(r"^description: (.*)$", re.MULTILINE)
 
 
-def _apply_alias_to_frontmatter(text: str, skill: str, namespace: str) -> str:
+def apply_alias_to_frontmatter(text: str, skill: str, namespace: str) -> str:
     """Rewrite a rendered SKILL.md's description line to carry the alias."""
     head, sep, body = text.partition("\n---\n")
     if not sep:
@@ -497,7 +497,7 @@ def scaffold_skills(
 
             content = _substitute(content)
             if filename == "SKILL.md":
-                content = _apply_alias_to_frontmatter(content, skill, repo_namespace)
+                content = apply_alias_to_frontmatter(content, skill, repo_namespace)
 
             if target.exists() and target.read_text() == content and not force:
                 console.print(f"[dim]  {target.relative_to(repo)} unchanged, skipping.[/dim]")

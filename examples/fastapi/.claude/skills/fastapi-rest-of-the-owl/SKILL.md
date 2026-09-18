@@ -1,6 +1,6 @@
 ---
 name: fastapi-rest-of-the-owl
-description: Use when the user hands you a task definition and wants the ENTIRE development loop run end-to-end — plan, implement, review and fix, QA the change with evidence appropriate to it, open a humanized PR, then poll CI and code review, fixing and resolving until the PR is green and clean. Does everything except merge. Long-running and autonomous; the human keeps the merge button.
+description: Use when the user hands you a task definition and wants the ENTIRE development loop run end-to-end — plan, implement, review and fix, QA the change with evidence appropriate to it, open a humanized PR, then poll CI and code review, fixing and resolving until the PR is green and clean. Does everything except merge. Long-running and autonomous; the human keeps the merge button. Also known as `klaussy-rest-of-the-owl`.
 allowed-tools: Read Grep Glob Bash Edit Write TodoWrite Agent
 ---
 

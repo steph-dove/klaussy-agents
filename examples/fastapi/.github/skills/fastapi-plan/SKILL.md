@@ -1,6 +1,6 @@
 ---
 name: fastapi-plan
-description: Use when the user wants to plan and implement a non-trivial task in this repo. Runs a multi-phase flow — discovery, parallel exploration, clarifying questions, parallel architectures, approval gate, implementation, parallel review, summary.
+description: Use when the user wants to plan and implement a non-trivial task in this repo. Runs a multi-phase flow — discovery, parallel exploration, clarifying questions, parallel architectures, approval gate, implementation, parallel review, summary. Also known as `klaussy-plan`.
 ---
 
 > **Adapted for GitHub Copilot.**

@@ -4,7 +4,8 @@
 Installed by klaussy into a target agent's hooks directory and wired to that
 agent's "before shell/tool" event (Gemini BeforeTool, Cursor
 beforeShellExecution, Codex PreToolUse, Copilot preToolUse, Antigravity
-run_command). A `--body-file` is scrubbed in place; a `--body` literal can't be
+run_command). Covers `gh` and `glab`. A `--body-file` is scrubbed in place (gh only,
+glab has no such flag); a body literal can't be
 rewritten under these protocols, so the guard BLOCKS the post (exit 2 + stderr,
 which every supported agent honors) and hands back the humanized command to
 re-issue — as it also does for a body it couldn't scrub at all (tracked file,
@@ -37,6 +38,23 @@ _COMMENT_SUBCOMMANDS = (
 _BODY_FLAGS = ("-b", "--body")
 _BODY_FILE_FLAGS = ("-F", "--body-file")
 
+# glab's body flag is per-subcommand: `-m` is the note body on `note` but the
+# MILESTONE on `create`, and `--file` names the diff file, not a body file.
+_GLAB_NOTE_SUBCOMMANDS = ("mr note", "issue note")
+_GLAB_BODY_SUBCOMMANDS = (
+    "mr create",
+    "mr new",
+    "mr update",
+    "issue create",
+    "issue new",
+    "issue update",
+)
+_GLAB_MESSAGE_FLAGS = ("-m", "--message")
+_GLAB_DESCRIPTION_FLAGS = ("-d", "--description")
+
+# glab opens an editor when the body is exactly "-", so there is nothing to scrub.
+_EDITOR_SENTINEL = "-"
+
 
 def _extract_command(payload: dict) -> str:
     """Pull the shell command string out of any supported agent's payload."""
@@ -54,16 +72,35 @@ def _extract_command(payload: dict) -> str:
     return ""
 
 
+def _body_spec(command: str) -> tuple[tuple[str, ...], str, bool] | None:
+    """Which flags carry the body, the long form to rewrite with, and whether -F applies.
+
+    None when the command posts no comment. gh is matched first so its behaviour
+    is untouched; "glab" contains no "gh" substring, so the two can't collide.
+    """
+    if "gh" in command and any(sub in command for sub in _COMMENT_SUBCOMMANDS):
+        return _BODY_FLAGS, "--body", True
+    if "glab" in command:
+        if any(sub in command for sub in _GLAB_NOTE_SUBCOMMANDS):
+            return _GLAB_MESSAGE_FLAGS, "--message", False
+        if any(sub in command for sub in _GLAB_BODY_SUBCOMMANDS):
+            return _GLAB_DESCRIPTION_FLAGS, "--description", False
+    return None
+
+
 def _is_comment_post(command: str) -> bool:
-    return "gh" in command and any(sub in command for sub in _COMMENT_SUBCOMMANDS)
+    return _body_spec(command) is not None
 
 
-def _find_body(tokens: list[str]) -> tuple[int, str, bool] | None:
+def _find_body(
+    tokens: list[str], flags: tuple[str, ...] = _BODY_FLAGS
+) -> tuple[int, str, bool] | None:
     for i, tok in enumerate(tokens):
-        if tok in _BODY_FLAGS and i + 1 < len(tokens):
+        if tok in flags and i + 1 < len(tokens):
             return (i + 1, tokens[i + 1], False)
-        if tok.startswith("--body="):
-            return (i, tok[len("--body=") :], True)
+        for flag in flags:
+            if flag.startswith("--") and tok.startswith(flag + "="):
+                return (i, tok[len(flag) + 1 :], True)
     return None
 
 
@@ -251,8 +288,10 @@ def main() -> int:
         unscrubbed = False
 
         for part in parts:
-            if not _is_comment_post(part):
+            spec = _body_spec(part)
+            if spec is None:
                 continue
+            body_flags, long_flag, has_body_file = spec
             try:
                 tokens = shlex.split(part)
             except ValueError:
@@ -261,7 +300,7 @@ def main() -> int:
             # File-backed body: fix the file, let the command through. No block
             # needed, since `gh` reads the scrubbed file, and no command rewrite
             # means chaining can't make this unsafe.
-            body_file = _find_body_file(tokens)
+            body_file = _find_body_file(tokens) if has_body_file else None
             if body_file is not None:
                 reported = _humanize_file(body_file)
                 if reported:
@@ -269,10 +308,13 @@ def main() -> int:
                     unscrubbed = unscrubbed or not reported[1]
                 continue
 
-            found = _find_body(tokens)
+            found = _find_body(tokens, body_flags)
             if found is None:
                 continue
             idx, body, inline = found
+            # glab opens an editor for a bare '-', so there is no body to scrub.
+            if body == _EDITOR_SENTINEL:
+                continue
             if any(ch in body for ch in "$`"):
                 continue
             cleaned = _humanize(body)
@@ -292,7 +334,7 @@ def main() -> int:
                 return 2
 
             new_tokens = list(tokens)
-            new_tokens[idx] = "--body=" + cleaned if inline else cleaned
+            new_tokens[idx] = f"{long_flag}={cleaned}" if inline else cleaned
             _report(notes)
             print(
                 "klaussy comment guard: this comment has AI tells. Re-post the "
