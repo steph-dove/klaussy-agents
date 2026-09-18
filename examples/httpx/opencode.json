@@ -3,6 +3,32 @@
   "instructions": [
     ".opencode/rules/*.md"
   ],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai",
+      "name": "ollama",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen3-coder:30b": {
+          "name": "qwen3-coder:30b"
+        },
+        "qwen2.5-coder:32b": {
+          "name": "qwen2.5-coder:32b"
+        },
+        "qwen2.5-coder:14b": {
+          "name": "qwen2.5-coder:14b"
+        },
+        "qwen2.5-coder:7b": {
+          "name": "qwen2.5-coder:7b"
+        },
+        "deepseek-coder-v2": {
+          "name": "deepseek-coder-v2"
+        }
+      }
+    }
+  },
   "permission": {
     "read": {
       "*": "allow",
@@ -18,6 +44,8 @@
       "*": "ask",
       "git": "allow",
       "git *": "allow",
+      "gh": "allow",
+      "gh *": "allow",
       "python": "allow",
       "python *": "allow",
       "pytest": "allow",

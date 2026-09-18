@@ -25,6 +25,31 @@ _CLAUDE_PERMISSION_SYNTAX = (
     "`Bash(git *)`, `Edit(**)`, and `Read(**)`"
 )
 
+# Not `templates/skills/`: `gh skill install` discovers any `skills/*/SKILL.md`
+# in the tree and the spec has no opt-out. See tests/test_skill_discovery.py.
+SKILL_TEMPLATE_ROOT = "templates/skill-templates"
+
+# Marks a file as pre-substitution. Stripped to get the emitted filename.
+TEMPLATE_SUFFIX = ".tmpl"
+
+
+def template_output_name(filename: str) -> str:
+    """The name a template is written out under, with the marker removed."""
+    return filename.removesuffix(TEMPLATE_SUFFIX)
+
+
+def iter_skill_templates(skill_dir):
+    """Every template file in a skill's directory, in stable order.
+
+    Anything without TEMPLATE_SUFFIX is skipped rather than emitted, so a stray
+    `.DS_Store` or an editor backup never lands in a scaffolded repo.
+    """
+    return sorted(
+        (f for f in skill_dir.iterdir() if f.name.endswith(TEMPLATE_SUFFIX)),
+        key=lambda f: f.name,
+    )
+
+
 SKILL_NAMES = [
     "review",
     "precommit",
@@ -391,7 +416,7 @@ def scaffold_skills(
         return []
 
     created: list[Path] = []
-    templates = resources.files("klaussy").joinpath("templates/skills")
+    templates = resources.files("klaussy").joinpath(SKILL_TEMPLATE_ROOT)
 
     repo_namespace = sanitize_skill_namespace(repo.name)
 
@@ -419,8 +444,8 @@ def scaffold_skills(
         # Copy every template file in the skill dir. Skills like `review` ship
         # supporting files (e.g. sub-agents.md) alongside SKILL.md and need
         # them all written for the skill to function.
-        for template_file in skill_template_dir.iterdir():
-            filename = template_file.name
+        for template_file in iter_skill_templates(skill_template_dir):
+            filename = template_output_name(template_file.name)
             target = skill_dir / filename
 
             # The review skill alone supports a custom SKILL.md override (since

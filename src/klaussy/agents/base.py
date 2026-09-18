@@ -21,7 +21,14 @@ from pathlib import Path
 
 from klaussy.checklist import build_enrichment_block
 from klaussy.forge import build_forge_block
-from klaussy.skills import SKILL_NAMES, humanize_block, sanitize_skill_namespace
+from klaussy.skills import (
+    SKILL_NAMES,
+    SKILL_TEMPLATE_ROOT,
+    humanize_block,
+    iter_skill_templates,
+    sanitize_skill_namespace,
+    template_output_name,
+)
 
 
 @dataclass(frozen=True)
@@ -125,7 +132,7 @@ def build_skill_payloads(
     namespace = sanitize_skill_namespace(repo.name)
     enrichment = build_enrichment_block(repo)
     forge_adapter = build_forge_block(repo, forge)
-    templates = resources.files("klaussy").joinpath("templates/skills")
+    templates = resources.files("klaussy").joinpath(SKILL_TEMPLATE_ROOT)
 
     def substitute(text: str) -> str:
         return (
@@ -142,20 +149,17 @@ def build_skill_payloads(
 
         aux_files: dict[str, str] = {}
         skill_md = ""
-        for template_file in skill_dir.iterdir():
-            if (
-                skill == "review"
-                and template_file.name == "SKILL.md"
-                and review_template is not None
-            ):
+        for template_file in iter_skill_templates(skill_dir):
+            filename = template_output_name(template_file.name)
+            if skill == "review" and filename == "SKILL.md" and review_template is not None:
                 content = review_template.read_text()
             else:
                 content = template_file.read_text()
             content = substitute(content)
-            if template_file.name == "SKILL.md":
+            if filename == "SKILL.md":
                 skill_md = content
             else:
-                aux_files[template_file.name] = content
+                aux_files[filename] = content
 
         fm, body = _split_frontmatter(skill_md)
         payloads.append(

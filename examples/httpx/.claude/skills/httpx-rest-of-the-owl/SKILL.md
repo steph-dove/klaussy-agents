@@ -22,13 +22,17 @@ You orchestrate the repo's other skills as a pipeline. Each phase below names th
 
 Stop and hand back to the user (do not barrel ahead) if any phase hits something a human must decide: a missing secret or env var, an ambiguous requirement the task definition doesn't settle, a destructive migration, or a test failure that looks like a real bug in existing code rather than in your change.
 
+## Pre-flight — Permissions
+
+If routine dev permissions are not yet configured for this worktree, invoke **`httpx-grant-permissions`** first so file editing, test execution, git operations, and forge CLI commands run unprompted throughout the loop.
+
 ## Phase 1 — Plan
 
-Follow **`httpx-plan`** (or **`httpx-implement`**'s lighter planning phase for a small, single-surface task). Produce a concrete build sequence. If the task definition leaves a real ambiguity, ask now — a wrong assumption here costs the whole owl.
+Follow **`httpx-plan`** (or **`httpx-implement`**'s lighter planning phase for a small, single-surface task). Produce a concrete build sequence. Save the approved plan as an uncommitted OKF session note in `$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-plan.md` (or `%KLAUSSY_SESSION_NOTES_DIR%\<agent-name>-plan.md` on Windows, or `plan.md` at worktree root) following the Open Knowledge Format protocol (YAML frontmatter with `type: session-note`, `tags: [plan, design, devloop]`, `generated: { by: <provider-id>/<agent-name>, at: <ISO-8601 timestamp> }`). If the task definition leaves a real ambiguity, ask now — a wrong assumption here costs the whole owl.
 
 ## Phase 2 — Implement
 
-Follow **`httpx-implement`**. Work the plan in small batches, keeping the suite green as you go. For a bug fix, write the failing test first. Do not scope-creep beyond the task definition.
+Follow **`httpx-implement`**. Work the plan in small batches, keeping the suite green as you go. For a bug fix, write the failing test first. Record any breaking changes or shared context notes in `$KLAUSSY_SESSION_NOTES_DIR/` (or `%KLAUSSY_SESSION_NOTES_DIR%` on Windows). Do not scope-creep beyond the task definition.
 
 ## Phase 3 — Local review and fix
 
@@ -36,16 +40,77 @@ Follow **`httpx-review`** against the working diff (`git diff master...HEAD`). F
 
 ## Phase 4 — QA the change
 
-Follow **`httpx-qa`**. It classifies the diff and runs only the QA that fits: screenshots for a UI change, the exercised endpoint plus e2e for a backend change, command output for a CLI, tests for a library — and nothing at all for a docs/config-only change. Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches. It saves artifacts to a `Downloads/<repo>-<branch>` folder where the user can open them — Phase 5 folds them into the PR so the reviewer sees the change actually working.
+Follow **`httpx-qa`**. It classifies the diff and runs only the QA that fits:
+- **UI / Frontend changes**:
+  - Capture **before and after screenshots** for visual comparison, formatted in a comparison table.
+  - Record a **full-flow video (.mp4)** demonstrating the complete interaction end-to-end. The video MUST showcase responsive UI behaviors by resizing (growing and shrinking) the window or viewport.
+  - Save all media in `Downloads/klaussy-qa-<branch>/` (`~/Downloads/klaussy-qa-<branch>/` on macOS/Linux, `%USERPROFILE%\Downloads\klaussy-qa-<branch>\` on Windows).
+  - Programmatically upload QA media assets (e.g. using `gh release upload`, `gh api` assets endpoint, or image host) so you have direct asset URLs ready to attach to the PR description.
+- **Backend / CLI changes**:
+  - Exercise endpoints, run integration suites, and capture execution output.
+
+Don't hand-pick the QA yourself; let the skill right-size it to what the diff touches.
 
 **QA is a gate, not a formality — clear it before you touch the PR.** The whole point of running QA here is to catch problems *before* they become CI failures or reviewer comments. If QA surfaces anything wrong — a screenshot that shows the change is broken or ugly, an endpoint returning the wrong response, a CLI erroring, a failing test — stop and fix it: loop back to Phase 2/3, correct the change, and re-QA. Do NOT open the PR (Phase 5) on a change that QA has shown to be broken and then rely on CI or the reviewer to catch it. Only advance once QA is genuinely clean (or the only gaps are ones you've explicitly flagged as un-QA-able and told the user about).
 
 ## Phase 5 — Open the PR (humanized)
 
 1. Commit the work on a topic branch (never commit straight to `master`) and push.
-2. Draft the PR body from the task definition + what you actually built, using **`httpx-pr`**'s Summary / Changes / Test Plan structure. Fold in the Phase 4 QA summary — for a UI change, reference the screenshots (note that `gh pr create` can't upload images, so point at the `Downloads/<repo>-<branch>` folder and prompt the user to drag them in, unless the repo has an image-hosting convention); for backend/CLI, paste the captured output.
+2. Draft the PR body from the task definition + what you actually built, using **`httpx-pr`**'s Summary / Changes / Test Plan structure. For UI changes, embed the Before/After comparison table and uploaded video links into the PR description; for backend/CLI, paste the captured output.
 3. Run the body through **`httpx-humanize`** before it goes out — the description is the most-read prose in the whole change; it must not read like a chatbot wrote it.
-4. Open the PR with `gh pr create` (base `master`). Capture the PR number/URL and report it.
+4. Open the request against `master` with the adapter's create command. Capture its number/URL and report it.
+
+### Forge commands (GitHub)
+
+`origin` points at GitHub, so the `gh` CLI is the adapter. Confirm a flag with `gh <command> --help` before running one you haven't used in this repo; CLI interfaces drift between versions.
+
+| Need | Command |
+| :--- | :--- |
+| Read a ticket | `gh issue view <n> --comments` |
+| Open a request | `gh pr create --base <branch> --title <title> --body-file <file>` |
+| Request status | `gh pr view <n> --json state,mergeable,reviewDecision,baseRefName` |
+| CI status | `gh pr checks <n>`, then `gh run view <run-id> --log-failed` on a failure |
+| Read review comments | `gh api repos/{owner}/{repo}/pulls/<n>/comments` |
+| Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
+| Resolve a thread | two steps, see below — REST can't do it |
+| Retarget a request | `gh pr edit <n> --base <branch>` |
+
+`{owner}/{repo}` are placeholders `gh` fills from the current repo, leave them literal.
+
+**Resolving needs GraphQL, and the id it wants is not the comment id.** The REST comment objects don't carry it, so read the thread ids first, then resolve one:
+
+```
+gh api graphql -f query='{ repository(owner: "<owner>", name: "<repo>") {
+  pullRequest(number: <n>) { reviewThreads(first: 50) { nodes {
+    id isResolved comments(first: 1) { nodes { databaseId body } } } } } } }'
+
+gh api graphql -f query='mutation($id: ID!) {
+  resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -F id=<thread-node-id>
+```
+
+Match a thread to the comment you replied to through `comments.nodes[].databaseId`, which is the REST comment id. `threadId` is the only required input.
+
+A reply must name the thread it answers. The `replies` endpoint above takes only `body`; the alternative is `POST .../pulls/<n>/comments` with `-F in_reply_to=<comment-id>` (an integer, hence `-F`). Posting to `comments` without `in_reply_to` opens a new top-level review comment rather than replying.
+
+**GitHub has native stacks**, driven by the `gh-stack` extension. `gh extension list` says whether it's installed. If it isn't, **offer to install it** — `gh extension install github/gh-stack`, one command, no repo changes — and say what it buys before asking: a stack map and layer navigation on every request page, plus cascading rebase when the base moves. Ask rather than installing unprompted, since it touches the user's `gh` setup and not this repo, but do ask; silently settling for bare chained bases hands back a worse result than the one command would have. Declining is a fine answer and the fallback below still works.
+
+The extension is in public preview, so check `gh stack <command> --help` before relying on a flag.
+
+| Need | Command |
+| :--- | :--- |
+| Link requests that already exist into a stack | `gh stack link --base <branch> <branch-or-pr> <branch-or-pr> ...` |
+| Track a carved chain locally | `gh stack init --base <branch> <branch> ...` |
+| Push the tracked chain and open or update its requests | `gh stack submit` |
+| See the stack | `gh stack view` |
+| Cascading rebase after the base moved | `gh stack rebase` |
+| Fetch, rebase, push, and sync in one pass | `gh stack sync` |
+
+Arguments run bottom-up, nearest the base first. Two constraints decide whether a stack is available at all: **every branch must live in this repo** (cross-fork stacks aren't supported), and the extension has to be installed.
+
+`link` and `init` are two different entry points and the difference shows up later. `link` stacks requests that already exist and leaves nothing behind locally, so a later `gh stack rebase` needs `gh stack checkout <stack-number>` first to pick the stack back up. `init` registers the branches locally up front and `submit` then opens the requests itself, which means the bodies are its own — write them with `gh pr edit <n> --body-file` afterwards if they have to say something specific.
+
+Without it, chained `--base` targets still give reviewers a per-layer diff, and GitHub often offers to convert an eligible chain into a stack — a banner on the request, or "Add to stack" behind the stack icon. Say which route you took.
+
 
 ## Phase 6 — Re-review the PR and fix
 
@@ -53,22 +118,13 @@ Now that the diff is a real PR, review it once more with **`httpx-review`** (a P
 
 ## Phase 7 — Poll CI and fix failures
 
-Watch the checks until they reach a terminal state:
+Watch the checks until they reach a terminal state, using the adapter's CI status command (poll on a sane cadence if it has no watch mode).
 
-```
-gh pr checks <number> --watch
-```
-
-For each failing check, pull its logs (`gh run view <run-id> --log-failed`), diagnose the *real* cause, fix it, commit, push, and re-watch. A flaky check gets one re-run before you treat it as a genuine failure — don't loop forever re-running a green-on-retry check, and don't paper over a real failure by disabling the test. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
+For each failing check, pull its logs with the adapter's log command, diagnose the *real* cause, fix it, commit, push, and re-watch. A flaky check gets one re-run before you treat it as a genuine failure — don't loop forever re-running a green-on-retry check, and don't paper over a real failure by disabling the test. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
 
 ## Phase 8 — Poll for code review and resolve
 
-Once CI is green, wait for review to land (human or bot). Poll on a sane cadence — check, wait, check — rather than hammering the API:
-
-```
-gh pr view <number> --json reviews,reviewDecision,comments
-gh api repos/{owner}/{repo}/pulls/<number>/comments   # inline review threads
-```
+Once CI is green, wait for review to land (human or bot). Poll on a sane cadence — check, wait, check — rather than hammering the API, using the adapter's status and review-comment commands. Inline comments and the summary review body come from different endpoints on every provider, so read both.
 
 For the feedback that arrives, follow **`httpx-address-review`**: triage each comment, apply the changes it warrants, draft a reply, and resolve the thread once handled. Push fixes, which re-triggers CI — loop back to Phase 7 if anything goes red.
 
@@ -76,7 +132,7 @@ For the feedback that arrives, follow **`httpx-address-review`**: triage each co
 
 ## Phase 9 — Land the owl (but don't merge)
 
-When CI is green and all review threads are resolved, stop. Report: the PR link, its check status, which review comments you addressed and how, and the one thing left — the user's merge. Mark all TodoWrite tasks complete.
+When CI is green and all review threads are resolved, stop. Report: the PR link, its check status, which review comments you addressed and how, the path to the QA artifacts folder and which recordings still need dragging into the PR, and the one thing left — the user's merge. Mark all TodoWrite tasks complete.
 
 State plainly if you stopped early and why (waiting on review, blocked on a decision, a failure you wouldn't paper over).
 

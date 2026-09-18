@@ -13,7 +13,7 @@
                   """
               ),
   ```
-- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (40) and dataclasses for internal DTOs (10). Good separation.
+- **Data class style: Pydantic for API + dataclasses for internal**: Use Pydantic for API schemas (40) and dataclasses for internal DTOs (11). Good separation.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -41,7 +41,7 @@
   P = ParamSpec("P")
   
   ```
-- **Data classes: Pydantic models**: Use Pydantic models for structured data. 62/80 structured classes use this pattern.
+- **Data classes: Pydantic models**: Use Pydantic models for structured data. 62/81 structured classes use this pattern.
   *Example context from `fastapi/sse.py` (lines 47-57):*
   ```python
       if v is not None and "\0" in v:
@@ -95,7 +95,7 @@
       "and https://fastapi.tiangolo.com/tutorial/response-model/",
   ```
 - **Limited exception chaining**: Preserve exception context: use `raise X from Y` or `raise X from None`.
-  *Example context from `fastapi/encoders.py` (lines 350-356):*
+  *Example context from `fastapi/encoders.py` (lines 352-358):*
   ```python
               data = vars(obj)
           except Exception as e:

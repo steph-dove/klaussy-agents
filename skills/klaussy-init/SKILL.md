@@ -1,17 +1,17 @@
 ---
 name: klaussy-init
-description: Use when the user wants to make this repository AI-agent-ready. Scaffolds per-agent conventions (CLAUDE.md / GEMINI.md / AGENTS.md / Cursor rules / Copilot instructions, path-scoped via klaussy-repo-conventions), repo-namespaced skills, settings, hooks, and a PR template for Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, and Aider — and runs once per repo.
+description: Use when the user wants to make this repository AI-agent-ready. Scaffolds per-agent conventions (CLAUDE.md / GEMINI.md / AGENTS.md / Cursor rules / Copilot instructions, path-scoped via klaussy-repo-conventions), repo-namespaced skills, settings, hooks, and a PR template for every agent klaussy supports — and runs once per repo.
 argument-hint: "[--force] [--skip-enrich] [--base-branch <branch>]"
 allowed-tools: Read Bash(pipx *) Bash(klaussy *) Bash(pip *) Bash(git *)
 ---
 
 # Klaussy init
 
-Scaffold AI coding-agent boilerplate for the user's project by running klaussy. By default this covers all eight supported agents — Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, and Aider — from a single shared set of conventions.
+Scaffold AI coding-agent boilerplate for the user's project by running klaussy. By default this covers every supported agent (Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, Aider, opencode, and Kimi Code CLI) from a single shared set of conventions. Run `klaussy init --help` for the current list rather than trusting this sentence — backends get added.
 
 ## Steps
 
-1. **Confirm klaussy is available.** Run `klaussy --version`. If the command isn't found, install with `pipx install klaussy` (preferred) or `pip install --user klaussy`. Re-verify with `klaussy --version` afterward.
+1. **Confirm klaussy is available.** Run `klaussy --version`. If the command isn't found, install with `pipx install klaussy-agents` (preferred) or `pip install --user klaussy-agents`. The PyPI distribution is `klaussy-agents`; `klaussy` is only the command it installs, and is not a package name. Re-verify with `klaussy --version` afterward.
 
 2. **Detect the base branch.** Klaussy will prompt interactively if not given, which blocks the agent. Pre-detect via `git branch --list dev develop main master | head -1` and pass `--base-branch <detected>`. If none of those exist, fall back to whatever `git symbolic-ref refs/remotes/origin/HEAD` returns, or `main`.
 
@@ -21,12 +21,12 @@ Scaffold AI coding-agent boilerplate for the user's project by running klaussy. 
    ```
    If `.claude/skills/` or `./CLAUDE.md` already exists, ask the user whether to pass `--force` rather than assuming. The migration in `klaussy init` removes legacy `.claude/commands/*.md` files only if it owns them (via the `.klaussy-version` marker) — user-authored commands are left alone.
 
-   **Agent targets.** By default klaussy scaffolds **all eight** supported agents — Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, and Aider — from the same conventions. Each gets its native conventions file (e.g. `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` for Codex/Antigravity, `.github/copilot-instructions.md`, `.cursor/rules/`, `.clinerules/conventions.md`, `CONVENTIONS.md` for Aider), plus the bundled skills in its native skills directory and permissions — except Aider, which is conventions-only (it has no skills or hooks mechanism). To narrow to specific agents, pass `--agents claude,gemini` (any subset). If the user only uses Claude, suggest `--agents claude`.
+   **Agent targets.** By default klaussy scaffolds **every** supported agent from the same conventions; `klaussy init --help` lists them. Each gets its native conventions file (e.g. `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` for Codex/Antigravity, `.github/copilot-instructions.md`, `.cursor/rules/`, `.clinerules/conventions.md`, `CONVENTIONS.md` for Aider), plus the bundled skills in its native skills directory and permissions — except Aider, which is conventions-only (it has no skills or hooks mechanism). To narrow to specific agents, pass `--agents claude,gemini` (any subset). If the user only uses Claude, suggest `--agents claude`.
 
 4. **Verify output.** The paths below are Claude Code's; each *other* selected agent gets the equivalent in its own dir (`.gemini/`, `.cursor/`, `.agents/` for Codex, `.github/` for Copilot) plus its native conventions file. Confirm these landed:
    - `./CLAUDE.md` at the repo root (with project-wide content)
    - `.claude/rules/<glob-stem>.md` for each path-scoped rule bucket klaussy-repo-conventions detected (zero or more files; some repos won't have any)
-   - `.claude/skills/<repo>-<skill>/SKILL.md` for 16 skills (review, precommit, plan, debug, implement, refactor, test, fix, pr, commit, explain, humanize, new-worktree, adr-generator, security-audit, slop-coded)
+   - `.claude/skills/<repo>-<skill>/SKILL.md` — one directory per bundled skill (review, plan, debug, implement, and the rest). Count the directories rather than checking against a number quoted here; the set grows between releases.
    - `.claude/settings.json`
    - `.github/PULL_REQUEST_TEMPLATE.md` (only if the repo didn't already have one)
    - `.gitignore` updated with klaussy output exclusions
@@ -36,5 +36,5 @@ Scaffold AI coding-agent boilerplate for the user's project by running klaussy. 
 ## When NOT to use
 
 - The repo is already klaussified at the same klaussy version — `klaussy init` will be a near-no-op; suggest the `klaussy-update` skill instead if the user actually wants to refresh.
-- The user wants a different scaffold tool (cookiecutter, an org-internal generator) — klaussy targets Claude Code, Gemini CLI, Cursor, Codex, Copilot, Antigravity, Cline, and Aider, and may not fit other setups.
+- The user wants a different scaffold tool (cookiecutter, an org-internal generator) — klaussy targets the agents listed above and may not fit other setups.
 - The repo is empty or has no committed code yet — klaussy infers conventions from the existing code; an empty repo gets generic boilerplate that the user may want to defer until there's something to detect from.

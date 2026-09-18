@@ -12,7 +12,7 @@ const HOOKS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "hooks")
 const PYTHON = process.platform === "win32" ? "python" : "python3"
 
 // Self-review nudge on session.idle (opencode's completion event). Static
-// directive mirrors the {{REPO}}-self-review skill; sessions already nudged are
+// directive mirrors the <repo>-self-review skill; sessions already nudged are
 // tracked in-process to prevent an idle -> prompt -> idle loop.
 const SELF_REVIEW_DIRECTIVE =
   "Before you finish, do one self-review pass over your uncommitted changes: " +

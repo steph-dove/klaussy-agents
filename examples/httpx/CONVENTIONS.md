@@ -27,19 +27,39 @@ For the repository directory map and file layout, see [.claude/directory-map.md]
 
 ### How it fits together
 
-`httpx/__init__.py` is a flat re-export barrel (`from ._client import *`, etc.) — every public name is assembled there and then stamped with `__module__ = "httpx"` at the bottom of the file, so `__all__` in that file is the actual public API surface. Adding a new public symbol means exporting it from its module *and* adding it to both `__all__` lists (its own module and `httpx/__init__.py`).
+`httpx/_client.py` is the center of gravity (2000+ lines): `BaseClient` holds shared config
+(auth, timeouts, headers, cookies, redirects, event hooks) and `Client` / `AsyncClient` both
+subclass it, each implementing the sync/async variants of `send`/`request`/`stream` on top of
+the same base logic. There is no codegen step that derives one from the other (no unasync
+script) — sync and async request logic is hand-duplicated in `Client` and `AsyncClient`, so a
+behavioral fix in one almost always needs the mirrored fix in the other.
 
-**Request flow**: `Client`/`AsyncClient` (`httpx/_client.py`, ~2000 lines) is the central orchestrator. `BaseClient` holds shared logic (cookies, auth, redirects, event hooks); `Client` and `AsyncClient` are near-duplicate sync/async implementations of the same methods (`request`/`send`/`stream` etc.) — the codebase does **not** generate one from the other, so behavioral fixes typically need to land in both classes. `send()` walks: build `Request` (`_models.py`) → apply `Auth` (`_auth.py`) → hand off to a `BaseTransport`/`AsyncBaseTransport` (`_transports/base.py`) → transport returns a `Response` → follow redirects (`_client.py`, `_same_origin`/`_is_https_redirect` helpers) if `follow_redirects=True` → response content is lazily read/decoded via `_content.py` (`ByteStream`/`IteratorByteStream`) and `_decoders.py`.
+Request flow: `httpx.get/post/request(...)` (`httpx/_api.py`) builds a short-lived `Client` and
+delegates to it. `Client.send()` merges per-request args with client defaults, builds a
+`Request` (`httpx/_models.py`), runs it through `_auth.py` (`Auth.auth_flow` generators, which
+is why digest/multi-step auth can yield more than once), then hands the `Request` to a
+`Transport` (`httpx/_transports/base.py` defines the `BaseTransport`/`AsyncBaseTransport`
+protocol: a single `handle_request`/`handle_async_request` method taking a `Request` and
+returning a `Response`). The default transport (`httpx/_transports/default.py`) wraps
+`httpcore` connection pools and translates `httpcore` exceptions into `httpx` exceptions via
+`HTTPCORE_EXC_MAP`. Alternate transports — `httpx/_transports/mock.py` (test doubles),
+`asgi.py`/`wsgi.py` (in-process app testing without sockets) — implement the same protocol, so
+`Client(transport=...)` is the seam for swapping request handling entirely (this is the
+intended way to mock network calls in tests).
 
-**Transports** (`httpx/_transports/`) are the pluggable I/O boundary — `BaseTransport`/`AsyncBaseTransport` define `handle_request`/`handle_async_request`. `default.py` wraps `httpcore` (the actual socket/HTTP/1.1/HTTP2 implementation) and translates `httpcore` exceptions into `httpx` exceptions via `map_httpcore_exceptions()`. `mock.py` (`MockTransport`) lets tests/users swap in a callable instead of real networking; `asgi.py`/`wsgi.py` let you point a `Client` directly at an in-process ASGI/WSGI app for testing without a socket.
-
-**Models** (`httpx/_models.py`): `Request`, `Response`, `Headers`, `Cookies` — response body reading is deliberately lazy/streamed (`.read()`, `.iter_bytes()`, `.aiter_bytes()`) backed by the `SyncByteStream`/`AsyncByteStream` protocols in `_content.py`, so accessing `.text`/`.json()` before the stream is consumed raises `ResponseNotRead`.
-
-**Auth** (`httpx/_auth.py`): `Auth` subclasses implement `auth_flow()` as a generator that yields requests and receives responses back — this is what allows multi-step flows like `DigestAuth` (challenge/response) without the transport layer knowing about auth semantics.
-
-**CLI** (`httpx/_main.py`) is optional — it depends on the `cli` extra (`click`, `pygments`, `rich`). `httpx/__init__.py` imports it in a `try/except ImportError` and falls back to a stub `main()` that tells the user to `pip install 'httpx[cli]'` if those deps aren't installed.
-
-**Optional decoders**: `httpx/_decoders.py` imports `brotli`/`brotlicffi` and `zstandard` in `try/except ImportError` blocks at module load; the corresponding `ContentDecoder` subclasses only raise `ImportError` (with an install hint) when a response actually needs that encoding, not at import time.
+Other key pieces:
+- `httpx/_content.py` — turns `content=`/`data=`/`json=`/`files=` request kwargs into a byte
+  stream and sets `Content-Length`/`Transfer-Encoding`/`Content-Type` accordingly.
+- `httpx/_multipart.py` — multipart/form-data encoding for `files=`.
+- `httpx/_decoders.py` — response body decompression (gzip/deflate/brotli/zstd) and text decoding.
+- `httpx/_config.py` — `Timeout`, `Limits`, `Proxy`, and SSL context construction (`create_ssl_context`).
+- `httpx/_urls.py` / `_urlparse.py` — `URL` wraps a `ParseResult` `NamedTuple`; normalization and
+  IDNA/percent-encoding live in `_urlparse.py`, kept deliberately separate from `_urls.py`'s
+  public `URL` API.
+- `httpx/_main.py` — the `httpx` CLI (`click`-based), only importable when the `cli` extra
+  (`click`, `pygments`, `rich`) is installed.
+- `httpx/_exceptions.py` — single-rooted hierarchy (`HTTPError`) so callers can catch broadly or
+  narrowly; transport-layer exceptions from `httpcore` are re-mapped here rather than leaked.
 
 ## Tech Stack
 
@@ -51,47 +71,62 @@ For the repository directory map and file layout, see [.claude/directory-map.md]
 
 ## Commands
 
-Scripts under `scripts/` are the source of truth (mirrored by CI); they auto-detect a `venv/` directory and prefix commands with `venv/bin/` if present.
+All commands assume a `venv/` created by `scripts/install` (the scripts auto-detect
+`venv/bin/` and prefix commands with it if present; if you use another environment manager,
+just run the underlying tool directly).
 
 ```sh
-# Install (creates venv/, installs httpx with all extras + dev requirements)
+# Install (creates venv/ and installs -e .[brotli,cli,http2,socks,zstd] + dev deps)
 scripts/install
-# or manually:
-python3 -m venv venv && venv/bin/pip install -r requirements.txt
+# or, without the venv/ convention:
+pip install -e .[brotli,cli,http2,socks,zstd] -r requirements.txt
 
-# Lint + format (autofix)
-scripts/lint          # ruff check --fix, ruff format
-
-# Check only (no autofix) — what CI runs: version sync, format --diff, mypy, ruff check
-scripts/check
-
-# Type-check only
-mypy httpx tests            # (or: venv/bin/mypy httpx tests)
-
-# Test — runs scripts/check first locally (skipped when $GITHUB_ACTIONS is set), then coverage run -m pytest
+# Run the full test suite (runs scripts/check first, then coverage, unless $GITHUB_ACTIONS is set)
 scripts/test
-scripts/test tests/test_client.py::test_get      # pass pytest args straight through
+# equivalent to:
+coverage run -m pytest
 
-# Single test file/case directly
-pytest tests/models/test_responses.py -k test_json
-pytest path/to/test.py::TestClass::test_method
+# Run a single test file / test
+pytest tests/test_config.py
+pytest tests/client/test_client.py::TestClient::test_get
 
-# Coverage report (fails if under 100%; run after scripts/test)
-scripts/coverage             # coverage report --show-missing --skip-covered --fail-under=100
+# Lint + format + type-check (what CI calls "check")
+scripts/check
+# equivalent to:
+ruff format httpx tests --diff
+mypy httpx tests
+ruff check httpx tests
 
-# Docs
-scripts/docs                 # mkdocs serve
-scripts/build                # python -m build; twine check dist/*; mkdocs build
+# Auto-fix lint + format issues
+scripts/lint
+# equivalent to:
+ruff check --fix httpx tests
+ruff format httpx tests
 
-# Clean build artifacts (dist/, site/, htmlcov/, httpx.egg-info/)
-scripts/clean
+# Coverage report (used after scripts/test; fails if any line under 100% is uncovered)
+scripts/coverage
+# equivalent to:
+coverage report --show-missing --skip-covered --fail-under=100
+
+# Docs (mkdocs)
+scripts/docs          # mkdocs serve, local preview
+
+# Build/package (rarely needed locally)
+scripts/build          # python -m build, twine check, mkdocs build
+scripts/clean          # remove dist/, site/, htmlcov/, *.egg-info
 ```
 
 Notes:
-- `scripts/test` requires `coverage` to be run through (it calls `coverage run -m pytest`, not `pytest` directly) — running bare `pytest` skips coverage instrumentation, which is fine for quick local iteration but not what CI checks.
-- `scripts/coverage` enforces **100% coverage** (`--fail-under=100`) — new code without a corresponding test will fail CI at the coverage step even if all tests pass.
-- Tests marked `network` require a live network connection and are used/skipped in restricted 3rd-party build environments; `-rxXs` in `pytest.ini_options` reports skip/xfail reasons.
-- `pytest.ini_options` sets `filterwarnings = ["error", ...]` — any unfiltered warning raised during a test run (e.g. a new `DeprecationWarning`) fails the test suite, not just prints.
+- `pytest` alone works for most iteration, but CI (and `scripts/test`) run under `coverage run
+  -m pytest` and enforce **100% line coverage** via `scripts/coverage` — new code without a test
+  will fail CI even if `pytest` itself is green.
+- `pytest.ini_options.filterwarnings = ["error", ...]` turns warnings into test failures, so an
+  unguarded `DeprecationWarning`/`RuntimeWarning` anywhere in the code under test will fail the
+  suite, not just print a warning.
+- Tests marked `network` require internet access; third-party sandboxed CI environments may
+  deselect them.
+- `mypy` runs in `strict = true` mode across `httpx/` and `tests/` (tests get
+  `disallow_untyped_defs = false` via a per-module override, but still `check_untyped_defs`).
 
 ## Conventions
 
@@ -102,6 +137,10 @@ Notes:
 - **Python import path (flat-layout)**: flat-layout: `import httpx`.
 - **PEP 8 snake_case naming**: Name functions, variables, and modules using snake_case style.
 - **Single test directory: tests/**: All tests in 'tests/' directory.
+- **Data classes: NamedTuple**: structured data (e.g. `_urlparse.ParseResult`) uses `typing.NamedTuple`, not dataclasses.
+- **Sync/async duplication, not codegen**: `Client`/`AsyncClient` in `_client.py` are hand-written mirrors of each other on top of shared `BaseClient` state — there is no unasync-style generation step, so request-handling changes need to be applied to both.
+- **Exceptions always re-raised through httpx's hierarchy**: transport code maps `httpcore.*` exceptions to `httpx.*` exceptions (`HTTPCORE_EXC_MAP` in `_transports/default.py`) rather than letting `httpcore` exception types leak to callers.
+- **Transport is the test seam**: tests and library users swap network behavior via `Client(transport=...)` (see `_transports/mock.py`, `asgi.py`, `wsgi.py`) rather than patching sockets or `httpcore` directly.
 
 ## Deployment
 
@@ -110,39 +149,54 @@ Notes:
 
 ## Decision Log
 
-- **Sync and async are hand-duplicated, not generated.** `Client` and `AsyncClient` in `_client.py` implement parallel method sets (`get`/`post`/`request`/`send`/`stream`, etc.) independently rather than via codegen or a shared mixin for the request-sending logic — a deliberate readability/debuggability tradeoff at the cost of double-maintenance. Fixes to request/redirect/auth handling usually need mirrored changes in both classes.
+- Migration/refactor commit: Updating deprecated docstring Client() class (#3426)
 
-- **`httpcore` is the actual transport, `httpx` is the ergonomics layer.** `_transports/default.py` (`HTTPTransport`/`AsyncHTTPTransport`) is a thin adapter over the `httpcore` package (pinned `httpcore==1.*`); connection pooling, HTTP/1.1 vs HTTP/2 negotiation, and low-level socket handling live in `httpcore`, not here. `map_httpcore_exceptions()` is the seam that translates `httpcore` exceptions into the public `httpx` exception hierarchy (`_exceptions.py`).
+- Migration/refactor commit: Revert "Removed leading $ from cli code blocks" (#3192)
 
-- **Heavy features are optional extras, not hard dependencies**: `brotli`/`zstd` compression, `http2` (via `h2`), `socks` proxy support, and the `cli` command are all `[project.optional-dependencies]` in `pyproject.toml`, imported defensively so base `pip install httpx` stays lightweight.
+- Migration/refactor commit: Removed leading $ from cli code blocks (#3174)
 
-- **v0.28.0 (28th November, 2024)**: `verify=<str path>` (passing a CA bundle path as a plain string) was deprecated in favor of `verify=True/False` or passing an explicit `ssl.SSLContext` — the string form now raises a `DeprecationWarning`. Since `pytest.ini_options` turns warnings into errors, this deprecation shows up as a hard test failure if reintroduced or exercised without `pytest.warns`.
+- v0.28.0 (28th November, 2024): For users of the standard verify=True or verify=False cases, or verify=<ssl_context> case this should require no changes.
 
-- **Migration/refactor commit**: Updating deprecated docstring Client() class (#3426)
+- v0.28.0 (28th November, 2024): The verify argument as a string argument is now deprecated and will raise warnings.
 
-- **Migration/refactor commit**: Revert "Removed leading $ from cli code blocks" (#3192)
-
-- **Migration/refactor commit**: Removed leading $ from cli code blocks (#3174)
+- Transport abstraction over direct `httpcore` calls: `BaseTransport`/`AsyncBaseTransport` (`_transports/base.py`) is a deliberately minimal protocol (one method, `handle_request`/`handle_async_request`) so alternate transports (mock, ASGI, WSGI) are drop-in without touching client logic.
+- `httpcore==1.*` is pinned as the transport-layer dependency but its exceptions are never exposed publicly — they're translated at the transport boundary (`_transports/default.py::HTTPCORE_EXC_MAP`), keeping `httpcore` an implementation detail.
+- Optional dependencies are split into extras (`brotli`, `cli`, `http2`, `socks`, `zstd`) rather than bundled, so the CLI (`click`/`pygments`/`rich`) and compression codecs stay opt-in; `httpx/_main.py` and parts of `_decoders.py` only import their third-party deps lazily/conditionally for this reason.
+- 100% test coverage is enforced (`scripts/coverage --fail-under=100`), which is why even `# pragma: no cover` branches in the code are deliberate, explicit exclusions rather than oversights.
+- `requirements.txt` intentionally pins *tooling* versions (mypy, ruff, pytest, etc.) but leaves runtime package dependencies unpinned in `pyproject.toml`, so tests exercise the latest releases of `httpcore`/`anyio`/etc. (see the comment at the top of `requirements.txt`, referencing PR #1721).
 
 ## Known Pitfalls
 
-- **16 circular import dependencies detected** — watch import order and avoid introducing new cross-module import cycles. `httpx/__init__.py`'s flat re-export style (`from ._client import *` etc., all at module top-level) makes it easy to introduce a cycle when a low-level module (e.g. `_models.py`) needs something from a higher-level one (e.g. `_client.py`) — prefer passing values in rather than importing upward.
+- 16 circular import dependencies detected — watch import order and avoid introducing new cross-module import cycles.
 
-- **100% coverage is enforced** (`scripts/coverage`, `--fail-under=100`) — untested branches (including new `except`/optional-dependency paths) fail CI, not just "reduce coverage."
+- CI/test flakiness fix or workaround: Fix client.send() timeout new Request instance (#3116)
 
-- **`filterwarnings = ["error", ...]`** in `pyproject.toml` means any warning raised during tests (deprecation, resource, etc.) fails the suite. Two warnings are explicitly allow-listed as ignored (a Trio custom-excepthook message and `trio.MultiError` deprecation, tracked against agronholm/anyio#508) — new third-party warnings from dependency upgrades can break CI even with no code change.
+- **Coverage gate, not just tests**: `scripts/test` runs `scripts/coverage` afterward, which fails the build on *any* uncovered line, not just failing tests — a locally-green `pytest` run can still fail CI.
+- **Warnings are fatal in tests**: `filterwarnings = ["error", ...]` in `pyproject.toml` means any warning raised during the test suite (e.g. a `DeprecationWarning` from an httpx or third-party call) turns into a test failure. Two specific warnings (Trio's custom excepthook message, `trio.MultiError` deprecation) are allowlisted because they're noisy false positives from `anyio`/`trio`, not because they're safe to ignore in general.
+- **`ruff` ignores `B904`/`B028`**: exception re-raising inside `except` blocks is *not* required to use `raise ... from ...` project-wide (unlike the convention documented for `_decoders.py`), and `stacklevel` isn't enforced on warnings — don't assume ruff will catch a missing `from err`.
+- **`verify=` as a string is deprecated (since v0.28.0)**: passing a path string to `verify=` on `Client`/`AsyncClient` raises a deprecation warning (which, per the point above, will fail tests if hit); pass an `ssl.SSLContext` or bool instead.
+- **CLI is a soft dependency**: `httpx/_main.py` (the `httpx` console script) needs the `cli` extra (`click`, `pygments`, `rich`); importing `httpx` itself does not require these, so CLI-only code must not be imported at package top level.
+- **Sync/async logic must be updated in pairs**: because `Client` and `AsyncClient` are separately written (not generated), a bug fix or behavior change in one's `send`/`request`/`_send_single_request` needs the equivalent edit in the other, or the two will silently diverge.
+- **`__init__.py` blanket-imports are intentionally lint-exempt**: `per-file-ignores` disables `F403`/`F405` (star-import warnings) only for `httpx/__init__.py`, since it re-exports the entire public API via `from ._x import *`.
 
-- **`scripts/test` shells out to `scripts/check` first** (format/mypy/ruff) unless `$GITHUB_ACTIONS` is set, and runs `coverage run -m pytest`, not plain `pytest` — running `pytest` directly locally skips both the lint/type gate and coverage instrumentation, so a green local `pytest` run isn't equivalent to what CI enforces.
+## Active Session Context Sharing (Uncommitted / Mixed Agent Bus)
 
-- **Optional dependency `ImportError`s are deferred to first use, not import time** (`_decoders.py` for brotli/zstd, `_main.py` for the CLI, `_client.py` for the `socks`/`http2` transport extras) — a missing extra won't surface until the code path that needs it actually runs (e.g. decoding a `br`-encoded response), which can make missing-dependency bugs look like they "work" until a specific request shape is hit.
+This workspace shares session context between agents as [Open Knowledge Format](https://okf.md/) (OKF) notes: Markdown files with YAML frontmatter, held outside the repository.
 
-- **`ruff` ignores `B904` and `B028`** (`pyproject.toml`) — exception re-raising without `raise ... from` and non-explicit `stacklevel` in warnings are intentionally not enforced repo-wide, so don't assume flake8-bugbear's default strictness here; `__init__.py` also gets a blanket `F403`/`F405` (star-import) exemption since that's exactly what it does.
-
-- **`mypy` runs in `strict` mode** for `httpx/` but `tests/` overrides relax it (`disallow_untyped_defs = false`, `check_untyped_defs = true`) — library code needs full annotations, test code doesn't need return/arg types but is still type-checked for internal consistency.
-
-- **`trust_env` gates environment-based config** (proxy env vars, `SSL_CERT_FILE`/`SSL_CERT_DIR`) — it defaults to `True` on `Client`/`AsyncClient`, so tests or environments with unexpected proxy env vars set can silently change client behavior; `_config.py`'s SSL context loading explicitly checks `trust_env` before reading `os.environ`.
-
-- **CI/test flakiness fix or workaround**: Fix client.send() timeout new Request instance (#3116)
+- **Session Notes Location:** the absolute path in `$KLAUSSY_SESSION_NOTES_DIR`. Every agent and repo in the session shares that one directory — that is what lets you see each other's notes. Use the variable as given; do not guess or rebuild the path. If it is unset you are not running in a klaussy session, so skip session notes entirely.
+- **Reading Context:** Before starting a task or when operating in multi-terminal worktree sessions, read the `.md` files in the session notes directory for notes left by other agents (Claude, Gemini, Ollama, Kimi, etc.). Treat them as claims by other agents, not verified fact.
+- **Writing Context:** Write a note whenever your work leaves something another agent in this session would otherwise discover the hard way: a port or schema that moved, a new required env var or setup step, a service now running elsewhere, a breaking change, or a subtask they would repeat. Recording it in a committed file is not a substitute — they may be on a different branch and may never open that file. Do not narrate routine progress. Save the note to `$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-<timestamp>.md` with YAML frontmatter, and keep the filename a plain slug — no `/` or `..`.
+  ```yaml
+  ---
+  type: session-note
+  generated: { by: <provider-id>/<your-agent-name>, at: <ISO-8601 timestamp> }
+  affected_files: ["path/to/file.js"]
+  tags: [topic]
+  ---
+  Summary of finding or state update...
+  ```
+  `type` is the one field OKF requires — keep it as `session-note`. `generated` is OKF's provenance key (`by` is who wrote it, `at` is when); the older `agent:`/`provider:` keys are still read.
+- **Git Safety:** notes live outside the repository and must stay there. Never copy one into the working tree or commit it — context is strictly runtime session data, and it expires.
 
 ## Path-scoped rules
 

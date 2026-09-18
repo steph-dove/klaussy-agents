@@ -7,11 +7,11 @@ allowed-tools: Read Bash(pipx *) Bash(klaussy *) Bash(pip *) Bash(git *)
 
 # Klaussy update
 
-Refresh this repository's klaussy-generated boilerplate to match the latest klaussy version, for every agent klaussy previously scaffolded (Claude Code, Gemini CLI, Cursor, Codex, GitHub Copilot, Google Antigravity, Cline, Aider).
+Refresh this repository's klaussy-generated boilerplate to match the latest klaussy version, for every agent klaussy previously scaffolded.
 
 ## Steps
 
-1. **Upgrade klaussy first.** Run `pipx upgrade klaussy` (or `pip install --user --upgrade klaussy` if klaussy wasn't installed via pipx). Verify the new version with `klaussy --version`. Note the version for the report at the end.
+1. **Upgrade klaussy first.** Run `pipx upgrade klaussy-agents` (or `pip install --user --upgrade klaussy-agents` if klaussy wasn't installed via pipx) — the PyPI distribution is `klaussy-agents`, not `klaussy`. Verify the new version with `klaussy --version`. Note the version for the report at the end.
 
 2. **Read the existing version marker.** `cat .claude/skills/.klaussy-version` captures the version that last generated the skills. If the new klaussy version is the same as the marker, klaussy will skip — surface that to the user and confirm they want to proceed anyway (rare; usually only useful if you've also bumped `klaussy-repo-conventions` and want to re-run the path-scoped CLAUDE.md emission).
 
@@ -22,7 +22,7 @@ Refresh this repository's klaussy-generated boilerplate to match the latest klau
    klaussy init --force --base-branch <detected> $ARGUMENTS
    ```
 
-5. **Diff the result.** Run `git diff` over the generated files for every scaffolded agent — Claude (`CLAUDE.md`, `.claude/`) plus any of `GEMINI.md`/`.gemini/`, `AGENTS.md` (Codex/Antigravity), `.cursor/`, `.github/copilot-instructions.md`/`.github/skills/`, `.clinerules/`, `CONVENTIONS.md` (Aider) that exist — and summarize the substantive changes for the user:
+5. **Diff the result.** Run `git diff` over the generated files for every scaffolded agent — Claude (`CLAUDE.md`, `.claude/`) plus any of `GEMINI.md`/`.gemini/`, `AGENTS.md` (Codex/Antigravity), `.cursor/`, `.github/copilot-instructions.md`/`.github/skills/`, `.clinerules/`, `.opencode/`, `.kimi-code/`, `CONVENTIONS.md` (Aider) that exist — and summarize the substantive changes for the user:
    - New skills added or removed
    - Prompt body changes in `<repo>-plan` / `<repo>-review` / etc.
    - New / changed rule files (e.g. under `.claude/rules/`)

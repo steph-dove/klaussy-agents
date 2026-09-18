@@ -193,7 +193,7 @@ def _install_commit_guard_script(
     return dest
 
 
-def _install_plan_guidance_script(repo: Path, dialect: str) -> Path:
+def _install_plan_guidance_script(repo: Path, dialect: str) -> None:
     """Render the pre-plan guidance injector with text + dialect baked in."""
     dest = repo / PLAN_GUIDANCE_RELPATH
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +215,6 @@ def _install_self_review_guard_script(repo: Path, dialect: str) -> Path:
     dest.write_text(content)
     mode = dest.stat().st_mode
     dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    return dest
     return dest
 
 

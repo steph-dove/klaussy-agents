@@ -38,6 +38,25 @@ Then use the skills. Every one is namespaced to your repo, so in a repo called `
 
 ---
 
+## 👀 See the actual output
+
+Two real repos, scaffolded and committed so you can read what `klaussy init`
+writes before running it on your own code — no install required:
+
+| Example | Upstream | What to look at |
+|---|---|---|
+| [`examples/fastapi/`](examples/fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | [`CLAUDE.md`](examples/fastapi/CLAUDE.md) — the discovered conventions, decision log, and pitfalls |
+| [`examples/httpx/`](examples/httpx/) | [encode/httpx](https://github.com/encode/httpx) | [`CONVENTIONS.md`](examples/httpx/CONVENTIONS.md) — the same source, flattened for Aider |
+
+Worth opening: a [generated review skill](examples/fastapi/.claude/skills/fastapi-review/SKILL.md)
+with the repo's own rules injected into it, the
+[Copilot instructions](examples/fastapi/.github/copilot-instructions.md) with
+`applyTo` matchers, and the [commit guard](examples/fastapi/.claude/hooks/git_commit_guard.py)
+as it lands in a repo. Every supported agent's directory is in there — see
+[`examples/README.md`](examples/README.md) for the full map and how to reproduce it.
+
+---
+
 ## 🤖 Supported Agents & Targets
 
 `klaussy` translates your canonical repository conventions (`CLAUDE.md`) and workflows into native formats optimized for each agent's directory placement, scoping mechanisms, and capability boundaries:
@@ -120,7 +139,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 | **`<repo>-split-pr`** | Splits an oversized change into a stack of dependent PRs. | 🔪 **Seam-Finder:** Strips the comment bloat first (a third of a "too big" diff is often narration), then reads the layers off the real import graph via `klaussy split-prep` — Python through `ast`, JS/TS through its imports — so layer 1 provably imports nothing above it. Cycles are flagged as unsplittable, ungraphable files are listed rather than guessed at. Backs the original up to a `-prestack` branch before it edits anything, proves the top of the stack reproduces the carve source byte for byte, and builds every layer on its own before a single push. Confirms the seams with you before creating anything. |
 | **`<repo>-grant-permissions`** | Stops the agent asking permission for every routine dev command. | 🔑 **Stack-Aware Allow-List:** Detects your stack — including `scripts/` and Makefile runners a bare `Bash(pytest *)` rule misses — and writes a curated allow-list into each agent's own permission file, so tests, lint, build, git and the package manager stop prompting while secret files stay denied. Proposes the list and shows it before writing; never loosens anything silently. Honest about its boundary: curated mode trusts the agent to run repo code, and per-tool denies don't stop Bash reads of secret files. Broad mode is opt-in. |
 
-*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, and `adr-generator`.*
+*Also bundles skills for `commit`, `pr`, `implement`, `refactor`, `explain`, `test`, `new-worktree`, `fix`, `deps`, `address-review`, `document`, `release`, `session-context`, and `adr-generator`.*
 
 <sub>🥚 And `<repo>-slop-coded` — the evil twin of `humanize` that turns clean prose into maximal AI slop. For laughs and stress-testing the scrubber; never run it on a deliverable.</sub>
 
@@ -131,7 +150,7 @@ Every generated skill is namespaced to your repo, carries an auto-trigger descri
 1. **Discover:** Wraps `klaussy-repo-conventions` to auto-analyze your codebase and compile `CLAUDE.md`.
 2. **Translate:** Parses rules and dynamically injects them into the `<repo>-review` skill so reviews check path-scoped rules.
 3. **Scaffold:** Detects your stack (Python, Go, Node, Rust, Make) to generate custom permissions (`settings.json`, `config.toml`) and allowed tool prefixes, and detects your hosting provider from `origin` to substitute the matching forge commands into the skills that need them.
-4. **Isolate:** Writes `.cursorignore` and `.geminiignore` with secret-excluding patterns.
+4. **Isolate:** Writes `.cursorignore`, `.geminiignore`, `.clineignore`, and `.aiderignore` with secret-excluding patterns, alongside the deny rules in each agent's settings — agents vary in how much they respect `.gitignore`, so klaussy does both.
 
 ---
 
@@ -192,14 +211,45 @@ Most skills also trigger on their own when the work matches — describe a bug a
 
 *On other agents the same skills land in that agent's own directory (`.cursor/skills/`, `.gemini/skills/`, `.opencode/skills/`, `.github/skills/`, `.agents/skills/`) and you invoke them however that agent invokes skills. The slash form above is Claude Code's.*
 
+### With `gh skill install`
+
+The two entry-point skills install straight into any agent the GitHub CLI
+supports, without installing klaussy first:
+
+```bash
+gh skill install steph-dove/klaussy-agents --all --agent claude-code
+```
+
+That gives you `klaussy-init` and `klaussy-update`. Ask for either by name, and
+`--agent` takes `claude-code`, `cursor`, `codex`, `gemini-cli`, `github-copilot`,
+`opencode`, `kimi-cli` and others (`gh skill install --help` lists them all).
+
+The 28 repo-scoped skills aren't published this way on purpose: each one is
+namespaced to your repo and carries your conventions, base branch, and forge
+commands, so they're generated by `klaussy init` rather than copied in. Run
+`/klaussy-init` once the skill is installed and it scaffolds the rest.
+
 ### As a Claude Code Plugin
 ```
 /plugin marketplace add steph-dove/klaussy-agents
 /plugin install klaussy@klaussy
 ```
+This brings the `klaussy-init` and `klaussy-update` skills plus the MCP server.
+The plugin needs no prior klaussy install — its server starts through a launcher
+that prefers an install you already have and otherwise resolves `klaussy-agents[mcp]`
+through `uvx` or `pipx`. The launcher runs under `python3`; python.org's Windows
+installs expose that as `python`, so install klaussy directly there.
 
 ### As an MCP Server
-Add to your project's `.mcp.json`:
+The server lives behind the optional `mcp` extra, so ask for that rather than the
+bare package. A plain install puts `klaussy-mcp` on PATH but leaves out what it
+imports, and the client reports the crash only as a closed connection:
+
+```bash
+pip install 'klaussy-agents[mcp]'
+```
+
+Then add to your project's `.mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -210,6 +260,21 @@ Add to your project's `.mcp.json`:
   }
 }
 ```
+
+Nothing installed at all? Point the config at a runner and it resolves the
+package on first use:
+```json
+{
+  "mcpServers": {
+    "klaussy": {
+      "command": "uvx",
+      "args": ["--from", "klaussy-agents[mcp]", "klaussy-mcp"],
+      "env": { "PYTHONUNBUFFERED": "1" }
+    }
+  }
+}
+```
+The Claude Code plugin already does this for you.
 
 ### Programmatic Python API
 ```python
@@ -225,13 +290,13 @@ toolkit.init(repo=".", agents=["claude", "cursor"])
 - Python 3.10+
 - `klaussy-repo-conventions >= 1.6.0`
 - Claude Code CLI (optional, for `--init` enrichment)
-- `mcp` (optional, for MCP server support)
+- `mcp` (optional, for MCP server support — the `klaussy-agents[mcp]` extra)
 
 ---
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. The latest release is **v0.20.0** (Kimi Code CLI joins as a tenth agent backend, and `klaussy-hook` gains `--repo-relative` so a globally-configured hook resolves whichever repo the session is in).
+See [CHANGELOG.md](CHANGELOG.md) for the full release history, including what landed in the current release.
 
 ---
 

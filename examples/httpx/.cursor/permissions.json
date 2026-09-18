@@ -1,6 +1,7 @@
 {
   "terminalAllowlist": [
     "git",
+    "gh",
     "python",
     "pytest",
     "ruff",

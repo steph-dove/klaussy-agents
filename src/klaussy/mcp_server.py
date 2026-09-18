@@ -3,7 +3,20 @@
 import json
 import subprocess
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError as exc:  # pragma: no cover - depends on install extras
+    # `mcp` is an optional extra, but pyproject registers this console script
+    # unconditionally, so a bare install leaves a `klaussy-mcp` on PATH whose
+    # crash an MCP client can only report as a closed connection.
+    raise SystemExit(
+        "klaussy-mcp needs the optional 'mcp' dependency, which a plain "
+        "install of klaussy-agents leaves out.\n"
+        "  pip:  pip install 'klaussy-agents[mcp]'\n"
+        "  pipx: pipx install 'klaussy-agents[mcp]'  "
+        "(already installed? pipx inject klaussy-agents 'mcp[cli]<2')\n"
+        "  uv:   uvx --from 'klaussy-agents[mcp]' klaussy-mcp"
+    ) from exc
 
 from klaussy.toolkit import humanize as humanize_text
 from klaussy.toolkit import status as klaussy_status_map

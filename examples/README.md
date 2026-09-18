@@ -4,10 +4,14 @@ Real `klaussy init` output, captured by running the generator against two
 well-known open-source Python projects. These are the **generated artifacts
 only** — the upstream source is not vendored here.
 
-| Example | Upstream repo | Generated with |
-|---|---|---|
-| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | klaussy 0.19.2 |
-| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | klaussy 0.19.2 |
+| Example | Upstream repo | Upstream commit | Generated with |
+|---|---|---|---|
+| [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | `50113da16` | klaussy 0.30.4 |
+| [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | `b5addb6` | klaussy 0.30.4 |
+
+Both were generated with enrichment on (no `--skip-enrich`), which is what fills
+the Decision Log and Known Pitfalls sections with prose read off the real source.
+Regenerating without it produces a visibly thinner `CLAUDE.md`.
 
 ## What's in each
 
@@ -26,7 +30,7 @@ Everything `klaussy init` writes for all supported agents:
 
 ```bash
 git clone https://github.com/fastapi/fastapi
-klaussy init --repo fastapi --base-branch master
+klaussy init --repo fastapi --base-branch master --all
 ```
 
 Clone with full history — the discovery step reads git log for the decision log

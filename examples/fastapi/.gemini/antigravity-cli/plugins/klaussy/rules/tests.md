@@ -62,7 +62,7 @@ globs: tests/**/*.py
   from fastapi.testclient import TestClient
   ```
 - **Mocking with pytest monkeypatch fixture**: Use pytest monkeypatch fixture for test mocking. Also uses: unittest.mock / Mock, @patch decorator.
-  *Example context from `tests/test_frontend.py` (lines 24-34):*
+  *Example context from `tests/test_frontend.py` (lines 32-42):*
   ```python
           calls.append(name)
   
@@ -75,7 +75,7 @@ globs: tests/**/*.py
       app = FastAPI()
       app.frontend("/", directory=dist)
   ```
-- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2215/2274 test functions. naming style for all test functions.
+- **Test naming: Simple style (test_feature)**: Use Use Simple style (test_feature) naming. 2253/2314 test functions. naming style for all test functions.
   *Example context from `tests/test_datastructures.py` (lines 8-14):*
   ```python
   from fastapi.testclient import TestClient

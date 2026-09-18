@@ -34,7 +34,11 @@ from importlib import resources
 import pytest
 
 from klaussy.forge import FORGE_GITHUB, forge_block
-from klaussy.skills import HUMANIZE_BLOCK, humanize_block  # noqa: F401 (re-exported)
+from klaussy.skills import (  # noqa: F401 (HUMANIZE_BLOCK re-exported)
+    HUMANIZE_BLOCK,
+    SKILL_TEMPLATE_ROOT,
+    humanize_block,
+)
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -65,7 +69,11 @@ def load_skill_body(
     Every token the scaffolders substitute has to be substituted here too, or a
     literal `{{FORGE}}` reaches the model as text.
     """
-    text = resources.files("klaussy").joinpath(f"templates/skills/{skill}/SKILL.md").read_text()
+    text = (
+        resources.files("klaussy")
+        .joinpath(f"{SKILL_TEMPLATE_ROOT}/{skill}/SKILL.md.tmpl")
+        .read_text()
+    )
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)
