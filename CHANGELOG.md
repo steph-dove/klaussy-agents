@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
-## [Unreleased]
+## [0.31.0] - 2026-09-18
 
 ### Added
 
@@ -29,6 +29,45 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
   Also available as `klaussy-uninstall` (plugin skill, so `gh skill install` picks it up),
   `toolkit.uninstall()`, and the `klaussy_uninstall` MCP tool, which defaults to a dry run.
+
+- **A repo-independent `klaussy-<skill>` alias.** Skills are namespaced per repo, so the
+  same skill is `payments-review` in one checkout and `billing-review` in the next and
+  nobody remembers which. Every emitted description now ends with "Also known as
+  `klaussy-review`.", so asking for klaussy-review resolves wherever you are. It goes in
+  the description rather than a second skill directory on purpose: agents take the slash
+  command from the DIRECTORY name and have no alias field, so a real `/klaussy-review`
+  would mean shipping a twin of all 28 skills and doubling what loads at startup. Applied
+  in all three emit paths, so it reaches every agent — 224 of 224 files on a real scaffold.
+
+### Fixed
+
+- **GitLab comments posted unscrubbed.** Both comment guards matched only `gh`, so
+  `glab mr note`, `glab mr create` and every other GitLab post bypassed the humanizer.
+  Not hypothetical: `forge.py` substitutes `glab` commands into the skills, so agents on
+  a GitLab repo really were posting raw model prose. glab is fiddlier than gh and its
+  short flags collide with unrelated options, so the body flag is chosen per subcommand —
+  `-m` is the note body on `mr note` but the MILESTONE on `create`, `--file` on
+  `mr note create` names the diff file rather than a body file, and a body of exactly `-`
+  opens an editor. Bitbucket stays uncovered on purpose: it has no comment CLI, so posts
+  go through `curl` with the body inside JSON, and a guard that silently missed half of
+  those would be worse than none. The README says so now instead of claiming coverage it
+  never had.
+- **`klaussy checklist` stripped the alias it had just been given.** It rewrites the review
+  skill from the template with its own substitution, making it a third emit path for that
+  one skill. Caught by regenerating the examples, not by a unit test.
+
+### Changed
+
+- **`gh skill install` leads the Quick Start.** It was buried in the Installation section
+  near the bottom, despite being the lowest-friction way in — the skill installs the CLI
+  itself if it is missing.
+- **CI moved off the deprecated Node 20 runtime.** `actions/checkout` v4 → v7,
+  `actions/setup-python` v5 → v7, `softprops/action-gh-release` v2 → v3, all three of which
+  declare node24. `pypa/gh-action-pypi-publish` stays on `release/v1`: it is a composite
+  action with no Node runtime, and that is PyPA's documented pinning.
+- **Examples regenerated** so the committed output carries the alias and the glab-aware
+  guards. Only skills and hooks were rebuilt, leaving the enriched `CLAUDE.md` untouched
+  rather than re-rolled through another model pass.
 
 ## [0.30.5] - 2026-09-18
 
