@@ -13,7 +13,7 @@ re-drives the model differ per agent, each confirmed from its primary docs:
 
 opencode's session.idle is handled in its Bun plugin; Cline's TaskComplete is
 observe-only and aider has no hook mechanism, so users of those three get the
-same pass via the {{REPO}}-self-review skill instead.
+same pass via the <repo>-self-review skill instead.
 
 Loop-safe by two independent guards: each agent's native loop signal
 (`stop_hook_active` / `loop_count`), and a (session, HEAD) marker file — so the
@@ -36,7 +36,7 @@ import tempfile
 DIALECT: str = "__KLAUSSY_DIALECT__"
 
 # The review pass requested on stop — static, so it's inlined rather than baked.
-# Mirrors the {{REPO}}-self-review skill's checklist.
+# Mirrors the <repo>-self-review skill's checklist.
 DIRECTIVE = (
     "Before you finish, do one self-review pass over your uncommitted changes. "
     "Start with comments: delete every one that narrates the change or restates what "
