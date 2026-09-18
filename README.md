@@ -100,7 +100,9 @@ as it lands in a repo. Every supported agent's directory is in there — see
 
 ### 2. Comment Humanizer (`comment_guard.py`)
 
-**Keeps commits and pull/merge request comments clean.** Intercepts outgoing messages and pull/merge request comments across GitHub (`gh pr comment`), GitLab (`glab mr note`), and Bitbucket. Automatically scrubs AI filler words, robotic formatting, and chatty openers, ensuring all generated communication reads like it was written by a human software engineer.
+**Keeps commits and pull/merge request comments clean.** Intercepts outgoing comments on GitHub (`gh pr comment`, `gh pr review`, `gh issue create`, …) and GitLab (`glab mr note`, `glab mr create`, `glab issue update`, …), scrubbing AI filler words, robotic formatting, and chatty openers before they post. On Claude the body is rewritten in place and the command runs cleaned; every other agent gets the post blocked once with the humanized command handed back to re-issue.
+
+The scrubber only removes mechanical tells, so it says so and points at the `<repo>-humanize` skill for anything that needs actual rewriting. **Bitbucket is not covered**: it has no comment CLI, so posts go through `curl` against the REST API, and a guard that silently missed half of those would be worse than none. Scrub with `<repo>-humanize` before posting there.
 
 ### 3. Pre-Plan Guidance (`plan_guidance.py`)
 
@@ -204,6 +206,8 @@ klaussy init
 ### Using the skills
 
 After `klaussy init`, the skills are in your repo and invoked by name. The name is always `<your repo name>-<skill>`, lowercased with anything that isn't a letter or digit turned into a hyphen — so `My_App` becomes `my-app-review`, and `Payments Service` becomes `payments-service-review`.
+
+You don't have to remember which repo you're in: every skill also answers to `klaussy-<skill>`, so "run klaussy-review" works the same as `/my-app-review`. The agent resolves the alias; the slash command itself is still the repo-namespaced one, since agents take it from the directory name.
 
 ```
 /<your repo name>-rest-of-the-owl <task link or description>
