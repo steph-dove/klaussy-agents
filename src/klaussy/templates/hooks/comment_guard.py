@@ -2,7 +2,8 @@
 """PreToolUse guard: humanize a comment before the agent posts it.
 
 Installed by klaussy into .claude/hooks/ and registered in .claude/settings.json
-as a PreToolUse hook on `Bash`. A `--body` literal is rewritten through
+as a PreToolUse hook on `Bash`. Covers `gh` and `glab`. A body literal is
+rewritten through
 `updatedInput`, so the command runs cleaned with no extra round trip; a
 `--body-file` is scrubbed in place unless git reports it tracked, so a committed
 doc is never mutated. Pure stdlib; scrubbing shells out to `klaussy humanize`,
@@ -32,22 +33,58 @@ _COMMENT_SUBCOMMANDS = (
 _BODY_FLAGS = ("-b", "--body")
 _BODY_FILE_FLAGS = ("-F", "--body-file")
 
+# glab's body flag is per-subcommand: `-m` is the note body on `note` but the
+# MILESTONE on `create`, and `--file` names the diff file, not a body file.
+_GLAB_NOTE_SUBCOMMANDS = ("mr note", "issue note")
+_GLAB_BODY_SUBCOMMANDS = (
+    "mr create",
+    "mr new",
+    "mr update",
+    "issue create",
+    "issue new",
+    "issue update",
+)
+_GLAB_MESSAGE_FLAGS = ("-m", "--message")
+_GLAB_DESCRIPTION_FLAGS = ("-d", "--description")
+
+# glab opens an editor when the body is exactly "-", so there is nothing to scrub.
+_EDITOR_SENTINEL = "-"
+
+
+def _body_spec(command: str) -> tuple[tuple[str, ...], str, bool] | None:
+    """Which flags carry the body, the long form to rewrite with, and whether -F applies.
+
+    None when the command posts no comment. gh is matched first so its behaviour
+    is untouched; "glab" contains no "gh" substring, so the two can't collide.
+    """
+    if "gh" in command and any(sub in command for sub in _COMMENT_SUBCOMMANDS):
+        return _BODY_FLAGS, "--body", True
+    if "glab" in command:
+        if any(sub in command for sub in _GLAB_NOTE_SUBCOMMANDS):
+            return _GLAB_MESSAGE_FLAGS, "--message", False
+        if any(sub in command for sub in _GLAB_BODY_SUBCOMMANDS):
+            return _GLAB_DESCRIPTION_FLAGS, "--description", False
+    return None
+
 
 def _is_comment_post(command: str) -> bool:
-    return "gh" in command and any(sub in command for sub in _COMMENT_SUBCOMMANDS)
+    return _body_spec(command) is not None
 
 
-def _find_body(tokens: list[str]) -> tuple[int, str, bool] | None:
+def _find_body(
+    tokens: list[str], flags: tuple[str, ...] = _BODY_FLAGS
+) -> tuple[int, str, bool] | None:
     """Locate the literal comment body. Returns (token_index, body, inline).
 
-    `inline` is True for the `--body=VALUE` form (value lives in the same token);
-    False for the `--body VALUE` / `-b VALUE` form (value is the next token).
+    `inline` is True for the `--flag=VALUE` form (value lives in the same token);
+    False for the `--flag VALUE` / `-f VALUE` form (value is the next token).
     """
     for i, tok in enumerate(tokens):
-        if tok in _BODY_FLAGS and i + 1 < len(tokens):
+        if tok in flags and i + 1 < len(tokens):
             return (i + 1, tokens[i + 1], False)
-        if tok.startswith("--body="):
-            return (i, tok[len("--body=") :], True)
+        for flag in flags:
+            if flag.startswith("--") and tok.startswith(flag + "="):
+                return (i, tok[len(flag) + 1 :], True)
     return None
 
 
@@ -237,8 +274,10 @@ def main() -> int:
     notes: list[str] = []
 
     for part in parts:
-        if not _is_comment_post(part):
+        spec = _body_spec(part)
+        if spec is None:
             continue
+        body_flags, long_flag, has_body_file = spec
         try:
             tokens = shlex.split(part)
         except ValueError:
@@ -247,17 +286,20 @@ def main() -> int:
         # File-backed body: fix the file, leave the command alone. Checked first
         # because it's the shape anything multi-line actually uses, and because
         # it needs no command rewrite, so chaining can't make it unsafe.
-        body_file = _find_body_file(tokens)
+        body_file = _find_body_file(tokens) if has_body_file else None
         if body_file is not None:
             reported = _humanize_file(body_file)
             if reported:
                 notes.append(reported[0])
             continue
 
-        found = _find_body(tokens)
+        found = _find_body(tokens, body_flags)
         if found is None:
             continue
         idx, body, inline = found
+        # glab opens an editor for a bare '-', so there is no body to scrub.
+        if body == _EDITOR_SENTINEL:
+            continue
         # Only humanize plain literals — a body with shell expansion isn't ours
         # to rewrite (we'd be scrubbing the template, not the rendered text).
         if any(ch in body for ch in "$`"):
@@ -278,7 +320,7 @@ def main() -> int:
             continue
 
         new_tokens = list(tokens)
-        new_tokens[idx] = "--body=" + cleaned if inline else cleaned
+        new_tokens[idx] = f"{long_flag}={cleaned}" if inline else cleaned
         print(
             json.dumps(
                 {

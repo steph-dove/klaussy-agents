@@ -52,6 +52,109 @@ def test_find_body_forms(claude):
     assert claude._find_body(shlex.split("gh pr comment 1")) is None
 
 
+# --- GitLab (glab) ---------------------------------------------------------
+#
+# The guards only ever matched `gh`, so on a GitLab repo — where forge.py puts
+# `glab` commands into the skills — comments posted unscrubbed. glab is fiddlier
+# than gh: the body flag depends on the subcommand, and the short forms collide
+# with unrelated options.
+
+
+def _feed_any(mod, monkeypatch, command):
+    """Feed a command to either guard; the cross-agent one ignores the event keys."""
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+    }
+    monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_detects_glab_comment_posts(mod_name, claude, multi):
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    assert mod._is_comment_post('glab mr note create 1 -m "hi"')
+    assert mod._is_comment_post('glab issue note 2 --message "hi"')
+    assert mod._is_comment_post('glab mr create -d "hi"')
+    assert mod._is_comment_post('glab mr update 1 --description "hi"')
+    assert mod._is_comment_post('glab issue create -d "hi"')
+    assert not mod._is_comment_post("glab mr view 1")
+    assert not mod._is_comment_post("glab auth status")
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_glab_body_flag_depends_on_subcommand(mod_name, claude, multi):
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    assert mod._body_spec('glab mr note create 1 -m "x"')[0] == ("-m", "--message")
+    assert mod._body_spec('glab mr create -d "x"')[0] == ("-d", "--description")
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_glab_m_is_the_milestone_not_the_body_on_create(mod_name, claude, multi):
+    """`-m` is the note body on `note`, but the MILESTONE on `create`.
+
+    Matching `-m` across the whole line would scrub a milestone title and leave
+    the real description untouched.
+    """
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    cmd = 'glab issue create -t "Bug" -m release-2.0.0 -d "the real body"'
+    flags, _, _ = mod._body_spec(cmd)
+    assert mod._find_body(shlex.split(cmd), flags)[1] == "the real body"
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_glab_has_no_body_file_flag(mod_name, claude, multi):
+    """`--file` on `mr note create` names the diff file, not a body file."""
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    assert mod._body_spec('glab mr note create 1 --file src/app.py -m "x"')[2] is False
+    assert mod._body_spec("gh pr comment 1 -F body.md")[2] is True
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_glab_inline_form(mod_name, claude, multi):
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    cmd = "glab mr create --description=hello"
+    flags, _, _ = mod._body_spec(cmd)
+    _, body, inline = mod._find_body(shlex.split(cmd), flags)
+    assert body == "hello" and inline is True
+
+
+@pytest.mark.parametrize("mod_name", ["claude", "multi"])
+def test_glab_editor_sentinel_is_left_alone(mod_name, claude, multi, monkeypatch):
+    """`-d -` tells glab to open an editor, so there is no body to scrub."""
+    mod = {"claude": claude, "multi": multi}[mod_name]
+    monkeypatch.setattr(mod, "_humanize", lambda _t: "SCRUBBED")
+    _feed_any(mod, monkeypatch, "glab mr create -d -")
+    assert mod.main() == 0
+
+
+def test_claude_rewrites_a_glab_note(claude, monkeypatch, capsys):
+    monkeypatch.setattr(claude, "_humanize", lambda _t: "clean text")
+    _feed_any(claude, monkeypatch, 'glab mr note create 1 -m "A great solution — it works."')
+    assert claude.main() == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["hookSpecificOutput"]["updatedInput"]["command"] == (
+        "glab mr note create 1 -m 'clean text'"
+    )
+
+
+def test_multi_blocks_a_glab_description(multi, monkeypatch, capsys):
+    monkeypatch.setattr(multi, "_humanize", lambda _t: "clean text")
+    _feed_any(multi, monkeypatch, 'glab mr create -d "A great solution — it works."')
+    assert multi.main() == 2
+    assert "clean text" in capsys.readouterr().err
+
+
+def test_multi_rewrites_glab_inline_with_the_right_long_flag(multi, monkeypatch, capsys):
+    """The inline rewrite must use --description, not gh's --body."""
+    monkeypatch.setattr(multi, "_humanize", lambda _t: "clean text")
+    _feed_any(multi, monkeypatch, "glab mr create --description=tells")
+    assert multi.main() == 2
+    err = capsys.readouterr().err
+    assert "--description=clean text" in err
+    assert "--body" not in err
+
+
 # --- Claude: transparent rewrite via updatedInput -------------------------
 
 
