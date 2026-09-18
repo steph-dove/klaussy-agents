@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from klaussy.skills import humanize_block
+from klaussy.skills import SKILL_TEMPLATE_ROOT, humanize_block
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -47,7 +47,11 @@ _DYNAMIC_SHELL = re.compile(r"```!\n.*?\n```", re.DOTALL)
 
 def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "main") -> str:
     """Return the substituted SKILL.md body, frontmatter + ```! blocks stripped."""
-    text = resources.files("klaussy").joinpath(f"templates/skills/{skill}/SKILL.md").read_text()
+    text = (
+        resources.files("klaussy")
+        .joinpath(f"{SKILL_TEMPLATE_ROOT}/{skill}/SKILL.md.tmpl")
+        .read_text()
+    )
     text = (
         text.replace("{{REPO}}", repo)
         .replace("{{BASE_BRANCH}}", base_branch)

@@ -8,14 +8,20 @@ from pathlib import Path
 
 from rich.console import Console
 
-from klaussy.skills import humanize_block, sanitize_skill_namespace
+from klaussy.skills import (
+    SKILL_TEMPLATE_ROOT,
+    TEMPLATE_SUFFIX,
+    humanize_block,
+    sanitize_skill_namespace,
+)
 
 console = Console()
 
 
 def _read_review_template() -> str:
     """Read the review skill template."""
-    return resources.files("klaussy").joinpath("templates/skills/review/SKILL.md").read_text()
+    template = f"{SKILL_TEMPLATE_ROOT}/review/SKILL.md{TEMPLATE_SUFFIX}"
+    return resources.files("klaussy").joinpath(template).read_text()
 
 
 def _resolve_claude_md(repo: Path) -> Path | None:
