@@ -17,6 +17,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klaussy.checklist import generate_checklist
@@ -26,6 +27,9 @@ from klaussy.humanize import humanize as _humanize_text
 from klaussy.pr_template import scaffold_pr_template
 from klaussy.session import scaffold_session
 from klaussy.skills import SKILL_NAMES
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle guard
+    from klaussy.uninstall import UninstallPlan
 
 __all__ = [
     "ALL_AGENTS",
@@ -42,6 +46,7 @@ __all__ = [
     "humanize",
     "humanize_files",
     "status",
+    "uninstall",
 ]
 
 # Agent selection passed to library functions: a single key, a list of keys,
@@ -236,6 +241,25 @@ def humanize_files(
         if write and would_change and not check:
             path.write_text(cleaned)
     return changed
+
+
+def uninstall(
+    repo: PathLike = ".",
+    *,
+    include_conventions: bool = False,
+    dry_run: bool = False,
+) -> "UninstallPlan":
+    """Remove klaussy's scaffolding from a repo.
+
+    Returns the plan either way; with `dry_run` nothing is touched, so a caller
+    can show it and decide. Conventions docs survive unless `include_conventions`
+    is set, since they are hand-edited and expensive to recreate.
+    """
+    from klaussy.uninstall import apply as _apply
+    from klaussy.uninstall import plan as _plan
+
+    computed = _plan(Path(repo), include_conventions=include_conventions)
+    return computed if dry_run else _apply(computed)
 
 
 def status(repo: PathLike = ".") -> dict[str, str]:

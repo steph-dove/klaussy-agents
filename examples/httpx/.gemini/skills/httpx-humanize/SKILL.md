@@ -1,6 +1,6 @@
 ---
 name: httpx-humanize
-description: Use whenever prose, a comment, a doc, a PR or commit body, or a file's text should read like a human engineer wrote it instead of an AI — "humanize this", "make it sound less like a bot", "does this read AI-written?", or before shipping prose a human will read. Rewrites in four passes (cut, voice, check, scrub): cutting what nobody asked for and rewriting the register is the work. The `klaussy humanize` CLI is only the last pass's mechanical backstop and never a substitute for this skill. Never touches code.
+description: Use whenever prose, a comment, a doc, a PR or commit body, or a file's text should read like a human engineer wrote it instead of an AI — "humanize this", "make it sound less like a bot", "does this read AI-written?", or before shipping prose a human will read. Rewrites in four passes (cut, voice, check, scrub): cutting what nobody asked for and rewriting the register is the work. The `klaussy humanize` CLI is only the last pass's mechanical backstop and never a substitute for this skill. Never touches code. Also known as `klaussy-humanize`.
 ---
 
 ## Target

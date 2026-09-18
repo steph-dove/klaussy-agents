@@ -1,6 +1,6 @@
 ---
 name: httpx-security-audit
-description: Use when the user wants a focused security pass over the current change — scanning the branch diff for leaked secrets, injection and SSRF, broken access control, unsafe deserialization, and newly added or vulnerable dependencies. Narrower and deeper than the general review skill: it applies only the security lenses and reports findings; it does not refactor or fix.
+description: Use when the user wants a focused security pass over the current change — scanning the branch diff for leaked secrets, injection and SSRF, broken access control, unsafe deserialization, and newly added or vulnerable dependencies. Narrower and deeper than the general review skill: it applies only the security lenses and reports findings; it does not refactor or fix. Also known as `klaussy-security-audit`.
 allowed-tools: Read Grep Glob Bash(git diff *) Bash(git log *)
 ---
 

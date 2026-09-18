@@ -1,6 +1,6 @@
 ---
 name: httpx-document
-description: Use when the user wants documentation written or updated — docstrings, API docs, a README section, or a doc comment on a tricky piece of code. Documents selectively: what a reader genuinely can't infer from the code, and nothing they can. Writes prose, not code changes.
+description: Use when the user wants documentation written or updated — docstrings, API docs, a README section, or a doc comment on a tricky piece of code. Documents selectively: what a reader genuinely can't infer from the code, and nothing they can. Writes prose, not code changes. Also known as `klaussy-document`.
 disable-model-invocation: true
 allowed-tools: Read Grep Glob Bash Edit Write
 ---

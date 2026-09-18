@@ -1,6 +1,6 @@
 ---
 name: fastapi-deps
-description: Use when the user wants to upgrade the project's dependencies safely — bump versions, read changelogs for breaking changes, and verify the suite still passes. Upgrades incrementally and stops on the first break; it does not add new dependencies (that's a design decision to raise separately).
+description: Use when the user wants to upgrade the project's dependencies safely — bump versions, read changelogs for breaking changes, and verify the suite still passes. Upgrades incrementally and stops on the first break; it does not add new dependencies (that's a design decision to raise separately). Also known as `klaussy-deps`.
 ---
 
 Upgrade dependencies without breaking the build. Move in small, verifiable steps — one batch at a time, tests green after each — rather than bumping everything at once and debugging the pile.

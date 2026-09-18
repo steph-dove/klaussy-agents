@@ -36,5 +36,7 @@ Scaffold AI coding-agent boilerplate for the user's project by running klaussy. 
 ## When NOT to use
 
 - The repo is already klaussified at the same klaussy version — `klaussy init` will be a near-no-op; suggest the `klaussy-update` skill instead if the user actually wants to refresh.
+- The user is trying to *undo* a previous run — use the `klaussy-uninstall` skill;
+  `init` has no inverse of its own.
 - The user wants a different scaffold tool (cookiecutter, an org-internal generator) — klaussy targets the agents listed above and may not fit other setups.
 - The repo is empty or has no committed code yet — klaussy infers conventions from the existing code; an empty repo gets generic boilerplate that the user may want to defer until there's something to detect from.

@@ -1,6 +1,6 @@
 ---
 name: fastapi-run
-description: Use when the user wants to run, start, or launch this project's app — to watch a change work end-to-end, reproduce behavior in the real app, or smoke-test locally. Finds the run command from CLAUDE.md and drives the app; it does not write features or fix bugs.
+description: Use when the user wants to run, start, or launch this project's app — to watch a change work end-to-end, reproduce behavior in the real app, or smoke-test locally. Finds the run command from CLAUDE.md and drives the app; it does not write features or fix bugs. Also known as `klaussy-run`.
 ---
 
 Run this project's app and drive it far enough to observe the behavior the user cares about. Don't just start it and call it done — exercise the actual flow.

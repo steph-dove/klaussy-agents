@@ -1,6 +1,6 @@
 ---
 name: httpx-explain
-description: Use when the user wants code, a concept, or the current diff explained in this repo. With no specific target, explains the current branch diff; with a target, traces call chains and data flow end-to-end and explains in plain language.
+description: Use when the user wants code, a concept, or the current diff explained in this repo. With no specific target, explains the current branch diff; with a target, traces call chains and data flow end-to-end and explains in plain language. Also known as `klaussy-explain`.
 ---
 
 ## Target

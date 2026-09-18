@@ -1,6 +1,6 @@
 ---
 name: fastapi-debug
-description: Use when the user reports an error, bug, or unexpected behavior in this repo and wants help diagnosing it. Five phases — reproduce, diagnose root cause (read-only), write a failing test, fix, verify against the full suite.
+description: Use when the user reports an error, bug, or unexpected behavior in this repo and wants help diagnosing it. Five phases — reproduce, diagnose root cause (read-only), write a failing test, fix, verify against the full suite. Also known as `klaussy-debug`.
 allowed-tools: Read Grep Glob Bash Edit Write
 ---
 

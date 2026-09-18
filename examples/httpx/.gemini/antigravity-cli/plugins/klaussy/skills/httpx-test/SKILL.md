@@ -1,6 +1,6 @@
 ---
 name: httpx-test
-description: Use when the user wants tests written for current changes (uncommitted diff or recent feature). Matches the repo's existing test framework, fixtures, and assertion style. Covers happy path, edge cases, and error paths without over-mocking.
+description: Use when the user wants tests written for current changes (uncommitted diff or recent feature). Matches the repo's existing test framework, fixtures, and assertion style. Covers happy path, edge cases, and error paths without over-mocking. Also known as `klaussy-test`.
 ---
 
 Write tests for the current changes. Follow these steps:

@@ -1,6 +1,6 @@
 ---
 name: httpx-restack
-description: Use when the user has a stack of dependent branches or PRs that needs rebasing — the base branch moved, the bottom branch merged, or a mid-stack branch was amended. Derives the parent/child chain from git ancestry, rebases each branch onto its new parent, and force-pushes with a lease. Works with plain git; uses a forge CLI only to retarget PR/MR bases when one is available.
+description: Use when the user has a stack of dependent branches or PRs that needs rebasing — the base branch moved, the bottom branch merged, or a mid-stack branch was amended. Derives the parent/child chain from git ancestry, rebases each branch onto its new parent, and force-pushes with a lease. Works with plain git; uses a forge CLI only to retarget PR/MR bases when one is available. Also known as `klaussy-restack`.
 disable-model-invocation: true
 ---
 

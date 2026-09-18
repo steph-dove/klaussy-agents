@@ -1,6 +1,6 @@
 ---
 name: fastapi-session-context
-description: Use when reading, writing, listing, or managing uncommitted Open Knowledge Format (OKF) session notes for active multi-agent coordination across worktrees.
+description: Use when reading, writing, listing, or managing uncommitted Open Knowledge Format (OKF) session notes for active multi-agent coordination across worktrees. Also known as `klaussy-session-context`.
 ---
 
 ## Target

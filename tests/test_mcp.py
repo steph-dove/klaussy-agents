@@ -14,6 +14,7 @@ def _tool_names() -> set[str]:
 def test_one_tool_per_cli_command_plus_status():
     assert _tool_names() == {
         "klaussy_init",
+        "klaussy_uninstall",
         "klaussy_checklist",
         "klaussy_skills",
         "klaussy_settings",

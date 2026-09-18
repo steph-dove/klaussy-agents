@@ -346,6 +346,44 @@ def sanitize_skill_namespace(name: str) -> str:
     return cleaned or "repo"
 
 
+ALIAS_PREFIX = "klaussy"
+
+_DESCRIPTION_LINE = re.compile(r"^description: (.*)$", re.MULTILINE)
+
+
+def apply_alias_to_frontmatter(text: str, skill: str, namespace: str) -> str:
+    """Rewrite a rendered SKILL.md's description line to carry the alias."""
+    head, sep, body = text.partition("\n---\n")
+    if not sep:
+        return text
+
+    def _sub(match: "re.Match[str]") -> str:
+        return f"description: {describe_with_alias(match.group(1), skill, namespace)}"
+
+    return _DESCRIPTION_LINE.sub(_sub, head, count=1) + sep + body
+
+
+def alias_name(skill: str) -> str:
+    """The repo-independent name a user can call a skill by."""
+    return f"{ALIAS_PREFIX}-{skill}"
+
+
+def describe_with_alias(description: str, skill: str, namespace: str) -> str:
+    """Append the stable alias to a skill description.
+
+    Skills are namespaced per repo, so the same skill is `payments-review` in
+    one checkout and `billing-review` in the next and nobody remembers which.
+    Claude Code takes the slash command from the directory name and supports no
+    alias field, so a second name has to reach the model some other way: naming
+    it in the description is what lets "run klaussy-review" match. Skipped when
+    the repo's own namespace already produces that name.
+    """
+    alias = alias_name(skill)
+    if f"{namespace}-{skill}" == alias or alias in description:
+        return description
+    return f"{description} Also known as `{alias}`."
+
+
 def _skill_dir_name(repo: Path, skill: str) -> str:
     """Return the namespaced skill directory name (e.g., 'myapp-plan')."""
     return f"{sanitize_skill_namespace(repo.name)}-{skill}"
@@ -458,6 +496,8 @@ def scaffold_skills(
                 content = template_file.read_text()
 
             content = _substitute(content)
+            if filename == "SKILL.md":
+                content = apply_alias_to_frontmatter(content, skill, repo_namespace)
 
             if target.exists() and target.read_text() == content and not force:
                 console.print(f"[dim]  {target.relative_to(repo)} unchanged, skipping.[/dim]")

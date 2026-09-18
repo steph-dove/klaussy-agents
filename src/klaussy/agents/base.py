@@ -24,6 +24,7 @@ from klaussy.forge import build_forge_block
 from klaussy.skills import (
     SKILL_NAMES,
     SKILL_TEMPLATE_ROOT,
+    describe_with_alias,
     humanize_block,
     iter_skill_templates,
     sanitize_skill_namespace,
@@ -166,7 +167,7 @@ def build_skill_payloads(
             SkillPayload(
                 skill=skill,
                 name=fm.get("name", f"{namespace}-{skill}"),
-                description=fm.get("description", ""),
+                description=describe_with_alias(fm.get("description", ""), skill, namespace),
                 allowed_tools=fm.get("allowed-tools"),
                 disable_invocation=fm.get("disable-model-invocation", "").lower() == "true",
                 body=body,
