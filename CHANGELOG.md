@@ -5,6 +5,95 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Plugin could never start its own MCP server.** `.claude-plugin/plugin.json` ran
+  `pipx run klaussy-mcp`, but `klaussy-mcp` is a console script, not a PyPI package, so
+  pipx resolved it to a 404 and the server never came up for anyone without klaussy
+  already installed. The manifest now bootstraps through
+  `scripts/klaussy_mcp_launcher.py`, which prefers the current interpreter when it can
+  already serve (the editable-install case, so a developer's working tree isn't shadowed
+  by the published release) and otherwise falls back `uvx` → `pipx` against
+  `klaussy-agents[mcp]`.
+- **`klaussy-mcp` died with a bare `ModuleNotFoundError`.** `pyproject.toml` registers the
+  console script unconditionally while `mcp` is an optional extra, so a plain
+  `pip install klaussy-agents` left a `klaussy-mcp` on PATH that crashed on import — which
+  an MCP client surfaces as nothing more informative than a closed connection.
+  `mcp_server.py` now catches it and prints the pip/pipx/uv install commands.
+- **Install instructions named a package that does not exist.** The `klaussy-init` and
+  `klaussy-update` skills told agents to run `pipx install klaussy` /
+  `pipx upgrade klaussy`. The distribution is `klaussy-agents`; `klaussy` is only the
+  command it installs, and 404s on PyPI.
+- **Plugin manifest version drift.** `plugin.json` still declared `0.11.0` against a
+  package at `0.30.4`. Claude Code pins an installed plugin to that string, so every
+  release since 0.11.0 was invisible to anyone who had installed it. The manifest is back
+  in sync, and `tests/test_plugin_manifest.py` now fails the build when `pyproject.toml`,
+  `klaussy.__version__` and `plugin.json` disagree, when an install command names a
+  non-existent package, or when the MCP bootstrap stops resolving.
+- **`gh skill install` offered 28 skills that could not install.** The skill templates
+  lived at `src/klaussy/templates/skills/`, and `gh skill install` discovers skills by the
+  Agent Skills convention `skills/*/SKILL.md` — matching that segment anywhere in the tree,
+  with no opt-out in the spec. So `gh skill install steph-dove/klaussy-agents` listed all
+  28 pre-substitution templates beside the two real skills, with blank descriptions, and
+  failed on any of them with `invalid frontmatter YAML: yaml: did not find expected key`:
+  `name: {{REPO}}-review` is not valid YAML, because `{` opens a flow mapping. The
+  templates moved to `templates/skill-templates/` (exported as `SKILL_TEMPLATE_ROOT`) and
+  every one of them is now named `SKILL.md.tmpl`. The suffix is the load-bearing half: a
+  file named `SKILL.md.tmpl` cannot match the convention whichever directory it ends up
+  in, so the fix survives a future reorganization, while the directory name documents the
+  intent. `TEMPLATE_SUFFIX` is stripped on the way out, so scaffolded repos still receive
+  plain `SKILL.md`, `sub-agents.md` and `comment-cleanup.md` — verified end to end from a
+  built wheel, since klaussy-desktop reads those names directly. Discovery now finds only
+  `skills/klaussy-init` and `skills/klaussy-update`, both of which install cleanly.
+  `tests/test_skill_discovery.py` holds both halves and validates the two published skills
+  against the spec.
+- **Hooks shipped an unexpanded `{{REPO}}` to every scaffolded repo.** The self-review
+  guard and the opencode plugin carried `{{REPO}}-self-review` in their comments, but
+  `{{TOKEN}}` is the skill-template convention and nothing expands it in a hook — hooks use
+  `"__KLAUSSY_X__"` sentinels, which are replaced as quoted literals and so can only reach
+  baked values, never comment text. Every repo klaussy scaffolded got seven hook files
+  reading `{{REPO}}-self-review` verbatim. The comments now use `<repo>-self-review`, the
+  same convention the README uses, and a new test fails the build if any substitution token
+  appears in a template outside the skill templates.
+- **Stray files in a template directory were copied into user repos.** The scaffold loop
+  walked every entry in a skill's template directory, so a `.DS_Store` or an editor backup
+  would land in `.claude/skills/<repo>-<skill>/`. `iter_skill_templates()` now emits only
+  files carrying `TEMPLATE_SUFFIX`.
+- **Plugin skills quoted stale counts.** `klaussy-init` told agents to verify "16 skills"
+  across "all eight supported agents" against a klaussy that ships 28 skills for 10
+  backends, so the verification step checked the wrong list and the report told users the
+  wrong thing. Both plugin skills now point at `klaussy init --help` and at the emitted
+  directories instead of enumerating a set that moves every release.
+
+### Changed
+
+- **Regenerated `examples/`.** The captured `klaussy init` output was made with klaussy
+  0.19.2 and had drifted eleven minor versions — no `.kimi-code/` backend, missing the
+  `restack`, `split-pr` and `session-context` skills, and still carrying a
+  `.claude/hooks/comment_guard.py` that klaussy no longer emits. Rebuilt with enrichment
+  on against fastapi `50113da16` and httpx `b5addb6`; `examples/README.md` now records
+  those upstream commits so the capture is reproducible.
+- **README.** Adds a "See the actual output" section linking both `examples/` trees and
+  the individual files worth opening (a generated review skill, the Copilot instructions,
+  the commit guard), plus a `gh skill install` section covering the two entry-point skills
+  and why the 28 repo-scoped ones are generated rather than published. Restores
+  `session-context` to the bundled-skills list and corrects the Isolate step, which named
+  two of the four ignore files klaussy writes.
+- README documents the `klaussy-agents[mcp]` extra for the MCP server, a runner-based
+  `.mcp.json` for machines with nothing installed, and what the plugin gives you. Its
+  changelog pointer no longer hardcodes a release number that goes stale.
+- Dropped an unreachable duplicate `return` in `_install_self_review_guard_script` and
+  corrected `_install_plan_guidance_script`'s return annotation, which claimed `Path` while
+  returning nothing.
+- `pyyaml` is now a declared dev dependency. It was only ever reached transitively through
+  `klaussy-repo-conventions`, and the new discovery tests parse `SKILL.md` frontmatter with
+  a real YAML parser — the same thing `gh` does, and the reason the templates were rejected.
+- `CONTRIBUTING.md` gains a Releasing section recording the three files that declare the
+  version, the distribution-vs-command naming trap, and the `git add -f` that regenerating
+  `examples/` requires.
+
 ## [0.30.4] - 2026-09-17
 
 ### Fixed
