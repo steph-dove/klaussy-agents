@@ -285,6 +285,25 @@ package on first use:
 ```
 The Claude Code plugin already does this for you.
 
+### Removing it again
+
+```bash
+klaussy uninstall --dry-run   # show what would go
+klaussy uninstall             # do it, after confirming
+```
+
+Removes the generated skills, guards, hooks and ignore files. `.gitignore` and
+each agent's settings are *edited* rather than deleted, because klaussy merges
+into those and they usually hold your own entries too — anything klaussy can't
+prove is its own is reported and left alone. Conventions docs (`CLAUDE.md`,
+`GEMINI.md`, `AGENTS.md`, `CONVENTIONS.md`) survive by default since they get
+hand-edited; `--all` takes those too and returns the repo to its pre-klaussy
+state. The package stays installed either way — `pipx uninstall klaussy-agents`
+removes that.
+
+There's a `/klaussy-uninstall` skill that drives the whole flow, including the
+preview and the optional package removal.
+
 ### Programmatic Python API
 ```python
 from klaussy import toolkit

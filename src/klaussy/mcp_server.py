@@ -70,6 +70,27 @@ def klaussy_init(
 
 
 @mcp.tool()
+def klaussy_uninstall(
+    repo: str = ".",
+    include_conventions: bool = False,
+    dry_run: bool = True,
+) -> str:
+    """Remove klaussy's scaffolding from a repo.
+
+    Defaults to a dry run: it reports what would go and changes nothing, so the
+    caller can show the list first. Set `dry_run=False` to carry it out.
+    Conventions docs (CLAUDE.md, GEMINI.md, AGENTS.md, CONVENTIONS.md) are kept
+    unless `include_conventions` is set, since they are usually hand-edited.
+    """
+    args = ["uninstall", "--repo", repo, "--yes"]
+    if include_conventions:
+        args.append("--all")
+    if dry_run:
+        args.append("--dry-run")
+    return _run_klaussy(*args, cwd=repo)
+
+
+@mcp.tool()
 def klaussy_checklist(
     repo: str = ".",
     base_branch: str = "main",

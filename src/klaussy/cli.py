@@ -259,6 +259,61 @@ def pr_template(
         raise typer.Exit(1) from exc
 
 
+@app.command()
+def uninstall(
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+    all_: bool = typer.Option(
+        False,
+        "--all",
+        help="Also remove CLAUDE.md / GEMINI.md / AGENTS.md / CONVENTIONS.md.",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be removed and stop."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+) -> None:
+    """Remove klaussy's scaffolding from this repo.
+
+    Conventions docs are kept by default: they get hand-edited, and klaussy has
+    no way to tell your prose from what it generated. Pass --all to take them.
+    """
+    from klaussy.uninstall import apply as apply_plan
+    from klaussy.uninstall import plan as build_plan
+
+    computed = build_plan(repo, include_conventions=all_)
+
+    if computed.is_empty:
+        console.print("[dim]Nothing to remove — no klaussy scaffolding found.[/dim]")
+        return
+
+    console.print(f"[bold]Would remove {len(computed.removals)} path(s):[/bold]")
+    for removal in computed.removals[:20]:
+        suffix = "/" if removal.is_dir else ""
+        console.print(f"  [red]-[/red] {removal.path}{suffix}  [dim]({removal.reason})[/dim]")
+    if len(computed.removals) > 20:
+        console.print(f"  [dim]… and {len(computed.removals) - 20} more[/dim]")
+
+    for edit in computed.edits:
+        console.print(f"  [yellow]~[/yellow] {edit.path}  [dim]({edit.reason})[/dim]")
+    for path, why in computed.kept:
+        console.print(f"  [green]keep[/green] {path}  [dim]({why})[/dim]")
+
+    if dry_run:
+        console.print("[dim]Dry run — nothing was changed.[/dim]")
+        return
+
+    if not yes and not typer.confirm("Remove these?", default=False):
+        console.print("[dim]Aborted — nothing was changed.[/dim]")
+        raise typer.Exit(1)
+
+    done = apply_plan(computed)
+    console.print(f"[green]✔ Removed {len(done.removals)} path(s).[/green]")
+    if done.edits:
+        console.print(f"[green]✔ Edited {len(done.edits)} shared file(s).[/green]")
+    console.print(
+        "[dim]klaussy itself is still installed; "
+        "`pipx uninstall klaussy-agents` removes the package.[/dim]"
+    )
+
+
 @app.command(hidden=True)
 def github(
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
