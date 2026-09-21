@@ -15,4 +15,6 @@ description = "Intentional fake secrets in secret-detection tests and fixtures"
 paths = [
   '''tests/evals/test_security_audit_eval\.py''',
   '''tests/test_secret_scan\.py''',
+  '''tests/evals/skills/precommit/TEST\.md''',
+  '''tests/evals/skills/security-audit/TEST\.md''',
 ]

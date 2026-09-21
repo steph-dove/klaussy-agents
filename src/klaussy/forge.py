@@ -9,6 +9,7 @@ than guess.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from importlib import resources
 from pathlib import Path
@@ -98,12 +99,33 @@ def detect_forge_cli(repo: Path) -> str | None:
     return forge_cli(detect_forge(repo))
 
 
-def forge_block(forge: str) -> str:
-    """Return the {{FORGE}} adapter block for a forge name."""
+# Each adapter file is cut into these sections by `<!-- forge:<name> -->` lines,
+# so a skill carries only the part it uses: restack never reads review threads,
+# address-review never builds a stack.
+FORGE_SECTIONS = ("core", "feedback", "stacks")
+_SECTION_TOKENS = {"core": "FORGE", "feedback": "FORGE_FEEDBACK", "stacks": "FORGE_STACKS"}
+_SECTION_MARK = re.compile(r"^<!-- forge:(\w+) -->\n", re.MULTILINE)
+
+
+def forge_sections(forge: str) -> dict[str, str]:
+    """Return each section of a forge's adapter, empty for sections it lacks."""
     name = forge if forge in FORGES else FORGE_UNKNOWN
-    return resources.files("klaussy").joinpath(f"templates/forge/{name}.md").read_text()
+    text = resources.files("klaussy").joinpath(f"templates/forge/{name}.md").read_text()
+    parts = _SECTION_MARK.split(text)[1:]
+    found = {parts[i]: parts[i + 1].strip() for i in range(0, len(parts), 2)}
+    return {section: found.get(section, "") for section in FORGE_SECTIONS}
 
 
-def build_forge_block(repo: Path, forge: str | None = None) -> str:
-    """Return the adapter block for repo, or for an explicitly named forge."""
-    return forge_block(forge or detect_forge(repo))
+def forge_block(forge: str) -> str:
+    """Return a forge's whole adapter, every section joined."""
+    return "\n\n".join(s for s in forge_sections(forge).values() if s) + "\n"
+
+
+def forge_tokens(forge: str) -> dict[str, str]:
+    """Map the {{FORGE}} / {{FORGE_FEEDBACK}} / {{FORGE_STACKS}} tokens to their text."""
+    return {_SECTION_TOKENS[k]: v for k, v in forge_sections(forge).items()}
+
+
+def build_forge_tokens(repo: Path, forge: str | None = None) -> dict[str, str]:
+    """Return the adapter tokens for repo, or for an explicitly named forge."""
+    return forge_tokens(forge or detect_forge(repo))

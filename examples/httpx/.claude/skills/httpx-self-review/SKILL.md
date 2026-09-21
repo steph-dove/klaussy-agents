@@ -25,6 +25,7 @@ Go through every item against the diff. For each, either confirm it holds or fix
 **Comments**
 - Deleting is the default; keeping one needs a reason you could defend in review. Go comment by comment and cut every one that restates the code, narrates steps, or reads as changelog ("Now we handle…", "Added to fix…").
 - What survives gets one sentence, and only where it earns its place: a *why*, a gotcha, an invariant, a link. A second sentence usually means the first one restated the code.
+- A comment that mixes narration with a real *why* keeps the why and loses the rest: condense it, don't delete it.
 - Prefer a clearer name over a comment.
 
 **Imports**

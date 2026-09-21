@@ -33,11 +33,15 @@ from importlib import resources
 
 import pytest
 
-from klaussy.forge import FORGE_GITHUB, forge_block
+from klaussy.agents.render import permission_target_markdown
+from klaussy.forge import FORGE_GITHUB, forge_tokens
 from klaussy.skills import (  # noqa: F401 (HUMANIZE_BLOCK re-exported)
+    _CLAUDE_PERMISSION_SYNTAX,
+    _CLAUDE_PERMISSIONS_FILE,
     HUMANIZE_BLOCK,
     SKILL_TEMPLATE_ROOT,
-    humanize_block,
+    humanize_pointer,
+    render_tokens,
 )
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
@@ -59,8 +63,9 @@ def load_skill_body(
     repo: str = "myrepo",
     base_branch: str = "main",
     forge: str = FORGE_GITHUB,
+    filename: str = "SKILL.md",
 ) -> str:
-    """Return the substituted SKILL.md body for `skill`.
+    """Return the substituted SKILL.md body for `skill` (or one of its aux files).
 
     Frontmatter and ```! dynamic-shell blocks are stripped: the eval supplies the
     context those blocks would gather (the diff, git log) directly in the user
@@ -71,15 +76,22 @@ def load_skill_body(
     """
     text = (
         resources.files("klaussy")
-        .joinpath(f"{SKILL_TEMPLATE_ROOT}/{skill}/SKILL.md.tmpl")
+        .joinpath(f"{SKILL_TEMPLATE_ROOT}/{skill}/{filename}.tmpl")
         .read_text()
     )
-    text = (
-        text.replace("{{REPO}}", repo)
-        .replace("{{BASE_BRANCH}}", base_branch)
-        .replace("{{HUMANIZE}}", humanize_block(repo))
-        .replace("{{REPO_SPECIFIC_CHECKS}}", "")
-        .replace("{{FORGE}}", forge_block(forge))
+    text = render_tokens(
+        text,
+        {
+            "REPO": repo,
+            "BASE_BRANCH": base_branch,
+            "HUMANIZE": humanize_pointer(repo),
+            "HUMANIZE_RULES": HUMANIZE_BLOCK,
+            "REPO_SPECIFIC_CHECKS": "",
+            **forge_tokens(forge),
+            "PERMISSIONS_TARGET": permission_target_markdown(
+                "Claude Code", _CLAUDE_PERMISSIONS_FILE, _CLAUDE_PERMISSION_SYNTAX
+            ),
+        },
     )
     text = _FRONTMATTER.sub("", text, count=1)
     text = _DYNAMIC_SHELL.sub("", text)
@@ -141,19 +153,30 @@ def run_skill(
     context: str,
     *,
     instruction: str | None = None,
+    aux: list[str] | None = None,
+    with_skills: list[str] | None = None,
     max_tokens: int = 1024,
     timeout: int = 240,
 ) -> str:
     """Run `skill`'s spec against `context`, returning the model's final output.
+
+    `aux` names sibling files (e.g. `manual.md`) to append to the spec, as the
+    agent would have read them when the skill sent it there. `with_skills` does
+    the same for whole sibling skills (e.g. humanize, which prose skills point at
+    instead of inlining its rules).
 
     `max_tokens` is accepted for call-site compatibility but unused: the headless
     CLI controls output length. Raise `timeout` when a long spec asks for a long
     answer — the default is a harness limit, not a failing spec.
     """
     _ = max_tokens
+    spec = load_skill_body(skill)
+    for other in with_skills or []:
+        spec += f"\n\n---\nContents of the `myrepo-{other}` skill:\n\n" + load_skill_body(other)
+    for name in aux or []:
+        spec += f"\n\n---\nContents of {name}:\n\n" + load_skill_body(skill, filename=name)
     system = (
-        load_skill_body(skill)
-        + "\n\n---\nYou are being run as an eval. The context you would normally"
+        spec + "\n\n---\nYou are being run as an eval. The context you would normally"
         " gather with tools is provided below. Produce only the skill's final"
         " output, exactly as the skill specifies, with no preamble."
     )

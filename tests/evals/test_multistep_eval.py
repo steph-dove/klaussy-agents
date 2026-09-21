@@ -42,7 +42,15 @@ CASES = [
         "        if not x or len(x) > 100: raise ValueError\n"
         "        return store(x)",
         "Refactor this.",
-        ["behavior", "baseline", "tests pass", "preserve", "same behavior"],
+        [
+            "behavior",
+            "baseline",
+            "tests pass",
+            "preserve",
+            "same behavior",
+            "stays identical",
+            "nothing else changed",
+        ],
     ),
     (
         # QA's discipline: pick the evidence that fits the change — a UI change

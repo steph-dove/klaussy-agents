@@ -20,13 +20,15 @@ from importlib import resources
 from pathlib import Path
 
 from klaussy.checklist import build_enrichment_block
-from klaussy.forge import build_forge_block
+from klaussy.forge import build_forge_tokens
 from klaussy.skills import (
+    HUMANIZE_BLOCK,
     SKILL_NAMES,
     SKILL_TEMPLATE_ROOT,
     describe_with_alias,
-    humanize_block,
+    humanize_pointer,
     iter_skill_templates,
+    render_tokens,
     sanitize_skill_namespace,
     template_output_name,
 )
@@ -123,26 +125,28 @@ def build_skill_payloads(
     """Build canonical payloads for every bundled skill.
 
     Loads each template, substitutes {{REPO}} / {{BASE_BRANCH}} /
-    {{REPO_SPECIFIC_CHECKS}} / {{FORGE}}, and parses out frontmatter. The review enrichment
-    is computed once here (shared with the Claude `generate_checklist` path via
-    `build_enrichment_block`) so every agent's review skill is identically
-    enriched. Auxiliary skill files (e.g. review's `sub-agents.md`) are carried
-    on the payload, also fully substituted.
+    {{REPO_SPECIFIC_CHECKS}} / the {{FORGE}} sections, and parses out frontmatter.
+    The review enrichment is computed once here (shared with the Claude
+    `generate_checklist` path via `build_enrichment_block`) so every agent's
+    review skill is identically enriched. Auxiliary skill files (e.g. review's
+    lens files) are carried on the payload, also fully substituted.
     """
     repo = repo.resolve()
     namespace = sanitize_skill_namespace(repo.name)
     enrichment = build_enrichment_block(repo)
-    forge_adapter = build_forge_block(repo, forge)
     templates = resources.files("klaussy").joinpath(SKILL_TEMPLATE_ROOT)
 
+    tokens = {
+        "REPO_SPECIFIC_CHECKS": enrichment,
+        "BASE_BRANCH": base_branch,
+        "REPO": namespace,
+        "HUMANIZE": humanize_pointer(namespace),
+        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        **build_forge_tokens(repo, forge),
+    }
+
     def substitute(text: str) -> str:
-        return (
-            text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment)
-            .replace("{{BASE_BRANCH}}", base_branch)
-            .replace("{{REPO}}", namespace)
-            .replace("{{HUMANIZE}}", humanize_block(namespace))
-            .replace("{{FORGE}}", forge_adapter)
-        )
+        return render_tokens(text, tokens)
 
     payloads: list[SkillPayload] = []
     for skill in SKILL_NAMES:

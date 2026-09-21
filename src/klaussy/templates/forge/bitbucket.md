@@ -1,3 +1,4 @@
+<!-- forge:core -->
 ### Forge commands (Bitbucket / Atlassian)
 
 `origin` points at Bitbucket, which has no first-party CLI — Atlassian's `acli` covers Jira only. The REST API is the adapter, so these are `curl` calls, and they need credentials: an app password (`curl -u <user>:<app-password>`), a `BITBUCKET_TOKEN` bearer, or a `~/.netrc` entry. If none is configured, ask the user rather than hunting for one.
@@ -10,15 +11,25 @@ Everything below is Bitbucket **Cloud**, base `https://api.bitbucket.org/2.0`, w
 | Open a request | `POST /repositories/<ws>/<repo>/pullrequests` with `title` and `source.branch.name` |
 | Request status | `GET /repositories/<ws>/<repo>/pullrequests/<id>` — `state` is `OPEN`/`MERGED`/`DECLINED` |
 | CI status | `GET /repositories/<ws>/<repo>/pipelines?sort=-created_on`, then `/pipelines/<uuid>/steps` for a failing run |
-| Read review comments | `GET /repositories/<ws>/<repo>/pullrequests/<id>/comments` |
-| Reply in a thread | `POST …/comments` with `{"content": {"raw": "<text>"}, "parent": {"id": <comment-id>}}` |
-| Resolve a thread | `POST …/comments/<comment-id>/resolve` (`DELETE` the same path reopens it) |
 | Retarget a request | `PUT …/pullrequests/<id>` with `{"destination": {"branch": {"name": "<branch>"}}}` |
 
-Five things worth knowing before you use these:
+Three things worth knowing before you use these:
 
-- **Threading is `parent`, not a separate endpoint.** A reply is an ordinary comment carrying `parent.id`; omit it and the comment lands at top level. Inline comments carry an `inline` object with `path` and line numbers.
 - **Only open pull requests can be mutated.** The retarget `PUT` is documented for changing a request's branches, but a merged or declined request rejects it.
 - **A `200` on that `PUT` is not proof.** Bitbucket accepts the whole pull-request object as the body and quietly ignores fields it won't change, so send only what you're changing and then re-read the request to confirm `destination.branch.name` actually moved.
-- **There is no native stack object to register.** A stack on Bitbucket is exactly a chain of `destination.branch.name` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the destinations right and say plainly that the stack is branch-chained.
 - **Bitbucket Data Center is a different API.** Self-hosted (formerly Stash) serves `<host>/rest/api/1.0/projects/<key>/repos/<slug>/pull-requests/<id>` with different payload shapes, and none of the above is verified against it. Establish which one this host is first, and check that instance's own API docs before composing a call.
+
+<!-- forge:feedback -->
+#### Review feedback (Bitbucket)
+
+| Need | Call |
+| :--- | :--- |
+| Read review comments | `GET /repositories/<ws>/<repo>/pullrequests/<id>/comments?pagelen=100`, then follow each response's `next` URL until it's absent |
+| Reply in a thread | `POST …/comments` with `{"content": {"raw": "<text>"}, "parent": {"id": <comment-id>}}` |
+| Resolve a thread | `POST …/comments/<comment-id>/resolve` (`DELETE` the same path reopens it) |
+
+- **Lists are paged.** A response carries at most `pagelen` values plus a `next` URL; stopping at the first page drops comments on a busy request. The comments list covers both inline and general comments.
+- **Threading is `parent`, not a separate endpoint.** A reply is an ordinary comment carrying `parent.id`; omit it and the comment lands at top level. Inline comments carry an `inline` object with `path` and line numbers.
+
+<!-- forge:stacks -->
+**There is no native stack object to register.** A stack on Bitbucket is exactly a chain of `destination.branch.name` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the destinations right and say plainly that the stack is branch-chained.

@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+import klaussy
+from klaussy.agents import BACKENDS, ClaudeBackend
 from klaussy.checklist import _parse_claude_md, _parse_rules_dir, generate_checklist
 from klaussy.cli import app
 from klaussy.github import scaffold_github
@@ -23,6 +25,9 @@ from klaussy.settings import _detect_sensitive_paths, _detect_stack, generate_se
 from klaussy.skills import (
     LEGACY_COMMAND_FILENAMES,
     SKILL_NAMES,
+    SKILL_TEMPLATE_ROOT,
+    TEMPLATE_SUFFIX,
+    render_tokens,
     sanitize_skill_namespace,
     scaffold_skills,
 )
@@ -172,9 +177,9 @@ class TestSanitizeSkillNamespace:
 class TestScaffoldSkills:
     def test_creates_all_skills(self, repo: Path):
         created = scaffold_skills(repo=repo)
-        # One SKILL.md per skill, plus two aux files: review's sub-agents.md and
-        # precommit's comment-cleanup.md.
-        assert len(created) == len(SKILL_NAMES) + 2
+        # Every template file lands, SKILL.md and aux files alike.
+        root = Path(klaussy.__file__).parent / SKILL_TEMPLATE_ROOT
+        assert len(created) == len(list(root.glob("*/*" + TEMPLATE_SUFFIX)))
         for path in created:
             assert path.exists()
 
@@ -203,11 +208,91 @@ class TestScaffoldSkills:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         for skill in SKILL_NAMES:
-            skill_md = repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md"
-            # `klaussy checklist` fills the enrichment block after scaffolding.
-            text = skill_md.read_text().replace("{{REPO_SPECIFIC_CHECKS}}", "")
-            assert "{{" not in text, f"{skill} has an unsubstituted placeholder"
+            skill_dir = repo / ".claude" / "skills" / f"{ns}-{skill}"
+            for path in skill_dir.glob("*.md"):
+                text = path.read_text()
+                assert not re.search(r"\{\{[A-Z_]+\}\}", text), f"{path.name} in {skill}"
+            text = (skill_dir / "SKILL.md").read_text()
             assert f"name: {ns}-{skill}" in text, f"{skill} has a wrong frontmatter name"
+
+    def test_review_enrichment_filled_without_checklist(self, repo_with_claude_md: Path):
+        # `klaussy skills` and upgrades never run `klaussy checklist`, so the
+        # scaffold itself has to fill the repo-specific checks.
+        scaffold_skills(repo=repo_with_claude_md)
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        review_dir = repo_with_claude_md / ".claude" / "skills" / f"{ns}-review"
+        for name in ("SKILL.md", "lens-scope.md"):
+            text = (review_dir / name).read_text()
+            assert "{{REPO_SPECIFIC_CHECKS}}" not in text, name
+            assert "snake_case" in text, name
+
+    def test_tokens_inside_substituted_values_stay_literal(self, repo: Path):
+        # A CLAUDE.md that documents klaussy's own placeholders feeds them into
+        # the enrichment; a chained replace then expanded the humanize block there.
+        (repo / "CLAUDE.md").write_text(
+            "## Conventions\n\n- **Tokens**: templates use `{{REPO}}` and `{{HUMANIZE}}`.\n"
+        )
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review_dir = repo / ".claude" / "skills" / f"{ns}-review"
+        heading = "### Write like a person, not a chatbot"
+        text = (review_dir / "SKILL.md").read_text()
+        assert text.count("Humanize anything a human will read") == 1
+        assert heading not in text  # the rules live in the humanize skill
+        assert heading not in (review_dir / "lens-scope.md").read_text()
+        assert "`{{HUMANIZE}}`" in text  # the enrichment's mention stays literal
+
+    def test_render_tokens_is_single_pass(self):
+        assert render_tokens("{{A}} {{B}} {{C}}", {"A": "{{B}}", "B": "b"}) == "{{B}} b {{C}}"
+
+    def test_placeholder_docs_survive_substitution(self, repo: Path):
+        # The review lens that documents klaussy's placeholders must not have
+        # them expanded into it (it once inlined the whole humanize block).
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "lens-agentic.md").read_text()
+        bullet = next(line for line in sub.splitlines() if "Double-brace placeholders" in line)
+        for name in ("REPO", "BASE_BRANCH", "REPO_SPECIFIC_CHECKS", "HUMANIZE", "FORGE"):
+            assert f"`{name}`" in bullet, name
+        assert "Write like a person" not in sub
+
+    def test_new_worktree_flattens_slashes_in_the_path(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        text = (repo / ".claude" / "skills" / f"{ns}-new-worktree" / "SKILL.md").read_text()
+        assert "../<repo-folder>-<dir-slug> -b <branch-name>" in text
+        assert "../<repo-folder>-<branch-name>" not in text
+
+    def test_rest_of_the_owl_resolves_base_at_run_time(self, repo: Path):
+        scaffold_skills(repo=repo, base_branch="develop")
+        ns = sanitize_skill_namespace(repo.name)
+        text = (repo / ".claude" / "skills" / f"{ns}-rest-of-the-owl" / "SKILL.md").read_text()
+        assert "git diff <base>...HEAD" in text
+        assert "open against `<base>`" in text
+        # The scaffolded base survives only as the last-resort fallback.
+        assert text.count("`develop`") == 1
+
+    def test_rest_of_the_owl_waits_in_one_quiet_command(self, repo: Path):
+        # Each self-driven status check is a full model turn; watch output that
+        # redraws every few seconds lands in context too. Both cost usage.
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        owl = repo / ".claude" / "skills" / f"{ns}-rest-of-the-owl"
+        # The mechanics are read at phase 7, not carried through the whole run.
+        waiting = (owl / "waiting.md").read_text()
+        assert "one wake-up per event" in waiting
+        assert "--watch --fail-fast --interval 60 > /dev/null" in waiting
+        assert "waiting.md" in (owl / "SKILL.md").read_text()
+
+    def test_review_stamps_the_reviewed_commit(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        text = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        parallel = (repo / ".claude" / "skills" / f"{ns}-review" / "parallel.md").read_text()
+        assert "Confirm you're reviewing the latest push" in text
+        # Both output paths (small and parallel) carry the stamp.
+        assert "reviewed at `<short-sha>`" in text
+        assert "reviewed at `<short-sha>`" in parallel
 
     def test_base_branch_substitution(self, repo: Path):
         scaffold_skills(repo=repo, base_branch="develop")
@@ -287,6 +372,28 @@ class TestChecklist:
         bullets = _parse_rules_dir(repo / ".claude" / "rules")
         assert bullets == []
 
+    def test_init_keeps_a_custom_review_template(self, repo_with_claude_md: Path, tmp_path: Path):
+        # init's enrichment step runs after the skills step; it used to rebuild
+        # the review skill from the built-in prompt, discarding --review-template.
+        custom = tmp_path / "review.md"
+        custom.write_text(
+            "---\nname: {{REPO}}-review\ndescription: Use when reviewing.\n---\n\n"
+            "CUSTOM REVIEW PROMPT\n\n{{REPO_SPECIFIC_CHECKS}}\n"
+        )
+        steps = dict(
+            ClaudeBackend().steps(
+                repo_with_claude_md, force=True, base_branch="main", review_template=custom
+            )
+        )
+        steps["[claude] skills"]()
+        steps["[claude] review enrichment"]()
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        review = repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "SKILL.md"
+        text = review.read_text()
+        assert "CUSTOM REVIEW PROMPT" in text
+        assert "## Small PR Review" not in text
+        assert "snake_case" in text  # still enriched
+
     def test_generate_checklist_writes_to_skill_dir(self, repo_with_claude_md: Path):
         scaffold_skills(repo=repo_with_claude_md)
         path = generate_checklist(repo=repo_with_claude_md, force=True)
@@ -306,17 +413,30 @@ class TestChecklist:
         path = generate_checklist(repo=repo_with_legacy_claude_md, force=True)
         assert "snake_case" in path.read_text()
 
-    def test_generate_checklist_substitutes_in_sub_agents_md(self, repo_with_claude_md: Path):
-        # Regression: sub-agents.md ships with {{REPO_SPECIFIC_CHECKS}} that
+    def test_generate_checklist_substitutes_in_the_scope_lens(self, repo_with_claude_md: Path):
+        # Regression: the scope lens ships with {{REPO_SPECIFIC_CHECKS}} that
         # generate_checklist must substitute alongside SKILL.md.
         scaffold_skills(repo=repo_with_claude_md)
         generate_checklist(repo=repo_with_claude_md, force=True)
         ns = sanitize_skill_namespace(repo_with_claude_md.name)
-        sub_agents = repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md"
-        content = sub_agents.read_text()
+        scope = repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "lens-scope.md"
+        content = scope.read_text()
         assert "{{REPO_SPECIFIC_CHECKS}}" not in content
         # Repo-specific check content actually substituted in.
         assert "snake_case" in content
+
+    def test_generate_checklist_refreshes_the_scope_lens_after_claude_md_changes(
+        self, repo_with_claude_md: Path
+    ):
+        # Scaffolding already filled the token on disk, so checklist has to
+        # re-render the scope lens from the template to pick up new conventions.
+        scaffold_skills(repo=repo_with_claude_md)
+        claude_md = repo_with_claude_md / "CLAUDE.md"
+        claude_md.write_text(claude_md.read_text().replace("snake_case", "kebab_marker"))
+        generate_checklist(repo=repo_with_claude_md, force=True)
+        ns = sanitize_skill_namespace(repo_with_claude_md.name)
+        scope = repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "lens-scope.md"
+        assert "kebab_marker" in scope.read_text()
 
     def test_generate_checklist_no_claude_md(self, repo: Path):
         with pytest.raises(SystemExit):
@@ -1384,14 +1504,14 @@ class TestAdrSubReview:
         ns = sanitize_skill_namespace(repo.name)
         review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
         assert "Architecture Decision Record" in review
-        assert "Sub-agent 6" in review
+        assert "lens-adr.md" in review
         # Runs regardless of PR size (ADR PRs are often small).
         assert "regardless of PR size" in review
 
-    def test_sub_agents_has_adr_lens(self, repo: Path):
+    def test_review_has_adr_lens(self, repo: Path):
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
-        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "lens-adr.md").read_text()
         assert "Architecture Decision & Design Doc" in sub
         # Key rubric items from the research.
         assert "Alternatives considered" in sub
@@ -1399,13 +1519,33 @@ class TestAdrSubReview:
         assert "Sprint" in sub and "Fairy Tale" in sub  # named anti-patterns
 
     def test_adr_lens_reaches_other_agents(self, repo: Path):
-        # The ADR lens ships via sub-agents.md, so non-Claude agents get it too.
+        # The ADR lens ships as an aux file, so non-Claude agents get it too.
         from klaussy.agents.backends import GeminiBackend
 
         ns = sanitize_skill_namespace(repo.name)
         GeminiBackend().run_skills(repo, force=True, base_branch="main", review_template=None)
-        sub = (repo / ".gemini" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        sub = (repo / ".gemini" / "skills" / f"{ns}-review" / "lens-adr.md").read_text()
         assert "Architecture Decision & Design Doc" in sub
+
+
+class TestCrossFileReferences:
+    @pytest.mark.parametrize("key", sorted(BACKENDS))
+    def test_every_referenced_skill_file_exists(self, repo: Path, key: str):
+        # Review loads its parallel path and lenses on demand by path. A path
+        # that isn't rewritten for an agent, or names a file that was never
+        # written, fails silently at review time.
+        backend = BACKENDS[key]
+        backend.run_skills(repo, force=True, base_branch="main", review_template=None)
+        root = getattr(backend, "profile", None)
+        root = root.skills_root if root else ".claude/skills"
+        written = list((repo / root).glob("*/*.md"))
+        if not written:
+            pytest.skip(f"{key} emits no skills")
+        ref = re.compile(re.escape(root) + r"/[\w.-]+/[\w.-]+\.md")
+        refs = {m for path in written for m in ref.findall(path.read_text())}
+        assert any(r.endswith("-review/parallel.md") for r in refs), f"{key}: found no references"
+        missing = {r for r in refs if not (repo / r).exists()}
+        assert not missing, f"{key}: references to files that don't exist: {sorted(missing)}"
 
 
 class TestReviewPrecisionUpgrades:
@@ -1416,7 +1556,9 @@ class TestReviewPrecisionUpgrades:
         assert "Precision over recall" in review
         assert "concrete trigger" in review
         assert "Removed-behavior audit" in review
-        assert "Argue the author's side" in review  # self-refutation in validation
+        review_dir = repo / ".claude" / "skills" / f"{ns}-review"
+        validation = (review_dir / "lens-validation.md").read_text()
+        assert "Argue the author's side" in validation  # self-refutation in validation
 
     def test_review_comments_are_agreeable_but_detailed(self, repo: Path):
         scaffold_skills(repo=repo)
@@ -1441,14 +1583,24 @@ class TestReviewPrecisionUpgrades:
 class TestHumanize:
     PROSE_SKILLS = ["review", "pr", "commit", "explain"]
 
-    def test_humanize_block_substituted_in_prose_skills(self, repo: Path):
+    def test_prose_skills_point_at_the_rules_instead_of_copying_them(self, repo: Path):
+        # The rules live in the humanize skill; a copy in each of ten skills is
+        # ~2,900 tokens per invocation of prose the skill mostly doesn't write.
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         for skill in self.PROSE_SKILLS:
             text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
             assert "{{HUMANIZE}}" not in text, f"{skill} left a literal token"
-            assert "Write like a person" in text, f"{skill} missing humanize block"
-            assert "em-dashes" in text
+            assert "Humanize anything a human will read" in text, f"{skill} has no pointer"
+            assert "### Write like a person, not a chatbot" not in text, f"{skill} inlines rules"
+
+    def test_the_humanize_skill_carries_the_rules(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        text = (repo / ".claude" / "skills" / f"{ns}-humanize" / "SKILL.md").read_text()
+        assert "### Write like a person, not a chatbot" in text
+        assert "em-dashes" in text
+        assert "{{HUMANIZE_RULES}}" not in text
 
     def test_prose_skills_name_the_humanize_skill(self, repo: Path):
         """Agents were running `klaussy humanize` and calling the prose done.
@@ -1461,7 +1613,7 @@ class TestHumanize:
         for skill in self.PROSE_SKILLS:
             text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
             assert f"`{ns}-humanize` skill" in text, f"{skill} doesn't name the humanize skill"
-            assert "The scrubber is not the humanize pass" in text
+            assert "The scrubber is not that pass" in text
             assert "{{REPO}}" not in text, f"{skill} left a literal token"
 
     def test_rules_output_has_no_unresolved_token(self):
@@ -1475,7 +1627,7 @@ class TestHumanize:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         plan = (repo / ".claude" / "skills" / f"{ns}-plan" / "SKILL.md").read_text()
-        assert "Write like a person" not in plan
+        assert "Humanize anything a human will read" not in plan
 
     def test_humanize_reaches_other_agents_and_survives_enrichment(self, repo_with_claude_md: Path):
         from klaussy.agents.backends import GeminiBackend
@@ -1487,14 +1639,18 @@ class TestHumanize:
             repo_with_claude_md, force=True, base_branch="main", review_template=None
         )
         gem = (repo_with_claude_md / ".gemini" / "skills" / f"{ns}-pr" / "SKILL.md").read_text()
-        assert "Write like a person" in gem and "{{HUMANIZE}}" not in gem
+        assert "Humanize anything a human will read" in gem and "{{HUMANIZE}}" not in gem
+        gem_rules = (
+            repo_with_claude_md / ".gemini" / "skills" / f"{ns}-humanize" / "SKILL.md"
+        ).read_text()
+        assert "### Write like a person, not a chatbot" in gem_rules
         # Claude review-enrichment path must also substitute the token.
         scaffold_skills(repo=repo_with_claude_md, force=True)
         generate_checklist(repo=repo_with_claude_md, force=True)
         review = (
             repo_with_claude_md / ".claude" / "skills" / f"{ns}-review" / "SKILL.md"
         ).read_text()
-        assert "Write like a person" in review and "{{HUMANIZE}}" not in review
+        assert "Humanize anything a human will read" in review and "{{HUMANIZE}}" not in review
 
 
 class TestSecretExclusions:
@@ -1553,10 +1709,10 @@ class TestCommentHygiene:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
-        sub = (repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md").read_text()
+        lens = (repo / ".claude" / "skills" / f"{ns}-review" / "lens-security.md").read_text()
         assert "Comment hygiene" in review
         assert "condense to a one-line WHY" in review
-        assert "comment hygiene" in sub.lower()
+        assert "comment hygiene" in lens.lower()
 
     def test_code_writing_skills_keep_comments_minimal(self, repo: Path):
         scaffold_skills(repo=repo)

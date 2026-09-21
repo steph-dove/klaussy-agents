@@ -1,5 +1,7 @@
 """CLI entry point for klaussy."""
 
+import dataclasses
+import json
 import subprocess
 import sys
 from collections.abc import Callable
@@ -9,6 +11,8 @@ import typer
 from rich.console import Console
 
 from klaussy import __version__
+from klaussy import restack as restack_mod
+from klaussy import split_carve as carve_mod
 from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
 from klaussy.checklist import generate_checklist
 from klaussy.claude_md import run_init
@@ -18,6 +22,7 @@ from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as humanize_text
 from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.pr_template import scaffold_pr_template
+from klaussy.repo import git_root, resolve_repo
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
@@ -32,6 +37,30 @@ _AGENTS_HELP = (
     "Comma-separated target agents to scaffold "
     f"({', '.join(ALL_AGENTS)}). Defaults to all; pass a subset to narrow."
 )
+
+
+_HERE_OPT = typer.Option(
+    False,
+    "--here",
+    help="Scaffold this directory itself, not the repository root it sits in.",
+)
+
+
+def _resolve_repo(path: Path, here: bool = False) -> Path:
+    """The repo root for `path`, refusing a home directory that isn't a repo.
+
+    `--here` keeps the given directory, for a subproject inside a larger repo.
+    """
+    root = path.resolve() if here else resolve_repo(path)
+    if root == Path.home() and git_root(root) is None:
+        console.print(
+            f"[red]✗ {root} is your home directory, not a repository. Run klaussy "
+            "from inside the repo you want to scaffold, or pass --repo <path>.[/red]"
+        )
+        raise typer.Exit(1)
+    if root != path.resolve():
+        console.print(f"[dim]Using the repository root: {root}[/dim]")
+    return root
 
 
 def _select_agents(agents: str | None, all_agents: bool) -> list[str]:
@@ -108,9 +137,10 @@ def init(
     ),
     agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
     all_agents: bool = typer.Option(False, "--all", help="Scaffold every supported agent."),
+    here: bool = _HERE_OPT,
 ) -> None:
     """Generate repo boilerplate for one or more AI coding agents."""
-    repo = repo.resolve()
+    repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
 
     if base_branch is None:
@@ -158,12 +188,20 @@ def checklist(
         "-b",
         help="Base branch for diffs (e.g. dev, main). Prompts if not provided.",
     ),
+    review_template: Path | None = typer.Option(
+        None,
+        "--review-template",
+        help="Custom review prompt to enrich instead of the default (as given to init).",
+    ),
+    here: bool = _HERE_OPT,
 ) -> None:
     """Generate a repo-tailored review command from CLAUDE.md."""
-    repo = repo.resolve()
+    repo = _resolve_repo(repo, here)
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
-    generate_checklist(repo=repo, force=force, base_branch=base_branch)
+    generate_checklist(
+        repo=repo, force=force, base_branch=base_branch, review_template=review_template
+    )
 
 
 @app.command()
@@ -185,9 +223,10 @@ def skills(
     all_agents: bool = typer.Option(
         False, "--all", help="Scaffold skills for every supported agent."
     ),
+    here: bool = _HERE_OPT,
 ) -> None:
     """Scaffold each bundled skill into every selected agent's skills directory."""
-    repo = repo.resolve()
+    repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
@@ -211,9 +250,10 @@ def settings(
     all_agents: bool = typer.Option(
         False, "--all", help="Generate settings for every supported agent."
     ),
+    here: bool = _HERE_OPT,
 ) -> None:
     """Generate stack-appropriate permissions for every selected agent."""
-    repo = repo.resolve()
+    repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
     for key in selected:
         try:
@@ -230,9 +270,10 @@ def hooks(
     all_agents: bool = typer.Option(
         False, "--all", help="Scaffold hooks for every supported agent."
     ),
+    here: bool = _HERE_OPT,
 ) -> None:
     """Scaffold hook configurations (Claude Code; other agents print a note)."""
-    repo = repo.resolve()
+    repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
     for key in selected:
         try:
@@ -253,7 +294,7 @@ def pr_template(
 ) -> None:
     """Generate the pull/merge request template where this repo's host reads it."""
     try:
-        scaffold_pr_template(repo=repo, force=force, forge=forge)
+        scaffold_pr_template(repo=_resolve_repo(repo), force=force, forge=forge)
     except ValueError as exc:
         console.print(f"[red]✗ {exc}[/red]")
         raise typer.Exit(1) from exc
@@ -278,7 +319,7 @@ def uninstall(
     from klaussy.uninstall import apply as apply_plan
     from klaussy.uninstall import plan as build_plan
 
-    computed = build_plan(repo, include_conventions=all_)
+    computed = build_plan(_resolve_repo(repo), include_conventions=all_)
 
     if computed.is_empty:
         console.print("[dim]Nothing to remove — no klaussy scaffolding found.[/dim]")
@@ -321,7 +362,7 @@ def github(
 ) -> None:
     """Deprecated: use `klaussy pr-template`."""
     console.print("[yellow]⚠ `klaussy github` is now `klaussy pr-template`.[/yellow]")
-    scaffold_pr_template(repo=repo, force=force)
+    scaffold_pr_template(repo=_resolve_repo(repo), force=force)
 
 
 @app.command()
@@ -484,7 +525,7 @@ def review_prep(
     excluded (so nothing is hidden from the reviewer). Designed to be the diff
     source the review skill consumes — fewer tokens in, faster review.
     """
-    payload = prepare_review(repo=repo, base_branch=base)
+    payload = prepare_review(repo=_resolve_repo(repo), base_branch=base)
     if as_json:
         import json
 
@@ -511,13 +552,190 @@ def split_prep(
     Files in an import cycle share a layer; ungraphable languages are listed
     rather than guessed at.
     """
-    payload = prepare_split(repo=repo, base_branch=base, ref=ref)
+    payload = prepare_split(repo=_resolve_repo(repo), base_branch=base, ref=ref)
     if as_json:
         import json
 
         sys.stdout.write(json.dumps(render_split_dict(payload), indent=2) + "\n")
     else:
         sys.stdout.write(render_split_markdown(payload))
+
+
+_CHECK_OPT = typer.Option(
+    [],
+    "--check",
+    help="A build/lint/test command to run on every layer (repeatable). No shell syntax.",
+)
+
+
+@app.command(name="split-carve")
+def split_carve(
+    plan: Path = typer.Argument(..., help="JSON: {base, tip, layers: [{branch, message, paths}]}"),
+    check: list[str] = _CHECK_OPT,
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+) -> None:
+    """Carve whole-file layers into a stack of branches, then verify it.
+
+    Each layer branches off the one below and takes its files as they stand at
+    the carve source. The top layer must then equal the source byte for byte,
+    and every `--check` must pass on every layer. Nothing is pushed.
+    """
+    try:
+        base, tip, layers = carve_mod.load_plan(plan)
+        created = carve_mod.carve(repo, base, tip, layers)
+        report = carve_mod.verify_stack(repo, base, tip, created, check)
+    except carve_mod.CarveError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
+    sys.stdout.write(carve_mod.render_report(report))
+    if not report.ok:
+        raise typer.Exit(1)
+
+
+@app.command(name="split-verify")
+def split_verify(
+    tip: str = typer.Option(..., "--tip", help="The carve source commit."),
+    layers: str = typer.Option(..., "--layers", help="Layer branches, bottom-up, comma-separated."),
+    base: str = typer.Option("main", "--base", "-b", help="Base branch, for the report."),
+    check: list[str] = _CHECK_OPT,
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+) -> None:
+    """Verify a stack, however it was carved: identity with the source, then checks."""
+    names = [x.strip() for x in layers.split(",") if x.strip()]
+    try:
+        report = carve_mod.verify_stack(repo, base, tip, names, check)
+    except carve_mod.CarveError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
+    sys.stdout.write(carve_mod.render_report(report))
+    if not report.ok:
+        raise typer.Exit(1)
+
+
+restack_app = typer.Typer(
+    help="Rebase a stack of dependent branches bottom-up, verify it, and push it."
+)
+app.add_typer(restack_app, name="restack")
+
+_REPO_OPT = typer.Option(".", "--repo", "-r", help="Path to the repository.")
+_BASE_OPT = typer.Option(
+    None, "--base", "-b", help="Base branch. Defaults to origin/HEAD, then main."
+)
+
+
+def _restack_fail(exc: Exception) -> None:
+    console.print(f"[red]✗ {exc}[/red]")
+    raise typer.Exit(1) from exc
+
+
+def _report_run(repo: Path, state: "restack_mod.RunState") -> None:
+    if state.current:
+        files = restack_mod.conflicted_files(repo)
+        sys.stdout.write(
+            f"CONFLICT rebasing {state.current} in: {', '.join(files) or '(see git status)'}\n"
+            "Resolve each file, `git add` it, run `git rebase --continue`, then "
+            "`klaussy restack run --continue`. To back out: `klaussy restack undo`.\n"
+        )
+        raise typer.Exit(2)
+    landed = f" (skipped landed: {', '.join(state.landed)})" if state.landed else ""
+    sys.stdout.write(f"Rebased {', '.join(state.done)}{landed}. Next: klaussy restack verify\n")
+    for warning in state.warnings:
+        sys.stdout.write(f"WARNING: {warning}\n")
+    if state.warnings:
+        raise typer.Exit(1)
+
+
+@restack_app.command("plan")
+def restack_plan(
+    repo: Path = _REPO_OPT,
+    base: str | None = _BASE_OPT,
+    no_fetch: bool = typer.Option(False, "--no-fetch", help="Skip `git fetch --all --prune`."),
+    as_json: bool = typer.Option(False, "--json", help="Emit structured JSON."),
+) -> None:
+    """Map the stack from git ancestry and reflogs. Changes nothing."""
+    try:
+        plan = restack_mod.plan_restack(repo, base, fetch=not no_fetch)
+    except restack_mod.RestackError as exc:
+        _restack_fail(exc)
+    if as_json:
+        sys.stdout.write(json.dumps(dataclasses.asdict(plan), indent=2) + "\n")
+    else:
+        sys.stdout.write(restack_mod.render_plan(plan))
+
+
+@restack_app.command("run")
+def restack_run(
+    chain: str | None = typer.Option(
+        None, "--chain", help="Confirmed branches, bottom-up, comma-separated."
+    ),
+    resume: bool = typer.Option(False, "--continue", help="Resume after resolving a conflict."),
+    repo: Path = _REPO_OPT,
+    base: str | None = _BASE_OPT,
+    no_fetch: bool = typer.Option(False, "--no-fetch", help="Skip `git fetch --all --prune`."),
+) -> None:
+    """Rebase each branch onto its parent's new tip; stops on the first conflict."""
+    try:
+        if not resume:
+            if not chain:
+                raise restack_mod.RestackError("pass --chain (from `klaussy restack plan`)")
+            branches = [c.strip() for c in chain.split(",") if c.strip()]
+            restack_mod.start_run(repo, branches, base, fetch=not no_fetch)
+        state = restack_mod.advance(repo)
+    except restack_mod.RestackError as exc:
+        _restack_fail(exc)
+    _report_run(repo, state)
+
+
+@restack_app.command("verify")
+def restack_verify(repo: Path = _REPO_OPT) -> None:
+    """Check each branch carries exactly its own commits, unchanged by the move."""
+    try:
+        checks = restack_mod.verify(repo)
+    except restack_mod.RestackError as exc:
+        _restack_fail(exc)
+    for c in checks:
+        status = "ok" if c.ok else "CHECK"
+        sys.stdout.write(
+            f"{status} {c.branch}: {c.own_commits_before} -> {c.own_commits_after} own commit(s)\n"
+        )
+        for line in c.changed:
+            sys.stdout.write(f"    {line}\n")
+    if not all(c.ok for c in checks):
+        sys.stdout.write(
+            "Commits marked ! changed in the move (expected after a conflict resolution); "
+            "review them before pushing.\n"
+        )
+        raise typer.Exit(1)
+
+
+@restack_app.command("push")
+def restack_push(
+    repo: Path = _REPO_OPT,
+    remote: str = typer.Option("origin", "--remote", help="Remote to push to."),
+) -> None:
+    """Force-push each rebased branch bottom-up with a lease; never the base."""
+    try:
+        results = restack_mod.push(repo, remote)
+    except restack_mod.RestackError as exc:
+        _restack_fail(exc)
+    for name, ok, err in results:
+        sys.stdout.write(f"{'pushed' if ok else 'REFUSED'} {name}\n")
+        if not ok:
+            sys.stdout.write(
+                f"    {err}\nThe lease refused it: someone else pushed. Fetch and look before "
+                "retrying; never fall back to a bare --force.\n"
+            )
+            raise typer.Exit(1)
+
+
+@restack_app.command("undo")
+def restack_undo(repo: Path = _REPO_OPT) -> None:
+    """Abort the run and put every branch back on its recorded tip."""
+    try:
+        state = restack_mod.undo(repo)
+    except restack_mod.RestackError as exc:
+        _restack_fail(exc)
+    sys.stdout.write(f"Restored {', '.join(state.old_tip)} to their pre-restack tips.\n")
 
 
 def main() -> None:

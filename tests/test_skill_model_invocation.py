@@ -36,16 +36,12 @@ def test_skill_templates_are_discovered():
     assert len(SKILL_TEMPLATES) >= 20, f"expected the skill templates, found {SKILL_TEMPLATES}"
 
 
-@pytest.mark.parametrize(
-    "path", SKILL_TEMPLATES, ids=[p.parent.name for p in SKILL_TEMPLATES]
-)
+@pytest.mark.parametrize("path", SKILL_TEMPLATES, ids=[p.parent.name for p in SKILL_TEMPLATES])
 def test_use_when_skills_stay_model_invocable(path: Path):
     front = _frontmatter(path)
     if "disable-model-invocation: true" not in front:
         return
-    description = next(
-        (line for line in front.splitlines() if line.startswith("description:")), ""
-    )
+    description = next((line for line in front.splitlines() if line.startswith("description:")), "")
     assert not description.startswith("description: Use when"), (
         f"{path.parent.name} advertises itself for auto-trigger "
         f'("Use when…") but sets disable-model-invocation: true, so the model '

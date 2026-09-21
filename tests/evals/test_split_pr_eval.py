@@ -101,9 +101,15 @@ def _commands(text: str) -> list[str]:
 class TestLayeredSplitPlan:
     @pytest.fixture(scope="class")
     def plan(self) -> str:
-        # The longest fixture against the longest spec: eight phases, and the
-        # answer is a full command plan. It outruns the harness default.
-        return run_skill("split-pr", LAYERED_CONTEXT, instruction=PLAN_INSTRUCTION, timeout=600)
+        # Pins the by-hand carve in manual.md; the CLI has its own tests. The long
+        # spec plus a full command plan outruns the harness default timeout.
+        return run_skill(
+            "split-pr",
+            "`klaussy` is not on PATH on this machine (command not found).\n\n" + LAYERED_CONTEXT,
+            instruction=PLAN_INSTRUCTION,
+            aux=["manual.md"],
+            timeout=600,
+        )
 
     def test_backs_up_before_carving(self, plan: str):
         # The only complete undo. Without it a mis-carve three layers deep is

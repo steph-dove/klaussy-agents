@@ -18,6 +18,7 @@ from klaussy.forge import (
     detect_forge_cli,
     forge_block,
     forge_cli,
+    forge_sections,
 )
 from klaussy.settings import _build_allowed_tools, generate_settings
 from klaussy.skills import sanitize_skill_namespace, scaffold_skills
@@ -96,7 +97,26 @@ class TestBlock:
         # Verified by introspecting the live GraphQL schema: threadId is the
         # only required input, and it comes from reviewThreads, not the comment.
         assert "resolveReviewThread(input: {threadId: $id})" in forge_block(FORGE_GITHUB)
-        assert "reviewThreads(first: 50)" in forge_block(FORGE_GITHUB)
+        assert "reviewThreads(first: 100, after: $endCursor)" in forge_block(FORGE_GITHUB)
+
+    def test_comment_reads_fetch_every_page(self):
+        # Unpaged, GitHub returns 30 comments, GitLab 20, Bitbucket 10, with no error.
+        github = forge_block(FORGE_GITHUB)
+        for endpoint in ("pulls/<n>/comments", "pulls/<n>/reviews", "issues/<n>/comments"):
+            assert f"gh api --paginate repos/{{owner}}/{{repo}}/{endpoint}" in github, endpoint
+        # gh's GraphQL pagination needs both of these in the query.
+        assert "query($endCursor: String)" in github
+        assert "pageInfo { hasNextPage endCursor }" in github
+        assert "glab api --paginate projects/:id/merge_requests/<iid>/discussions" in (
+            forge_block(FORGE_GITLAB)
+        )
+        assert "follow each response's `next` URL" in forge_block(FORGE_BITBUCKET)
+
+    def test_github_reads_conversation_comments(self):
+        # PR conversation comments are issue comments on GitHub, not review comments.
+        github = forge_block(FORGE_GITHUB)
+        assert "issues/<n>/comments" in github
+        assert "gh pr comment <n>" in github
 
     def test_github_placeholders_survive_as_single_braces(self):
         # gh fills repos/{owner}/{repo} itself; doubling them would break the call.
@@ -175,6 +195,29 @@ class TestSubstitution:
             assert "{{FORGE}}" not in payload.body, payload.skill
             for name, content in payload.aux_files.items():
                 assert "{{FORGE}}" not in content, f"{payload.skill}/{name}"
+
+    def test_each_skill_carries_only_the_sections_it_uses(self, tmp_path: Path):
+        repo = _git_repo(tmp_path, "git@github.com:owner/repo.git")
+        payloads = {p.skill: p for p in build_skill_payloads(repo=repo)}
+        assert "resolveReviewThread" in payloads["address-review"].body
+        # The owl delegates feedback to address-review, so it carries core only.
+        assert "resolveReviewThread" not in payloads["rest-of-the-owl"].body
+        assert "gh pr create" in payloads["rest-of-the-owl"].body
+        for skill in ("address-review", "rest-of-the-owl"):
+            assert "gh stack" not in payloads[skill].body, skill
+        for skill in ("restack", "split-pr"):
+            assert "gh stack submit" in payloads[skill].body, skill
+            assert "resolveReviewThread" not in payloads[skill].body, skill
+        for payload in payloads.values():
+            assert "<!-- forge:" not in payload.body, payload.skill
+            assert "{{FORGE" not in payload.body, payload.skill
+
+    @pytest.mark.parametrize("forge", FORGES)
+    def test_every_forge_has_a_core_section(self, forge: str):
+        sections = forge_sections(forge)
+        assert sections["core"], forge
+        # The full block is every section, so nothing is lost by the split.
+        assert all(s in forge_block(forge) for s in sections.values())
 
     def test_skills_without_the_block_stay_lean(self, tmp_path: Path):
         repo = _git_repo(tmp_path, "git@github.com:owner/repo.git")

@@ -9,6 +9,9 @@ only** — the upstream source is not vendored here.
 | [`fastapi/`](fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | `50113da16` | klaussy 0.30.4 |
 | [`httpx/`](httpx/) | [encode/httpx](https://github.com/encode/httpx) | `b5addb6` | klaussy 0.30.4 |
 
+The skill files are refreshed whenever the templates change, so they track the current
+templates rather than the version in the table; the conventions docs are from that version.
+
 Both were generated with enrichment on (no `--skip-enrich`), which is what fills
 the Decision Log and Known Pitfalls sections with prose read off the real source.
 Regenerating without it produces a visibly thinner `CLAUDE.md`.

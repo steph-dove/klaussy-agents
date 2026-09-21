@@ -1,3 +1,4 @@
+<!-- forge:core -->
 ### Forge commands (GitHub)
 
 `origin` points at GitHub, so the `gh` CLI is the adapter. Confirm a flag with `gh <command> --help` before running one you haven't used in this repo; CLI interfaces drift between versions.
@@ -8,19 +9,34 @@
 | Open a request | `gh pr create --base <branch> --title <title> --body-file <file>` |
 | Request status | `gh pr view <n> --json state,mergeable,reviewDecision,baseRefName` |
 | CI status | `gh pr checks <n>`, then `gh run view <run-id> --log-failed` on a failure |
-| Read review comments | `gh api repos/{owner}/{repo}/pulls/<n>/comments` |
-| Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
-| Resolve a thread | two steps, see below — REST can't do it |
 | Retarget a request | `gh pr edit <n> --base <branch>` |
 
 `{owner}/{repo}` are placeholders `gh` fills from the current repo, leave them literal.
 
+<!-- forge:feedback -->
+#### Review feedback (GitHub)
+
+| Need | Command |
+| :--- | :--- |
+| Read inline review comments | `gh api --paginate repos/{owner}/{repo}/pulls/<n>/comments` |
+| Read review summaries | `gh api --paginate repos/{owner}/{repo}/pulls/<n>/reviews` |
+| Read conversation comments | `gh api --paginate repos/{owner}/{repo}/issues/<n>/comments` |
+| Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
+| Answer a conversation comment | `gh pr comment <n> --body-file <file>` (these aren't threaded, so quote or link the comment you're answering) |
+| Resolve a thread | two steps, see below — REST can't do it |
+
+**`gh pr view --json comments` is not one of these reads.** It returns conversation comments only, truncated, with no inline review comments and no review bodies. Use the three `gh api --paginate` reads above.
+
+**Feedback lives in three places, and each list is paged.** Inline comments, review summary bodies, and comments on the conversation tab are separate endpoints; read all three, since a reviewer who writes "please also rename X" in the conversation expects it handled like a line comment. Without `--paginate` each call returns only the first 30, so a busy request silently loses the rest. Pages print as separate JSON arrays; add `--slurp` when piping to `jq` and you want one.
+
 **Resolving needs GraphQL, and the id it wants is not the comment id.** The REST comment objects don't carry it, so read the thread ids first, then resolve one:
 
 ```
-gh api graphql -f query='{ repository(owner: "<owner>", name: "<repo>") {
-  pullRequest(number: <n>) { reviewThreads(first: 50) { nodes {
-    id isResolved comments(first: 1) { nodes { databaseId body } } } } } } }'
+gh api graphql --paginate -f query='query($endCursor: String) {
+  repository(owner: "<owner>", name: "<repo>") { pullRequest(number: <n>) {
+    reviewThreads(first: 100, after: $endCursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { id isResolved comments(first: 1) { nodes { databaseId body } } } } } } }'
 
 gh api graphql -f query='mutation($id: ID!) {
   resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -F id=<thread-node-id>
@@ -30,6 +46,7 @@ Match a thread to the comment you replied to through `comments.nodes[].databaseI
 
 A reply must name the thread it answers. The `replies` endpoint above takes only `body`; the alternative is `POST .../pulls/<n>/comments` with `-F in_reply_to=<comment-id>` (an integer, hence `-F`). Posting to `comments` without `in_reply_to` opens a new top-level review comment rather than replying.
 
+<!-- forge:stacks -->
 **GitHub has native stacks**, driven by the `gh-stack` extension. `gh extension list` says whether it's installed. If it isn't, **offer to install it** — `gh extension install github/gh-stack`, one command, no repo changes — and say what it buys before asking: a stack map and layer navigation on every request page, plus cascading rebase when the base moves. Ask rather than installing unprompted, since it touches the user's `gh` setup and not this repo, but do ask; silently settling for bare chained bases hands back a worse result than the one command would have. Declining is a fine answer and the fallback below still works.
 
 The extension is in public preview, so check `gh stack <command> --help` before relying on a flag.

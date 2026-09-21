@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-address-review
-description: Use when a PR has review feedback and the user wants it addressed — pull the review comments, triage each one, apply the changes it warrants, and draft replies. Closes the loop between a review and the follow-up commit; it does not re-review the code from scratch.
+description: Use when a PR has review feedback and the user wants it addressed — pull the review comments, triage each one, apply the changes it warrants, then commit, push, and post a humanized reply per comment. Closes the loop between a review and the follow-up commit; it does not re-review the code from scratch.
 allowed-tools: Read Grep Glob Bash Edit Write
 ---
 
@@ -8,11 +8,17 @@ Address the review feedback on the current PR. Every comment gets a response: a 
 
 ## Phase 1: Gather the feedback
 
-1. **Get the review comments** for the current branch's request, using the adapter below. Pull the inline (line-level) comments as well as the summary review bodies; the inline ones are where the substance usually is. If there's no request yet, no CLI, or no credentials, ask the user to paste the feedback and carry on from there.
+1. **Get the review comments** by running all three read commands in the adapter below, exactly as written. They are three separate endpoints: inline (line-level) comments, review summary bodies, and conversation comments. The inline ones carry most of the substance, but a request made in the conversation is just as binding.
+
+   Run each one with its `--paginate` (or the host's equivalent). A read without it stops at the first page and drops the rest with no error, which looks identical to "there were no more comments".
+
+   **Don't substitute a single summary command for those three.** `gh pr view --json comments,reviews` and its equivalents return the conversation and review bodies only, truncated, with no inline comments at all, so the feedback you most need is the part that goes missing. If there's no request yet, no CLI, or no credentials, ask the user to paste the feedback and carry on from there.
 2. **Read CLAUDE.md** and any `.claude/rules/*.md` covering the touched files — a fix must still satisfy the repo's conventions.
 3. **Build the change list.** For each comment, capture: the file/line, what's asked, and the reviewer's intent (not just the literal words). Group comments that touch the same code so you fix each spot once.
 
 {{FORGE}}
+
+{{FORGE_FEEDBACK}}
 
 ## Phase 2: Triage each comment
 
@@ -31,16 +37,21 @@ State the triage before editing, so the user can redirect if they disagree.
 3. **Re-verify after editing** — run the tests/lint from CLAUDE.md. A fix that breaks the suite isn't done.
 4. **Keep the changes reviewable.** One logical follow-up; don't fold in unrelated work that a re-review would have to untangle.
 
-## Phase 4: Reply and hand off
+## Phase 4: Reply, post, and hand off
 
 1. **Draft a reply per comment** (or per group): what you changed and where, or — for a decline — the specific reason. One sentence is the target; two is the ceiling. "Fixed, moved the check into `validate_session`." is a complete reply.
-2. **Summarize** the follow-up for the user: which comments led to changes, which were declined and why, and the suggested commit message (`fix: address review feedback` or per the repo convention). A few lines, not a report; they can read the diff.
-3. **Do not push, resolve threads, or re-request review** unless the user asks — leave those actions to them.
+2. **Humanize every reply before it goes out.** Run the drafts through **`{{REPO}}-humanize`**. A reply that reads as generated is the most visible way this skill can embarrass the user, and a posted comment can't be quietly taken back. This is a gate, not a suggestion: nothing posts until it's done.
+3. **Commit and push** the changes (`fix: address review feedback`, or per the repo convention).
+4. **Post each humanized reply** in its thread with the adapter's reply command. Answer a conversation comment where it was made, not as a line comment.
+5. **Summarize** for the user: which comments led to changes, which were declined and why, and the commit and reply links. A few lines, not a report; they can read the diff.
+
+Leave the threads for the reviewer to resolve, and don't re-request review, unless the user asks for either.
 
 {{HUMANIZE}}
 
 ## Rules
 
+- Humanize before posting. Every reply is public and permanent; that pass is what keeps it reading like a person wrote it.
 - Respond to every comment — a change or a reason. Silence on a comment reads as ignoring the reviewer.
 - Critique the code, never the reviewer; when you decline, give evidence, not a brush-off. Read a blunt comment for its substance, not its tone, and reply civilly regardless.
 - Don't over-correct: fix what was raised, not the whole file. Scope creep in a review-response commit makes the re-review harder.

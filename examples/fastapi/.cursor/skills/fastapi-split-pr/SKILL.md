@@ -88,32 +88,18 @@ The user is already stopped here, so fold in anything else the run needs from th
 
 ## Phase 4: Carve the layers
 
-Work bottom-up, one layer at a time, branching each off the previous one.
+Write the approved plan as JSON, bottom layer first, at the path `git rev-parse --git-path klaussy-split.json` prints (inside the git dir, so it never lands in the tree):
 
-**If the existing commits already map cleanly onto layers** (each commit belongs wholly to one layer), cherry-pick:
-
-```
-git checkout -b <branch>-1-schema origin/master
-git cherry-pick <sha> <sha>
-```
-
-**Usually they don't** — one commit touches three layers, because the work wasn't written with a split in mind. Carve by content instead, taking file state straight from the tip:
-
-```
-git checkout -b <branch>-1-schema origin/master
-git checkout <tip> -- path/to/schema.py migrations/
-git commit
+```json
+{"base": "master", "tip": "<tip sha>", "layers": [
+  {"branch": "<branch>-1-schema", "message": "feat(db): add the schema", "paths": ["migrations/", "src/schema.py"]},
+  {"branch": "<branch>-2-api", "message": "feat(api): add the endpoint", "paths": ["api/"]}
+]}
 ```
 
-For a file that belongs to more than one layer, take the whole file at the tip only if the entire file is that layer's; otherwise stage part of it with `git checkout -p <tip> -- <file>` and pick the hunks. Read what you staged before committing — a hunk-level carve is where a layer quietly acquires a reference to code that doesn't exist yet.
+Then run `klaussy split-carve <plan path> --check "<command>"`, with one `--check` per build, lint and test command from CLAUDE.md (one command each; no pipes or `&&`). It branches each layer off the one below, takes that layer's files as they stand at `<tip>`, commits with hooks off, records the chain for **`fastapi-restack`**, and runs the Phase 5 checks. If a changed file is in no layer or in two, it refuses and creates nothing.
 
-Then each subsequent layer branches off the one below:
-
-```
-git checkout -b <branch>-2-api <branch>-1-schema
-git checkout <tip> -- api/routes.py api/handlers.py
-git commit
-```
+A file whose hunks belong to different layers can't be carved whole. Carve those layers by hand with `.cursor/skills/fastapi-split-pr/manual.md`, then verify the stack with `klaussy split-verify --tip <tip> --layers <bottom,...,top> --check "<command>"`. If `klaussy` isn't on PATH, follow `manual.md` for the whole carve and its checks.
 
 **Do not edit code while carving.** A split moves lines between branches; it doesn't change them. The comment pass already happened in Phase 2 and is baked into `<tip>` — don't tidy anything else on the way past, or check 1 below will fail and you won't know whether the cause was the carve or the tidying. If a layer needs a small bridge to stand alone (an import, an `__all__` entry, a stub the next layer replaces), that's part of the carve and worth calling out in the PR body. If you find an actual bug mid-split, write it down and fix it in a follow-up — a behavior change smuggled into a restructuring is invisible to review.
 
@@ -121,12 +107,10 @@ git commit
 
 ## Phase 5: Verify, before anything is pushed
 
-Two checks, and neither is optional.
+`split-carve` and `split-verify` report both checks. Neither is optional.
 
-1. **The stack reproduces the carve source exactly.** `git diff <tip> <top-layer>` must print nothing, where `<tip>` is the post-cleanup commit from Phase 2 — **not** `<branch>-prestack`, which predates the comment pass and would differ by exactly those edits. A non-empty diff means a hunk was dropped or duplicated: find it before you push, not after review starts.
-
-   The stack must also carry the cleanup. `git diff <branch>-prestack <top-layer>` should show *only* comment changes — if it shows code, something in the carve went wrong that check 1 couldn't see.
-2. **Every layer stands alone.** Check out each branch bottom-up and run the project's build, lint, and test commands from CLAUDE.md. A layer may legitimately add code nothing calls yet; it may not leave the build or the suite broken. A failure is a wrong seam — move code between layers and re-verify. Never fix it by loosening a test or disabling a check.
+1. **Identity.** The top layer must match `<tip>` exactly, where `<tip>` is the post-cleanup commit from Phase 2, not `<branch>-prestack`. A mismatch means a file was dropped or duplicated: find it before you push, not after review starts. The stack must also carry the cleanup: `git diff <branch>-prestack <top-layer>` should show *only* comment changes. If it shows code, something in the carve went wrong that the identity check couldn't see.
+2. **Every layer stands alone.** A layer may add code nothing calls yet; it may not leave the build or the suite broken. A failing check is a wrong seam: delete the layer branches (`git branch -D`), move files between layers in the plan, and carve again. Never fix it by loosening a test or disabling a check.
 
 If a layer can't be made to stand alone after a couple of attempts, that seam isn't real. Merge it into its neighbor and re-verify; a four-layer stack that works beats a five-layer one that doesn't.
 
@@ -148,7 +132,7 @@ git push -u origin <branch>-3-ui         → open request 3 against <branch>-2-a
 
 Where a stack needs tooling the machine doesn't have yet, **offer to install it** rather than shrugging and shipping chained bases — the adapter below names the command and it's a one-liner. Ask, don't install unprompted, and take no for an answer. Ideally ask back in Phase 3 alongside the plan approval, so the whole run interrupts the user once instead of twice. Where the host has no native stack at all, say so in the report; otherwise chained bases read as a step that was skipped rather than one that doesn't exist here.
 
-**Record the chain for `fastapi-restack`:** `git config branch.<child>.klaussyParent <parent>` for every layer above the bottom. Restack reads exactly that config and otherwise has to re-derive the topology from ancestry.
+**Record the chain for `fastapi-restack`.** `split-carve` already did. After a hand carve, run `git config branch.<child>.klaussyParent <parent>` for every layer above the bottom. Restack reads exactly that config and otherwise has to re-derive the topology from ancestry.
 
 Each request body gets:
 
@@ -168,27 +152,9 @@ Run each body through **`fastapi-humanize`** before it goes out.
 | Open a request | `gh pr create --base <branch> --title <title> --body-file <file>` |
 | Request status | `gh pr view <n> --json state,mergeable,reviewDecision,baseRefName` |
 | CI status | `gh pr checks <n>`, then `gh run view <run-id> --log-failed` on a failure |
-| Read review comments | `gh api repos/{owner}/{repo}/pulls/<n>/comments` |
-| Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
-| Resolve a thread | two steps, see below — REST can't do it |
 | Retarget a request | `gh pr edit <n> --base <branch>` |
 
 `{owner}/{repo}` are placeholders `gh` fills from the current repo, leave them literal.
-
-**Resolving needs GraphQL, and the id it wants is not the comment id.** The REST comment objects don't carry it, so read the thread ids first, then resolve one:
-
-```
-gh api graphql -f query='{ repository(owner: "<owner>", name: "<repo>") {
-  pullRequest(number: <n>) { reviewThreads(first: 50) { nodes {
-    id isResolved comments(first: 1) { nodes { databaseId body } } } } } } }'
-
-gh api graphql -f query='mutation($id: ID!) {
-  resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -F id=<thread-node-id>
-```
-
-Match a thread to the comment you replied to through `comments.nodes[].databaseId`, which is the REST comment id. `threadId` is the only required input.
-
-A reply must name the thread it answers. The `replies` endpoint above takes only `body`; the alternative is `POST .../pulls/<n>/comments` with `-F in_reply_to=<comment-id>` (an integer, hence `-F`). Posting to `comments` without `in_reply_to` opens a new top-level review comment rather than replying.
 
 **GitHub has native stacks**, driven by the `gh-stack` extension. `gh extension list` says whether it's installed. If it isn't, **offer to install it** — `gh extension install github/gh-stack`, one command, no repo changes — and say what it buys before asking: a stack map and layer navigation on every request page, plus cascading rebase when the base moves. Ask rather than installing unprompted, since it touches the user's `gh` setup and not this repo, but do ask; silently settling for bare chained bases hands back a worse result than the one command would have. Declining is a fine answer and the fallback below still works.
 
@@ -208,7 +174,6 @@ Arguments run bottom-up, nearest the base first. Two constraints decide whether 
 `link` and `init` are two different entry points and the difference shows up later. `link` stacks requests that already exist and leaves nothing behind locally, so a later `gh stack rebase` needs `gh stack checkout <stack-number>` first to pick the stack back up. `init` registers the branches locally up front and `submit` then opens the requests itself, which means the bodies are its own — write them with `gh pr edit <n> --body-file` afterwards if they have to say something specific.
 
 Without it, chained `--base` targets still give reviewers a per-layer diff, and GitHub often offers to convert an eligible chain into a stack — a banner on the request, or "Add to stack" behind the stack icon. Say which route you took.
-
 
 ## Phase 7: Report
 
