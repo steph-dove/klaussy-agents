@@ -1,7 +1,6 @@
 ---
 name: fastapi-document
 description: Use when the user wants documentation written or updated — docstrings, API docs, a README section, or a doc comment on a tricky piece of code. Documents selectively: what a reader genuinely can't infer from the code, and nothing they can. Writes prose, not code changes. Also known as `klaussy-document`.
-disable-model-invocation: true
 ---
 
 Add documentation where it earns its place, and only there. The hard part of this skill is restraint: most code does not need a comment, and a docstring that restates the signature is worse than none — it rots, and it trains readers to skip comments. Document the *why* and the non-obvious; never the *what* the code already shows.

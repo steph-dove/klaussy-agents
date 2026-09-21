@@ -1,7 +1,6 @@
 ---
 name: fastapi-pr
 description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, then writes a Summary / Changes / Test Plan / Notes block to pr-description.md. Also known as `klaussy-pr`.
-disable-model-invocation: true
 ---
 
 ## Branch

@@ -2,7 +2,6 @@
 name: httpx-split-pr
 description: Use when a change is too large to review in one pass and should ship as a stack of dependent PRs instead. Strips comment bloat so the size is honest, proposes layers from the import graph, then builds the branch chain, opens one request per layer targeting the layer below, and registers a native stack where the host has one. Works from committed history or an uncommitted working tree. Creates a stack; use httpx-restack to repair one that already exists. Also known as `klaussy-split-pr`.
 allowed-tools: Read Grep Glob Bash Edit
-disable-model-invocation: true
 ---
 
 Turn one oversized change into a stack of dependent requests, each small enough that a human will actually read it. The whole value is in the seams: a split into layers that each build, test, and make sense alone is a gift to the reviewer, and a split into layers that only mean something together is worse than the big PR you started with.

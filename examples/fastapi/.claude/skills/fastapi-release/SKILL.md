@@ -2,7 +2,6 @@
 name: fastapi-release
 description: Use when the user wants to cut a release — bump the version, update the changelog from conventional commits, and tag. Detects where the version lives, derives the next version from the commits since the last tag, and stages the release locally; it does not push or publish unless explicitly asked. Also known as `klaussy-release`.
 allowed-tools: Read Grep Glob Bash Edit Write
-disable-model-invocation: true
 ---
 
 Cut a release: pick the next version, update every place the version is declared, write the changelog from the conventional commits since the last release, and tag. Stop before pushing or publishing unless the user asked for those too.
