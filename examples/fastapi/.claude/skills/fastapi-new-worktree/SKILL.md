@@ -2,7 +2,6 @@
 name: fastapi-new-worktree
 description: Use when the user wants a new git worktree created for a task. Picks a kebab-case branch name with a fix/feat/chore/docs/refactor prefix, runs `git worktree add` from the configured base branch, and reports the new path. Also known as `klaussy-new-worktree`.
 allowed-tools: Read Bash(git worktree *) Bash(git branch *)
-disable-model-invocation: true
 ---
 
 Create a new git worktree for the task the user described.

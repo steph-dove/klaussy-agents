@@ -5,6 +5,27 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Changed
+
+- **The eight slash-only skills are model-invocable again.** `commit`, `document`,
+  `new-worktree`, `pr`, `precommit`, `release`, `restack` and `split-pr` carried
+  `disable-model-invocation: true`, so naming one in prose did nothing — the agent
+  couldn't reach it and said so. Every one of their descriptions opens with
+  "Use when the user wants…", which is the auto-trigger heuristic, so the frontmatter
+  contradicted the description: the skill advertised itself for model invocation and
+  then refused it. `precommit` is read-only and `document` only edits source, so
+  neither had a side effect to gate in the first place.
+
+  The gate moves to where it was already enforced — the skill bodies. `release` never
+  publishes or pushes a tag without explicit approval in the request, `restack` prints
+  the stack and confirms before rewriting anything (and checks authorship before
+  force-pushing), `new-worktree` and `split-pr` confirm their plan. `commit` and `pr`
+  write text and cannot act: neither `git commit` nor `gh` is in their `allowed-tools`.
+  The review checklist that required the flag was rewritten to match, so the templates
+  no longer fail the repo's own gate.
+
 ## [0.31.0] - 2026-09-18
 
 ### Added
