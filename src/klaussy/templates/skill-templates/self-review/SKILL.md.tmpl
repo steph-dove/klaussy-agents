@@ -39,7 +39,8 @@ Go through every item against the diff. For each, either confirm it holds or fix
 - New behavior has tests (happy path + error/edge paths). A bug fix has a test that fails without the fix. Run the suite from CLAUDE.md and confirm it's green.
 
 **Scope and minimalism**
-- Every changed line serves the task. No unrelated refactoring, renaming, or reformatting rode along. Revert what isn't yours to change.
+- Every changed line serves the task. No unrelated refactoring, renaming, or reformatting rode along.
+- **Never revert a change you didn't make.** An unrelated edit in the working tree may be the user's own uncommitted work, and `git checkout --` on it destroys something they can't get back. Set it aside instead: `git stash push -m "<why>" -- <paths>` naming only the files that aren't yours, finish the review on what's left, then `git stash pop` to hand it back. Say what you stashed and that you restored it. If the unrelated change is tangled into the same hunks as yours, don't split it by hand: name it in the report and let the user decide.
 
 **Conventions and correctness**
 - Matches the repo's existing patterns, naming, and structure (and any `.claude/rules/*.md` covering the touched files).
