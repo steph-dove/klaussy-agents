@@ -45,5 +45,5 @@ PR #58: all checks passing, no open review comments left.
 
 ### expect
 - contains: merge | merging
-- not contains: gh pr merge
+- not commands: gh pr merge
 - contains: you | user | human

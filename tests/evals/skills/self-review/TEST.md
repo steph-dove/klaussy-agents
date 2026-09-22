@@ -5,7 +5,7 @@ reinventing the wheel, and what's out of scope for the stated task.
 
 ## case: cuts-narrating-comment-keeps-why-comment
 
-A changelog-style comment is deleted; one that mixes narration with a real why is condensed, not deleted.
+Changelog framing with nothing under it is deleted; the same framing over a real why is condensed down to the why; a standalone why is left alone.
 
 ### instruction
 For each comment in the diff, output one line: the quoted comment, then `delete`, `condense`, or `keep`. Nothing else.
@@ -15,19 +15,21 @@ For each comment in the diff, output one line: the quoted comment, then `delete`
 diff --git a/src/sync.py b/src/sync.py
 @@
 +def sync_records(records):
-+    # Added to fix flaky network calls; now retries 3 times before giving up
++    # Updated sync_records to add a retry loop
 +    for attempt in range(3):
 +        try:
 +            return push(records)
 +        except NetworkError:
++            # Added to fix flaky uploads from the eu-west region; retries before giving up
 +            continue
 +    # Retry budget exhausted: caller treats this as a hard failure, not a timeout
 +    raise SyncFailed(records)
 ```
 
 ### expect
-- matches: (?i)added to fix[^\n]*delete
-- matches: (?i)retry budget exhausted[^\n]*(condense|keep)
+- matches: (?i)updated sync_records[^\n]*delete
+- matches: (?i)eu-west[^\n]*condense
+- matches: (?i)retry budget exhausted[^\n]*(keep|condense)
 
 ## case: flags-hand-rolled-stdlib-reinvention
 

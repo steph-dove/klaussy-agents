@@ -37,4 +37,4 @@ The project is Node/TypeScript.
 
 ### expect
 - contains: npm run dev
-- not contains: npm start | node server.js
+- not commands: npm start | node server.js

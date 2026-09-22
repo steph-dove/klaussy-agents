@@ -55,7 +55,7 @@ Approved layers (whole files only):
 ### expect
 - contains: klaussy split-carve
 - contains: --check
-- not contains: git push
+- not commands: git push
 
 ## case: asks-before-skipping-the-repos-hooks
 

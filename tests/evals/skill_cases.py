@@ -15,6 +15,7 @@ and match case-insensitively:
     - contains: a | b          at least one appears
     - contains all: a | b      every one appears
     - not contains: a | b      none appears
+    - not commands: a | b      none appears in a command the output *prescribes*
     - matches: <regex>         re.search, case-sensitive; start with (?i) to opt out
     - max sentences: N
     - max lines: N             non-blank lines
@@ -35,12 +36,29 @@ import harness
 
 SKILLS_DIR = Path(__file__).parent / "skills"
 
-_VALUED = {"contains", "contains all", "not contains", "matches", "max sentences", "max lines"}
+_VALUED = {
+    "contains",
+    "contains all",
+    "not contains",
+    "not commands",
+    "matches",
+    "max sentences",
+    "max lines",
+}
 _FLAGS = {"no ai tells", "conventional subject"}
 _SECTIONS = {"instruction", "aux", "context", "expect"}
 _CASE = re.compile(r"^## case: (\S+)\s*$")
 _SECTION = re.compile(r"^### (\w+)\s*$")
 _FENCE = re.compile(r"^(```|~~~)")
+
+# The three shapes that count as "run this". An unterminated fence still counts,
+# so a truncated answer can't launder a command past the ban.
+_FENCED_BLOCK = re.compile(r"^(?:```|~~~)[^\n]*\n(.*?)(?:^(?:```|~~~)|\Z)", re.M | re.S)
+_CODE_ONLY_LINE = re.compile(r"^[ \t]*(?:[-*+]\s+)?`([^`]+)`[.;:]?[ \t]*$", re.M)
+_PROMPT_LINE = re.compile(r"^[ \t]*[$%>][ \t]+(\S.*)$", re.M)
+# A whole-line `#` comment inside a block is the model talking, not a command:
+# "# not --theirs, resolve by hand" must not trip a ban on `--theirs`.
+_COMMENT_LINE = re.compile(r"^[ \t]*#.*$", re.M)
 
 
 @dataclass
@@ -125,6 +143,24 @@ def load_all() -> list[Case]:
     return cases
 
 
+def prescribed_commands(output: str) -> str:
+    """Return only the parts of `output` that tell the reader to run something.
+
+    Naming a command in prose to rule it out ("using raw `git rebase --onto`
+    would leave Graphite's metadata stale") is the skill getting it right, so a
+    plain substring ban fails the correct answer. Only a fenced block, a line
+    that is nothing but one inline-code span, and a shell-prompt line read as
+    prescriptions; everything else is prose the ban ignores.
+
+    An output that prescribes nothing in those shapes yields "", so the ban
+    passes vacuously. Pair `not commands` with a `contains`/`matches` that pins
+    the command you *do* want, or a bare unfenced command line slips through.
+    """
+    blocks = [_COMMENT_LINE.sub("", b) for b in _FENCED_BLOCK.findall(output)]
+    prose = _FENCED_BLOCK.sub("\n", output)
+    return "\n".join(blocks + _CODE_ONLY_LINE.findall(prose) + _PROMPT_LINE.findall(prose))
+
+
 def check(case: Case, output: str) -> list[str]:
     """Return one message per failed expectation; empty means the case passed."""
     low = output.lower()
@@ -137,6 +173,9 @@ def check(case: Case, output: str) -> list[str]:
             failures += [f"missing {o!r}" for o in options if o not in low]
         elif key == "not contains":
             failures += [f"contains forbidden {o!r}" for o in options if o in low]
+        elif key == "not commands":
+            commands = prescribed_commands(output).lower()
+            failures += [f"prescribes forbidden {o!r}" for o in options if o in commands]
         elif key == "matches" and not re.search(value, output):
             failures.append(f"no match for /{value}/")
         elif key == "max sentences" and harness.count_sentences(output) > int(value):
