@@ -9,11 +9,15 @@ from pathlib import Path
 from rich.console import Console
 
 from klaussy.skills import (
+    HUMANIZE_BLOCK,
     SKILL_TEMPLATE_ROOT,
     TEMPLATE_SUFFIX,
     apply_alias_to_frontmatter,
-    humanize_block,
+    humanize_pointer,
+    iter_skill_templates,
+    render_tokens,
     sanitize_skill_namespace,
+    template_output_name,
 )
 
 console = Console()
@@ -301,8 +305,18 @@ def build_enrichment_block(repo: Path) -> str:
     return "\n\n".join(enrichments) if enrichments else ""
 
 
-def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "main") -> Path:
-    """Generate a review skill enriched with CLAUDE.md and .claude/rules/ findings."""
+def generate_checklist(
+    *,
+    repo: Path,
+    force: bool = False,
+    base_branch: str = "main",
+    review_template: Path | None = None,
+) -> Path:
+    """Generate a review skill enriched with CLAUDE.md and .claude/rules/ findings.
+
+    `review_template` is the custom review prompt `init --review-template` took, if
+    any; without it this would put the built-in prompt back over the custom one.
+    """
     repo = repo.resolve()
     claude_md = _resolve_claude_md(repo)
 
@@ -323,17 +337,20 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
         )
         raise SystemExit(1)
 
-    template = _read_review_template()
+    template = review_template.read_text() if review_template else _read_review_template()
     enrichment_block = build_enrichment_block(repo)
     repo_namespace = sanitize_skill_namespace(repo.name)
 
+    tokens = {
+        "REPO_SPECIFIC_CHECKS": enrichment_block,
+        "BASE_BRANCH": base_branch,
+        "REPO": repo_namespace,
+        "HUMANIZE": humanize_pointer(repo_namespace),
+        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+    }
+
     def _substitute(text: str) -> str:
-        return (
-            text.replace("{{REPO_SPECIFIC_CHECKS}}", enrichment_block)
-            .replace("{{BASE_BRANCH}}", base_branch)
-            .replace("{{REPO}}", repo_namespace)
-            .replace("{{HUMANIZE}}", humanize_block(repo_namespace))
-        )
+        return render_tokens(text, tokens)
 
     skill_dir.mkdir(parents=True, exist_ok=True)
     # Third emit path for this one skill, so it needs the alias too — otherwise
@@ -342,13 +359,13 @@ def generate_checklist(*, repo: Path, force: bool = False, base_branch: str = "m
     output_file.write_text(rendered)
     console.print(f"[green]✔ Created {output_file.relative_to(repo)}[/green]")
 
-    # Sub-agents.md uses {{REPO_SPECIFIC_CHECKS}} too (sub-agent 4's
-    # Project Conventions block). scaffold_skills writes it with {{REPO}}
-    # and {{BASE_BRANCH}} substituted but leaves the enrichment placeholder
-    # alone — finalize it here so the parallel-review path doesn't ship the
-    # literal token to the model.
-    sub_agents_file = skill_dir / "sub-agents.md"
-    if sub_agents_file.exists():
-        sub_agents_file.write_text(_substitute(sub_agents_file.read_text()))
+    # The scope lens carries the enrichment too. Re-render every aux file from
+    # its template: scaffold_skills already filled the token in the copies on
+    # disk, so patching those would keep the old checks.
+    review_templates = resources.files("klaussy").joinpath(f"{SKILL_TEMPLATE_ROOT}/review")
+    for template_file in iter_skill_templates(review_templates):
+        filename = template_output_name(template_file.name)
+        if filename != "SKILL.md":
+            (skill_dir / filename).write_text(_substitute(template_file.read_text()))
 
     return output_file

@@ -7,6 +7,43 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+### Added
+
+- **`worktree-cleanup` skill.** Sorts every worktree into prunable, merged, abandoned or keep,
+  proposes what to remove, and waits for confirmation. It never passes `--force` and never
+  removes a worktree holding uncommitted or unpushed work.
+- **`klaussy restack plan|run|verify|push|undo`.** The restack skill used to drive every git
+  command through the model, including an ancestry check per pair of branches. The CLI maps the
+  stack, rebases bottom-up with `--onto`, verifies with `range-diff`, and force-pushes with a
+  lease; the model confirms the chain and resolves conflicts. Mapping uses
+  `git merge-base --fork-point`, so a parent that was amended after its child branched is still
+  found. Plain ancestry loses that, and both the old skill and the first version of this CLI
+  got it wrong. The by-hand procedure moved to the skill's `manual.md`, used when `klaussy`
+  isn't on PATH.
+- **`klaussy split-carve` and `klaussy split-verify`.** Carve whole-file layers into a stack,
+  prove the top layer matches the carve source byte for byte, and run each `--check` command on
+  every layer. Files whose hunks span layers are still carved by hand.
+- **`--here`** on the scaffolding commands, for a subproject inside a larger repository:
+  it scaffolds that directory rather than the repository root.
+- **End-to-end tests that drive a real agent loop** over installed skills and assert on what it
+  did, rather than on what it says it would do:
+  - **address-review** against a recording `gh`: all three feedback reads, paginated, the fix
+    applied, nothing posted before the humanize pass.
+  - **review** on a branch over the 150-line threshold: the parallel path and its lens files are
+    opened, and the planted race shows up in `REVIEW_OUTPUT.md`.
+  - **restack** on a real stack whose base moved: the CLI does the rebase, every branch ends up
+    carrying only its own commit, and no force-push goes out without a lease.
+  - **plan**: the adversarial reviewer is spawned with the plan's path rather than its body, the
+    check phase leaves its record, and the source file is untouched.
+  - **worktree-cleanup** against real worktrees: what landed is gone, dirty and unpushed survive.
+
+  Each retries once on a fresh fixture, since an agent loop varies run to run. Of the five, the
+  review, restack and plan tests were confirmed to fail when the behavior they pin is removed
+  from the skill; worktree-cleanup passes either way on a scenario that obvious, and says so.
+- **A TEST.md of eval cases per skill** (`tests/evals/skills/<skill>/TEST.md`), run through the
+  existing opt-in harness. CI parses them for free; `KLAUSSY_RUN_EVALS=1 pytest -k <skill>`
+  runs one skill's cases against a model.
+
 ### Changed
 
 - **The eight slash-only skills are model-invocable again.** `commit`, `document`,
@@ -25,6 +62,57 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   write text and cannot act: neither `git commit` nor `gh` is in their `allowed-tools`.
   The review checklist that required the flag was rewritten to match, so the templates
   no longer fail the repo's own gate.
+
+- **The humanize rules live in one place.** Ten prose skills carried a full copy (~2,750 tokens
+  each); they now carry a pointer to the repo's humanize skill, which holds the rules. The
+  trade-off is that clean prose now depends on that skill actually running: with the rules
+  inlined, a commit message or review reply came out clean on its own. The evals for those two
+  compose the humanize skill in, the way a real run composes it.
+- **Review loads its parallel path on demand.** `SKILL.md` keeps the small-PR path; the fan-out,
+  validation and synthesis moved to `parallel.md`, and each lens to its own `lens-*.md`. Lens
+  sub-agents read their own lens and fetch the diff themselves instead of having it pasted in.
+- **The forge adapter is split into core, feedback and stack sections,** so a skill carries only
+  the commands it uses.
+- **`rest-of-the-owl` is a thin orchestrator.** A phase table names the skill that owns each step
+  and the gate before moving on, rather than restating those skills. The waiting mechanics moved
+  to `waiting.md`, read at phase 7. Waits now cost one model wake-up per event: one shell command
+  that polls internally, discards watch output and exits once.
+- **`plan` plans.** It ran implementation, parallel review and a summary; it now ends at an
+  approved `plan.md` and hands off. It gained a check phase: the plan is verified against the
+  requirements, then attacked by an adversarial sub-agent that checks its claims against the code.
+- **`address-review` closes the loop.** It commits, pushes and posts a reply per comment, with the
+  humanize pass as the gate before anything is posted.
+- **The owl resolves its base branch at run time** instead of baking in the branch detected at
+  scaffold time.
+
+### Fixed
+
+- **Skills were named after the wrong directory.** The namespace and output path came from
+  whatever directory klaussy was pointed at, so running it in `src/deep/` produced `deep-review`
+  there, and running it in a home directory named every skill after the user. Both now resolve to
+  the git repository root, and the CLI refuses a home directory that isn't a repo.
+- **Placeholder substitution expanded tokens inside the values it had just substituted.** A
+  CLAUDE.md that documents klaussy's own placeholders pasted the humanize block into the review
+  enrichment; on `init` that grew `sub-agents.md` to 68k characters. Substitution is now one pass.
+- **`{{REPO_SPECIFIC_CHECKS}}` stayed literal** unless `klaussy checklist` ran, so `klaussy skills`
+  and upgrades shipped the raw token. `scaffold_skills` now fills it.
+- **`init --review-template` was overwritten** by the enrichment step that ran straight after it.
+  `klaussy checklist` takes the same option.
+- **address-review ignored the adapter and read the feedback with `gh pr view --json`.** The
+  paginated reads were in the adapter table, but Phase 1 said "using the adapter below" and in a
+  real run the agent reached for a single summary command instead: no pagination, no inline
+  comments, and the conversation tab never read at all. The three reads are now spelled out as
+  the step, with the substitution called out by name. Only the end-to-end test caught this; the
+  prompt eval had been asking the model what it *would* run, and it answered correctly.
+- **Review comments were read one page deep.** The GitHub adapter now paginates, reads review
+  summaries and conversation comments as well as inline ones, and pages the GraphQL thread query.
+  GitLab and Bitbucket paginate too.
+- **`new-worktree` nested its worktrees.** A `fix/login-redirect` branch made
+  `../repo-fix/login-redirect`; the directory name now flattens the slash.
+- **The review skill's own lens documented klaussy's placeholders in their braced form,** so
+  substitution rewrote that documentation.
+- **`self-review` deleted comments that mixed narration with a real why.** It condenses them now.
+
 
 ## [0.31.0] - 2026-09-18
 

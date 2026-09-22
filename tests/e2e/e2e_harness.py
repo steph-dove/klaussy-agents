@@ -20,6 +20,7 @@ runner + fixture + side-effect-assertion pattern.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -30,7 +31,12 @@ from pathlib import Path
 
 import pytest
 
-from klaussy.skills import SKILL_TEMPLATE_ROOT, humanize_block
+from klaussy.skills import (
+    HUMANIZE_BLOCK,
+    SKILL_TEMPLATE_ROOT,
+    humanize_pointer,
+    render_tokens,
+)
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -52,11 +58,15 @@ def load_skill_body(skill: str, *, repo: str = "myrepo", base_branch: str = "mai
         .joinpath(f"{SKILL_TEMPLATE_ROOT}/{skill}/SKILL.md.tmpl")
         .read_text()
     )
-    text = (
-        text.replace("{{REPO}}", repo)
-        .replace("{{BASE_BRANCH}}", base_branch)
-        .replace("{{HUMANIZE}}", humanize_block(repo))
-        .replace("{{REPO_SPECIFIC_CHECKS}}", "")
+    text = render_tokens(
+        text,
+        {
+            "REPO": repo,
+            "BASE_BRANCH": base_branch,
+            "HUMANIZE": humanize_pointer(repo),
+            "HUMANIZE_RULES": HUMANIZE_BLOCK,
+            "REPO_SPECIFIC_CHECKS": "",
+        },
     )
     text = _FRONTMATTER.sub("", text, count=1)
     text = _DYNAMIC_SHELL.sub("", text)
@@ -80,6 +90,80 @@ def pytest_run(repo: Path) -> subprocess.CompletedProcess:
 def python_c(repo: Path, code: str) -> subprocess.CompletedProcess:
     """Run `python -c code` in the fixture repo. Exit 0 means the asserts held."""
     return sh(repo, sys.executable, "-c", code)
+
+
+def install_skills(repo: Path, agent: str = "claude", base_branch: str = "main") -> None:
+    """Scaffold the real skills into `repo` so the agent can reach them by name."""
+    from klaussy import toolkit
+
+    result = toolkit.skills(repo, agents=agent, base_branch=base_branch)
+    assert not result.skipped, f"skill scaffold skipped: {result.skipped}"
+
+
+def run_agent(
+    repo: Path,
+    prompt: str,
+    *,
+    path_prefix: Path | None = None,
+    model: str | None = None,
+    timeout: int = 600,
+) -> tuple[list[str], str]:
+    """Drive a real agent loop over `repo`; return its tool calls and final message.
+
+    Unlike `run_skill_agent`, the skills are installed in the repo rather than
+    pasted into the prompt, so what the agent reads and invokes is its own
+    choice — which is the thing worth asserting on. `path_prefix` goes in front
+    of PATH, for a recording stand-in like a fake `gh`.
+    """
+    env = dict(os.environ)
+    if path_prefix:
+        env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
+    proc = subprocess.run(
+        [
+            "claude",
+            "-p",
+            prompt,
+            "--permission-mode",
+            "bypassPermissions",
+            "--model",
+            model or os.environ.get("KLAUSSY_E2E_MODEL", DEFAULT_MODEL),
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--add-dir",
+            str(repo),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=env,
+    )
+    assert proc.returncode == 0, f"the agent run itself failed: {proc.stderr[-800:]}"
+    calls: list[str] = []
+    final = ""
+    for line in proc.stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        for block in (event.get("message") or {}).get("content", []) or []:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                arg = block.get("input", {})
+                # A sub-agent's prompt is what the orchestrator chose to hand it,
+                # which is the thing worth asserting on for a fan-out skill.
+                detail = (
+                    arg.get("skill")
+                    or arg.get("command")
+                    or arg.get("file_path")
+                    or arg.get("prompt")
+                    or arg.get("description")
+                    or ""
+                )
+                calls.append(f"{block.get('name', '')}: {detail}")
+        if event.get("type") == "result":
+            final = event.get("result", "")
+    return calls, final
 
 
 def run_skill_agent(

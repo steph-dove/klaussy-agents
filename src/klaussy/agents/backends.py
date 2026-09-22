@@ -238,7 +238,12 @@ class ClaudeBackend:
             ),
             (
                 "[claude] review enrichment",
-                lambda: generate_checklist(repo=repo, force=True, base_branch=base_branch),
+                lambda: generate_checklist(
+                    repo=repo,
+                    force=True,
+                    base_branch=base_branch,
+                    review_template=review_template,
+                ),
             ),
             ("[claude] settings", lambda: generate_settings(repo=repo, force=force)),
             ("[claude] hooks", lambda: scaffold_hooks(repo=repo, force=force)),

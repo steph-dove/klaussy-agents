@@ -1,0 +1,19 @@
+# Lens: Scope & Conventions
+
+## Look for: Scope, Project Conventions
+
+### Scope
+- Identify the primary intent of the PR from the branch name, commit messages, and the bulk of the changes.
+- Flag any changes that do not appear related to that primary intent (e.g. drive-by refactors, unrelated formatting, feature creep).
+- Use **Warn** severity for unrelated changes — they may be intentional, but should be called out for the author to confirm.
+- Check that the PR does one thing well rather than bundling unrelated work.
+
+### Project Conventions
+{{REPO_SPECIFIC_CHECKS}}
+
+If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
+
+## Additional rules
+
+- Be precise about what is out of scope vs. in scope.
+- For convention violations, reference the specific convention (file path or section in CLAUDE.md / `.claude/rules/`).

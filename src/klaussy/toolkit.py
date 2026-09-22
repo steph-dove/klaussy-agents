@@ -25,6 +25,7 @@ from klaussy.claude_md import run_init
 from klaussy.gitignore import update_gitignore
 from klaussy.humanize import humanize as _humanize_text
 from klaussy.pr_template import scaffold_pr_template
+from klaussy.repo import resolve_repo
 from klaussy.session import scaffold_session
 from klaussy.skills import SKILL_NAMES
 
@@ -130,7 +131,7 @@ def init(
     conventions file, permissions, and hooks, plus the PR template and
     .gitignore entries.
     """
-    repo = Path(repo).resolve()
+    repo = resolve_repo(repo)
     selected = _resolve_agents(agents)
     branch = _base_branch(repo, base_branch)
     template = Path(review_template) if review_template else None
@@ -157,7 +158,7 @@ def skills(
     review_template: PathLike | None = None,
 ) -> ScaffoldResult:
     """Scaffold the bundled workflow skills into each selected agent's skills dir."""
-    repo = Path(repo).resolve()
+    repo = resolve_repo(repo)
     selected = _resolve_agents(agents)
     branch = _base_branch(repo, base_branch)
     template = Path(review_template) if review_template else None
@@ -175,7 +176,7 @@ def skills(
 
 def settings(repo: PathLike = ".", *, agents: Agents = None, force: bool = False) -> ScaffoldResult:
     """Generate stack-appropriate permissions for each selected agent."""
-    repo = Path(repo).resolve()
+    repo = resolve_repo(repo)
     selected = _resolve_agents(agents)
     steps: list[_Step] = [
         (f"[{key}] settings", lambda key=key: BACKENDS[key].run_settings(repo, force=force))
@@ -186,7 +187,7 @@ def settings(repo: PathLike = ".", *, agents: Agents = None, force: bool = False
 
 def hooks(repo: PathLike = ".", *, agents: Agents = None, force: bool = False) -> ScaffoldResult:
     """Scaffold hook configurations (git-commit + read-injection guards)."""
-    repo = Path(repo).resolve()
+    repo = resolve_repo(repo)
     selected = _resolve_agents(agents)
     steps: list[_Step] = [
         (f"[{key}] hooks", lambda key=key: BACKENDS[key].run_hooks(repo, force=force))
@@ -199,7 +200,7 @@ def pr_template(
     repo: PathLike = ".", *, force: bool = False, forge: str | None = None
 ) -> Path | None:
     """Write the host's request template; returns its path, or None if none was written."""
-    return scaffold_pr_template(repo=Path(repo).resolve(), force=force, forge=forge)
+    return scaffold_pr_template(repo=resolve_repo(repo), force=force, forge=forge)
 
 
 def github(repo: PathLike = ".", *, force: bool = False) -> Path | None:
@@ -212,13 +213,24 @@ def session(repo: PathLike = ".", *, force: bool = False) -> Path:
 
     Writes `.agents/session.json` (live working state, gitignored) and its
     protocol doc. Existing live state is preserved unless `force` is set."""
-    return scaffold_session(repo=Path(repo).resolve(), force=force)
+    return scaffold_session(repo=resolve_repo(repo), force=force)
 
 
-def checklist(repo: PathLike = ".", *, force: bool = False, base_branch: str | None = None) -> Path:
+def checklist(
+    repo: PathLike = ".",
+    *,
+    force: bool = False,
+    base_branch: str | None = None,
+    review_template: PathLike | None = None,
+) -> Path:
     """Regenerate the review skill from CLAUDE.md; returns the written path."""
-    repo = Path(repo).resolve()
-    return generate_checklist(repo=repo, force=force, base_branch=_base_branch(repo, base_branch))
+    repo = resolve_repo(repo)
+    return generate_checklist(
+        repo=repo,
+        force=force,
+        base_branch=_base_branch(repo, base_branch),
+        review_template=Path(review_template) if review_template else None,
+    )
 
 
 def humanize(text: str) -> str:
@@ -258,13 +270,13 @@ def uninstall(
     from klaussy.uninstall import apply as _apply
     from klaussy.uninstall import plan as _plan
 
-    computed = _plan(Path(repo), include_conventions=include_conventions)
+    computed = _plan(resolve_repo(repo), include_conventions=include_conventions)
     return computed if dry_run else _apply(computed)
 
 
 def status(repo: PathLike = ".") -> dict[str, str]:
     """Map each expected klaussy file to "exists" or "missing" for a repo."""
-    repo_path = Path(repo).resolve()
+    repo_path = resolve_repo(repo)
     # CLAUDE.md is canonically at the repo root; fall back to the legacy
     # .claude/CLAUDE.md layout from older klaussy versions.
     claude_md_root = repo_path / "CLAUDE.md"

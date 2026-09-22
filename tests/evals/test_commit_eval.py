@@ -30,10 +30,13 @@ diff --git a/src/api/client.py b/src/api/client.py
 
 @harness.requires_eval_env
 def test_commit_message_is_conventional_and_clean():
+    # A commit message is prose that ships, so the skill sends it through the
+    # humanize skill rather than carrying its rules; the eval composes the two.
     out = harness.run_skill(
         "commit",
         DIFF,
         instruction="Write the commit message for the staged diff below.",
+        with_skills=["humanize"],
     )
     subject = harness.first_nonempty_line(out)
 

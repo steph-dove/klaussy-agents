@@ -1,3 +1,4 @@
+<!-- forge:core -->
 ### Forge commands (provider not detected)
 
 No hosting provider could be identified from `origin`. It may be a self-hosted install on a neutral hostname, a bare path, or the repo may have no remote at all.

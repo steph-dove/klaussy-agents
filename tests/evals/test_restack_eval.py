@@ -8,6 +8,9 @@ order, a leased force-push, and never touching the base branch.
 The fixtures are the real shape this repo's own stack had — five dependent
 branches plus a second root — rather than an invented two-branch toy.
 
+These pin the by-hand procedure in `manual.md`, the path an agent takes when
+`klaussy restack` isn't installed; the CLI itself is tested in test_restack.py.
+
 See `harness.py` for what a prompt eval does and doesn't cover.
 """
 
@@ -61,6 +64,8 @@ SINGLE_BRANCH_CONTEXT = """\
 There are no other branches. The user says their PR is out of date.
 """
 
+NO_CLI = "`klaussy` is not on PATH on this machine (command not found).\n\n"
+
 PLAN_INSTRUCTION = (
     "Produce the exact git commands you would run, in order, with a one-line "
     "reason for each. Do not run anything."
@@ -76,7 +81,9 @@ def _commands(text: str) -> list[str]:
 class TestStackRebasePlan:
     @pytest.fixture(scope="class")
     def plan(self) -> str:
-        return run_skill("restack", STACK_CONTEXT, instruction=PLAN_INSTRUCTION)
+        return run_skill(
+            "restack", NO_CLI + STACK_CONTEXT, instruction=PLAN_INSTRUCTION, aux=["manual.md"]
+        )
 
     def test_rebases_onto_the_recorded_parent_tip(self, plan: str):
         # The whole correctness of a restack: --onto <new-parent> <old-parent-tip>.
@@ -113,7 +120,12 @@ class TestStackRebasePlan:
 class TestMergedBottom:
     @pytest.fixture(scope="class")
     def plan(self) -> str:
-        return run_skill("restack", MERGED_BOTTOM_CONTEXT, instruction=PLAN_INSTRUCTION)
+        return run_skill(
+            "restack",
+            NO_CLI + MERGED_BOTTOM_CONTEXT,
+            instruction=PLAN_INSTRUCTION,
+            aux=["manual.md"],
+        )
 
     def test_drops_the_merged_commits_instead_of_replaying_them(self, plan: str):
         # --onto origin/main <merged-branch-old-tip> drops what already landed;
@@ -124,8 +136,10 @@ class TestMergedBottom:
     def test_does_not_rebase_onto_the_merged_branch(self, plan: str):
         for cmd in _commands(plan):
             if "rebase" in cmd and "--onto" in cmd:
-                target = cmd.split("--onto", 1)[1].strip().split()[0]
-                assert target != "feat/restack-skill", f"rebased onto a merged branch: {cmd}"
+                # A prose mention (`git rebase --onto`) names no target.
+                rest = cmd.split("--onto", 1)[1].split()
+                if rest:
+                    assert rest[0] != "feat/restack-skill", f"rebased onto a merged branch: {cmd}"
 
 
 @requires_eval_env

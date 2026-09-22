@@ -74,7 +74,11 @@ FIXTURES = [
 )
 def test_reply_is_short_civil_and_specific(label, comment, did, forbidden, required, max_sentences):
     context = f"Review comment:\n{comment}\n\nWhat you did:\n{did}"
-    out = harness.run_skill("address-review", context, instruction=REPLY_INSTRUCTION)
+    # The reply rules live in the humanize skill now, and Phase 4 runs it before
+    # anything posts, so the eval composes the two the way a real run does.
+    out = harness.run_skill(
+        "address-review", context, instruction=REPLY_INSTRUCTION, with_skills=["humanize"]
+    )
     low = out.lower()
 
     for bad in forbidden:

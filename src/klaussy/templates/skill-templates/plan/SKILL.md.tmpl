@@ -1,16 +1,18 @@
 ---
 name: {{REPO}}-plan
-description: Use when the user wants to plan and implement a non-trivial task in this repo. Runs a multi-phase flow — discovery, parallel exploration, clarifying questions, parallel architectures, approval gate, implementation, parallel review, summary.
+description: Use when the user wants a plan for a non-trivial task in this repo. Runs discovery, parallel exploration of the codebase, clarifying questions and parallel architectures, then checks the plan against the requirements and against the repo itself (an adversarial sub-agent) before writing an approved plan.md. Planning only: it stops at the approval gate and hands implementation to the implement skill.
 allowed-tools: Read Grep Glob Bash Write Edit TodoWrite Agent
 ---
 
-You are helping plan and implement a task in this repo. Follow these phases in order — do NOT skip Phase 3 (clarifying questions).
+You are planning a task in this repo. Follow these phases in order — do NOT skip Phase 3 (clarifying questions).
 
-**Output file:** the approved plan is written to `plan.md` at the repo root. Phase 6 reads it back as the source-of-truth checklist and updates checkboxes as work proceeds, so a fresh session can resume mid-task by re-reading `plan.md`. The file is gitignored.
+**This skill plans. It does not build.** It ends at the approved `plan.md`; the work itself belongs to **`{{REPO}}-implement`**, and the whole plan-to-PR loop to **`{{REPO}}-rest-of-the-owl`**. Do not start editing code here, however obvious the first step looks.
+
+**Output file:** the approved plan is written to `plan.md` at the repo root. The implement skill reads it back as the source-of-truth checklist and ticks its boxes as work proceeds, so a fresh session can resume mid-task by re-reading it. The file is gitignored.
 
 Use TodoWrite throughout: create one task per phase up front, mark each in_progress when starting and completed when done. The flow is long-running, and the todo list keeps the user oriented.
 
-**Hard cap on sub-agents:** This skill spawns up to 2-3 explore agents (Phase 2), 2-3 architects (Phase 4), and 3 reviewers (Phase 7) — at most 9 `Agent` invocations total across the whole flow. Do NOT exceed that cap. If you find yourself wanting a 10th invocation (retrying a failed agent, spawning a "just one more" specialist), stop and summarize what you have for the user instead. Retries hide failures; extra specialists are scope creep.
+**Hard cap on sub-agents:** This skill spawns up to 2-3 explore agents (Phase 2), 2-3 architects (Phase 4) and 1 adversarial plan reviewer (Phase 6) — at most 7 `Agent` invocations total across the whole flow. Do NOT exceed that cap. If you find yourself wanting an 8th invocation (retrying a failed agent, spawning a "just one more" specialist), stop and summarize what you have for the user instead. Retries hide failures; extra specialists are scope creep.
 
 ## Phase 1 — Discovery
 
@@ -63,7 +65,7 @@ If the user replies "your call" or "no preference," commit to a recommendation a
 
 **Enter plan mode now** — design and approval must happen before any edits. Stay in plan mode through Phase 5.
 
-Launch 2–3 architect subagents IN PARALLEL via the Agent tool with `subagent_type: general-purpose`. Pass each agent the architect process below + their priority + the user's task + the answers from Phase 3 + the file list and findings from Phase 2 — they need all of that inline.
+Launch 2–3 architect subagents IN PARALLEL via the Agent tool with `subagent_type: general-purpose`. Pass each agent the architect process below + their priority + the user's task + the answers from Phase 3 + the key file paths from Phase 2 with one line of findings each. Don't paste the explore agents' full reports; architects read the files they need themselves, and every pasted report is paid for once per architect.
 
 ### Architect process (every architect uses this)
 
@@ -84,9 +86,9 @@ Launch 2–3 architect subagents IN PARALLEL via the Agent tool with `subagent_t
 
 After agents return, present the user a brief summary of each blueprint, the trade-offs, and your recommendation with reasoning. Ask which they want.
 
-## Phase 5 — Approval gate
+## Phase 5 — Write the plan
 
-Still in plan mode. Write the chosen plan to `plan.md` at the repo root (and/or save it as an uncommitted OKF session note in `$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-plan.md` with frontmatter `type: session-note` and `tags: [plan, design]`) using the structure below, and output the complete plan in your chat response so the user can see it immediately. To prevent blocking or proceeding without review, you MUST end your turn here by calling no other tools (do NOT run the terminal command `ExitPlanMode` or make any edits yet). Ask the user to confirm the plan in the chat. Once the user replies to approve, run the terminal command `ExitPlanMode` in your next turn to register the plan with the desktop app, and then proceed to Phase 6.
+Still in plan mode. Write the chosen plan to `plan.md` at the repo root (and/or save it as an uncommitted OKF session note in `$KLAUSSY_SESSION_NOTES_DIR/<agent-name>-plan.md` with frontmatter `type: session-note` and `tags: [plan, design]`) using the structure below.
 
 `plan.md` structure:
 
@@ -107,50 +109,49 @@ Still in plan mode. Write the chosen plan to `plan.md` at the repo root (and/or 
 
 ## Verification
 - <how we'll know it works — tests, manual checks>
+
+## Plan review
+- <finding or uncovered requirement>: <what changed in the plan, or why not>
 ```
 
 Resume rule: if `plan.md` already exists when this skill starts, ask the user whether to resume from it (pick up at the first unchecked box) or discard and start a new plan. Do not silently overwrite an in-progress plan.
 
-## Phase 6 — Implementation
+## Phase 6 — Check the plan
 
-`plan.md` is the source-of-truth checklist. Work the unchecked boxes top-to-bottom in small, independently-shippable batches. After each batch:
-- Update the checkbox in `plan.md` (`- [ ]` → `- [x]`) so a fresh session can resume.
-- Update TodoWrite to mirror plan progress.
-- Verify the code parses / compiles / lints (`node -c`, `tsc --noEmit`, `cargo check`, etc., as the language requires).
-- Briefly state what changed (1–2 sentences).
-- Pause if the next batch touches a different surface area or needs a separate user decision.
+Two checks, both before the user sees it. Neither is optional: a plan that reads well and doesn't survive contact with the repo is the expensive failure this skill exists to prevent.
 
-For UI work, do not report a feature as complete without manually exercising it — or, if you cannot (no fixture data, no running services, etc.), flag the verification gap explicitly.
+**1. Against the requirements (you do this).** Go line by line:
 
-## Phase 7 — Quality review (parallel)
+- Every requirement in the task definition maps to at least one build step.
+- Every Phase 3 decision shows up in the plan, or in Out of scope with a reason.
+- Every build step traces back to a requirement — anything that doesn't is scope you invented; cut it.
+- Verification covers each requirement. A requirement nobody can check isn't planned, it's hoped for.
 
-After implementation, launch 3 reviewer subagents IN PARALLEL via the Agent tool with `subagent_type: general-purpose`. Pass each agent the reviewer process below + their focus + the diff (`git diff {{BASE_BRANCH}}...HEAD` or equivalent) + any context files they'll need.
+**2. Against the repo (a sub-agent does this).** Launch ONE sub-agent via the Agent tool (`subagent_type: general-purpose`) to attack it. Pass it the path to `plan.md` and the list of key files from Phase 2, not their contents; it reads only what it needs to check a claim. Its prompt:
 
-### Reviewer process (every reviewer uses this)
+```
+You are trying to break this implementation plan before anyone builds it. Read plan.md at <path>. Key files: <paths>.
+Check each claim the plan makes about the code against the code itself. Look for: callers or
+call sites the build sequence misses; a step that depends on something only a later step creates;
+assumptions about behavior the code contradicts; an edge case or error path no step handles;
+verification that wouldn't actually catch a regression; scope beyond the Phase 3 decisions.
+Report at most 6 findings, worst first. Each finding: the plan step it breaks, file:line evidence,
+and what the plan should say instead. A finding without code evidence is a guess, so drop it.
+If the plan holds up, say so in one line. Do not write any files.
+```
 
-- Read the diff AND the surrounding context (full file, callers, callees) — issues hide in the parts the diff does not show.
-- Validate every finding by tracing the code path. Drop findings that are wrong because (a) the issue is already handled elsewhere, (b) the path is unreachable, (c) a framework guarantees the behavior, or (d) the concern is about unchanged code.
-- For each surviving finding: severity (Blocker / High / Medium / Low / Nit), file:line + code snippet, what is wrong + why, what to do.
-- Prefer a short accurate review over a long one with false positives.
-- Flag only gaps that affect correctness or the stated requirements. Do NOT chase every possible improvement — a reviewer told to find gaps will always find some, and acting on them adds speculative abstractions, defensive code, and tests for cases that can't happen. That is over-engineering, not quality.
+Weigh each finding on its evidence. Fix `plan.md` for the ones that hold, and record both checks in its `## Plan review` section: one line per finding with what changed, or why you didn't act on it, plus any requirement the first check found uncovered. Don't run a second round; this is one pass.
 
-### Per-reviewer focuses
+## Phase 7 — Approval gate
 
-- Reviewer A — *Simplicity / DRY / readability*: Is the code as simple as it can be? Are there abstractions that should be inlined or duplications that should be extracted? Is naming clear? Are comments explaining "why" not "what"? Flag dead code and unreachable branches.
-- Reviewer B — *Bugs, silent failures, inadequate error handling*. Apply these rules:
-    - Empty `catch` blocks (e.g. `catch (_) {}`) are forbidden on user-initiated actions — the user clicked a button, they need feedback if it failed. They are also suspect on background work; even a 30s background poll should at least `console.error` the first failure of each tick.
-    - Broad catches (`catch (Exception)`, `catch (e: any)`) hide unrelated errors. List every error type that could be silently swallowed.
-    - Fallbacks must be explicit and justified. A fallback that returns `[]`, `null`, or "no data" on a parse error is indistinguishable from "no data was there" — surface a real error instead.
-    - Error messages must be actionable. Generic strings ("Something went wrong") are defects.
-    - Optional chaining (`?.`) and null coalescing (`??`) on critical operations can mask failures the same way an empty catch can — flag where they hide errors.
-    - For each finding give: file:line, severity (CRITICAL silent failure / HIGH poor error message / MEDIUM could be more specific), what could be hidden, user impact, and a concrete fix.
-- Reviewer C — *Project conventions and the anti-patterns below*: Did we hit any of the universal anti-patterns? Did we follow this project's docs (CLAUDE.md / README / CONTRIBUTING / equivalent)? Are public API shapes consistent? Are the project-specific invariants this codebase relies on still intact?
+Output the complete plan in your chat response so the user can see it immediately. To prevent blocking or proceeding without review, you MUST end your turn here by calling no other tools (do NOT run the terminal command `ExitPlanMode` or make any edits yet). Ask the user to confirm the plan in the chat. Once the user replies to approve, run the terminal command `ExitPlanMode` in your next turn to register the plan with the desktop app, and then hand off.
 
-Consolidate findings, present high-severity issues to the user, and ask whether to fix now, defer to a follow-up, or proceed as-is.
+## Hand off
 
-## Phase 8 — Summary
+Stop here. Say what the next step is and let the user take it:
 
-Write a 3–5 line summary: what was built, key decisions, files modified, suggested next steps. Mark all TodoWrite tasks complete.
+- **Build it:** **`{{REPO}}-implement`** works `plan.md` top-to-bottom, ticking each box as it lands.
+- **Build, review, QA and open the PR:** **`{{REPO}}-rest-of-the-owl`** runs the whole loop unattended.
 
 ## Anti-patterns to avoid (universal craft rules)
 
@@ -163,12 +164,11 @@ These apply regardless of the project. ALSO read this codebase's CLAUDE.md / `.c
 - Backwards-compatibility shims for code that has no other callers.
 - Comments that explain "what" the code does. Only "why," and only when it is non-obvious.
 - Changing a public function, API, or return-shape without grepping all callers first.
-- Silent error swallowing in catch blocks that masks real failures from the user.
-- Reporting UI work as complete without manually testing it (or explicitly flagging that you could not).
 
 ## When NOT to use
 
 - The task is a single-file, single-function bug fix — use debug or implement; the parallel-architect machinery here is overkill.
-- The user has already produced a plan and just wants execution — use implement and skip Phases 1–5.
+- The user has already produced a plan and just wants execution — use implement.
+- The user wants the whole loop from task to open PR — use rest-of-the-owl, which calls this skill for its planning phase.
 - The work is purely a refactor with no behavior change — use refactor, which establishes a test baseline first.
 
