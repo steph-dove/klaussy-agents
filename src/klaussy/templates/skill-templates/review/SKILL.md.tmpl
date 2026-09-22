@@ -10,7 +10,7 @@ You are conducting a thorough PR review. Follow these phases in order.
 
 ## Phase 1: Context Gathering
 
-If `{{BASE_BRANCH}}` is missing or unset, default to `dev` if it exists, otherwise `main`.
+The ranges below are against `{{BASE_BRANCH}}`, which was chosen when this skill was scaffolded. Before trusting the diff, check it's the right base: if that branch doesn't exist here, or `HEAD` was cut from somewhere else (a stacked branch on top of another feature branch), the range covers work this PR didn't add. Say which base you're reviewing against, and when it doesn't look right, ask rather than reviewing the wrong range.
 
 The diff stat, full diff, commit log, and branch name below are pre-rendered as dynamic context — you do not need to fetch them yourself.
 
