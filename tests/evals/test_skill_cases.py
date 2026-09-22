@@ -78,6 +78,37 @@ def test_parser_rejects_malformed_cases(bad):
         skill_cases.parse("demo", bad)
 
 
+def _one_case(expect: str) -> skill_cases.Case:
+    [case] = skill_cases.parse("demo", f"## case: a\n### context\nx\n### expect\n{expect}\n")
+    return case
+
+
+def test_not_commands_ignores_a_command_named_in_prose():
+    case = _one_case("- not commands: git rebase --onto")
+    rejected = "```\ngt stack restack\n```\n\nRaw `git rebase --onto` would desync Graphite."
+    assert skill_cases.check(case, rejected) == []
+    assert skill_cases.check(case, "```sh\ngit rebase --onto main\n```") != []
+
+
+def test_not_commands_reads_prompt_and_standalone_code_lines():
+    case = _one_case("- not commands: git push")
+    assert skill_cases.check(case, "$ git push --force") != []
+    assert skill_cases.check(case, "- `git push`") != []
+    assert skill_cases.check(case, "Don't run git push until CI is green.") == []
+
+
+def test_not_commands_ignores_a_comment_line_inside_a_block():
+    case = _one_case("- not commands: --theirs")
+    resolved_by_hand = "```\n# resolve by hand, not --theirs\ngit add src/config.py\n```"
+    assert skill_cases.check(case, resolved_by_hand) == []
+    assert skill_cases.check(case, "```\ngit checkout --theirs src/config.py\n```") != []
+
+
+def test_not_commands_sees_an_unterminated_fence():
+    case = _one_case("- not commands: git push")
+    assert skill_cases.check(case, "```\ngit push --force") != []
+
+
 def test_check_reports_each_failed_expectation():
     [case] = skill_cases.parse(
         "demo",

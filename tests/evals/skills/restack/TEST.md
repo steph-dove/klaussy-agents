@@ -36,7 +36,7 @@ A conflict came up mid-rebase in `src/config.py`. Output only the git commands y
 Rebasing `feat/ui` onto its new parent `feat/api` hit a conflict in `src/config.py`. Both sides changed the same `DEFAULT_TIMEOUT` constant: the parent's branch raised it to 30, this branch raised it to 45 for an unrelated reason.
 
 ### expect
-- not contains: --ours | --theirs
+- not commands: --ours | --theirs | -X ours | -X theirs
 - contains: git add | rebase --continue
 
 ## case: defers-to-an-existing-stack-tool
@@ -51,7 +51,8 @@ State the one command you'd run to restack, and why, in one or two sentences.
 
 ### expect
 - contains: graphite
-- not contains: git rebase --onto
+- matches: (?s)```[a-z]*\n\s*gt\s+\S
+- not commands: git rebase --onto | klaussy restack
 
 ## case: drives-the-cli-in-order
 
@@ -75,4 +76,4 @@ After the user confirms: klaussy restack run --chain feat/api,feat/ui
 
 ### expect
 - contains all: klaussy restack run --chain feat/api,feat/ui | klaussy restack verify | klaussy restack push
-- not contains: rebase --onto
+- not commands: rebase --onto

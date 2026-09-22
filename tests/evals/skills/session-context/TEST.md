@@ -14,7 +14,8 @@ You just discovered the API's local port moved from 8000 to 8010, which another 
 
 ### expect
 - contains: /private/tmp/klaussy-session-7f3a
-- not contains: .claude/ | git add | committed
+- not contains: .claude/ | committed
+- not commands: git add
 
 ## case: skips-entirely-when-unset
 
