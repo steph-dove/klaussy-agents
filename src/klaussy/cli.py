@@ -79,10 +79,30 @@ def version_callback(value: bool) -> None:
 
 
 def _detect_base_branch(repo: Path) -> str | None:
-    """Try to detect the base branch from git."""
-    for branch in ["dev", "develop", "main", "master"]:
+    """Detect the base branch, asking git what the default is before guessing.
+
+    `origin/HEAD` is the only source here that reflects what the repo's default
+    branch actually is. Name-guessing alone was wrong in a way that stuck: the
+    old order tried `dev` and `develop` first, so a repo whose default is `main`
+    but which still carries a stale `develop` got `develop` baked into the diff
+    range of all twelve skills that substitute the base, and nothing surfaced it
+    afterwards.
+
+    The name list survives as a fallback for a repo with no remote, in the order
+    a default branch is actually likely to be named.
+    """
+    head = subprocess.run(
+        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+    )
+    if head.returncode == 0 and (name := head.stdout.strip()):
+        return name.removeprefix("origin/")
+
+    for branch in ["main", "master", "develop", "dev"]:
         result = subprocess.run(
-            ["git", "rev-parse", "--verify", branch],
+            ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
             capture_output=True,
             cwd=str(repo),
         )

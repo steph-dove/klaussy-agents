@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-pr
-description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, then writes a Summary / Changes / Test Plan / Notes block to pr-description.md.
+description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, fills the repo's own pull/merge request template when it has one, and writes the result to pr-description.md.
 allowed-tools: Read Grep Glob Bash(git *) Write
 ---
 
@@ -26,7 +26,15 @@ git diff {{BASE_BRANCH}}...HEAD --stat
 
 Generate a PR description for the changes summarized above. Extract any ticket reference (e.g. FEAT-1234) from the branch name. Read CLAUDE.md for project conventions and any PR template rules. For key changed files, read them to understand the full context — do not paraphrase from the diff alone.
 
-Output format:
+**Check the base first.** The ranges above are against `{{BASE_BRANCH}}`, fixed when this skill was scaffolded. If that branch doesn't exist here, or this branch was cut from another feature branch rather than from it, the log and stat cover commits this PR didn't add. Say so and ask which base to describe against, rather than writing up someone else's work as yours.
+
+### Use the repo's own template if it has one
+
+Look for one before writing anything: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE/` (a directory of them), the same three names at the repo root or under `docs/`, and for GitLab `.gitlab/merge_request_templates/*.md`.
+
+When one exists it wins outright. Keep its headings, their order, and their exact wording, fill each section with real content, and leave its checklists and HTML comments in place, ticking only what you've actually confirmed. A template is the reviewers' agreement about what a PR says; replacing it with the house format below throws that away and reads as though you didn't look. If the directory form holds several, pick the one whose name matches the change and say which you used.
+
+Only when there is no template, use this format:
 
 ```markdown
 ## Summary
@@ -65,7 +73,7 @@ Rules:
 - Focus on the "why" not just the "what".
 - If the branch name has a ticket reference, include it in the summary.
 - Keep it concise. No filler.
-- **A short PR gets a short description.** One bullet under Changes is a fine answer for a one-file fix; padding it out to fill the template wastes the reviewer's time. Drop the Notes section entirely when there's nothing a reviewer needs flagged, rather than writing "N/A" or inventing something.
+- **A short PR gets a short description.** One bullet under Changes is a fine answer for a one-file fix; padding it out to fill the template wastes the reviewer's time. Drop the Notes section entirely when there's nothing a reviewer needs flagged, rather than writing "N/A" or inventing something. Section names the repo's own template asks for are the exception: leave those in place and say briefly why one is empty, since a reviewer scanning for a heading they expect will notice it missing.
 - If there are database changes, call them out explicitly.
 - If there are new dependencies, mention them.
 

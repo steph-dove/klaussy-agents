@@ -6,7 +6,7 @@ allowed-tools: Read Grep Glob Bash(git diff *) Bash(git log *)
 
 You are running a security audit of the current change. Scope is the diff against the base branch and the immediate context of what it touches — not the whole tree, and not style or architecture. Report findings only; do not edit code.
 
-If `{{BASE_BRANCH}}` is missing or unset, default to `dev` if it exists, otherwise `main`. Read the change with `git diff {{BASE_BRANCH}}...HEAD` first.
+Read the change with `git diff {{BASE_BRANCH}}...HEAD` first. That base was fixed when this skill was scaffolded, so check it's the right one: if the branch doesn't exist here, or `HEAD` was cut from another topic branch rather than from it, the range covers code this change never touched and you'll audit someone else's commits as if they were yours. Say which base you audited against, and ask rather than guess when it doesn't look right.
 
 ## Lenses
 
