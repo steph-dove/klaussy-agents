@@ -102,14 +102,17 @@ VERSION_FILE = ".klaussy-version"
 # true the moment a branch is cut from another topic branch, so the skills work
 # it out against the repo instead and carry the answer as `<base>`.
 BASE_RESOLUTION_BLOCK = (
-    "**Resolve the base first.** Every range below is against `<base>`. Work it"
-    " out once with `klaussy base --explain` and reuse that one value; if the"
-    " `klaussy` CLI isn't on PATH, take `git symbolic-ref --short"
-    " refs/remotes/origin/HEAD` without its `origin/` prefix, and `{{BASE_BRANCH}}`"
-    " if that's empty too. If it names branches `HEAD` may have been cut from"
-    " instead, this branch is probably stacked on one of them and the range would"
-    " cover commits your change never added: ask which base to use, don't pick."
-    " Say which base you used."
+    "**Resolve the base first, by running the command.** Every range below is"
+    " against `<base>`. Run `klaussy base --explain` before any range and reuse"
+    " its answer; if the `klaussy` CLI isn't on PATH, take `git symbolic-ref"
+    " --short refs/remotes/origin/HEAD` without its `origin/` prefix, and"
+    " `{{BASE_BRANCH}}` if that's empty too. **Don't work the base out by eye.**"
+    " Picking the obvious branch gets the same answer most of the time and misses"
+    " the case that matters: the command also reports branches `HEAD` may have"
+    " been cut from, and a branch stacked on another one gets a range covering"
+    " commits your change never added. If it names any, say so and ask which base"
+    " to use rather than picking. Either way, state the base you used, and that"
+    " you checked."
 )
 
 # Shared "write like a human" block, substituted into prose-output skills via
