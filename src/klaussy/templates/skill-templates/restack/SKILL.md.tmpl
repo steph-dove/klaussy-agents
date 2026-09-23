@@ -12,7 +12,7 @@ If `klaussy` isn't on PATH (the command isn't found), follow `.claude/skills/{{R
 
 ## 1. Map and confirm
 
-Run `klaussy restack plan --base {{BASE_BRANCH}}`. It fetches, then prints the chain bottom-up, which branches already landed in the base, who authored the commits, and any line that needs you:
+Run `klaussy restack plan`, which resolves the base itself (pass `--base` to override). It fetches, then prints the chain bottom-up, which branches already landed in the base, who authored the commits, and any line that needs you:
 
 - **BLOCKED** (dirty tree): let the user commit or stash. Never restack over uncommitted work.
 - **ASK** (two branches on one commit): ask which is the parent.

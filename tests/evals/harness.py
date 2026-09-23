@@ -38,6 +38,7 @@ from klaussy.forge import FORGE_GITHUB, forge_tokens
 from klaussy.skills import (  # noqa: F401 (HUMANIZE_BLOCK re-exported)
     _CLAUDE_PERMISSION_SYNTAX,
     _CLAUDE_PERMISSIONS_FILE,
+    BASE_RESOLUTION_BLOCK,
     HUMANIZE_BLOCK,
     SKILL_TEMPLATE_ROOT,
     humanize_pointer,
@@ -86,6 +87,7 @@ def load_skill_body(
             "BASE_BRANCH": base_branch,
             "HUMANIZE": humanize_pointer(repo),
             "HUMANIZE_RULES": HUMANIZE_BLOCK,
+            "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
             "REPO_SPECIFIC_CHECKS": "",
             **forge_tokens(forge),
             "PERMISSIONS_TARGET": permission_target_markdown(

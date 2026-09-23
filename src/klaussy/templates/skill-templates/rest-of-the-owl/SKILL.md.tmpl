@@ -29,7 +29,7 @@ Track the run with TodoWrite: one todo per phase, `in_progress` when you start i
 ## Pre-flight
 
 1. **Permissions.** If routine dev permissions aren't configured for this worktree yet, run **`{{REPO}}-grant-permissions`** so editing, tests, git and the forge CLI don't prompt all run.
-2. **Base branch.** Decide once which branch this targets and use it as `<base>` everywhere. First that applies: one the task or user names; the target of an existing request for this branch; the remote default (`git symbolic-ref --short refs/remotes/origin/HEAD` minus `origin/`); `{{BASE_BRANCH}}`. If the branch was cut from another topic branch instead, ask rather than guess — a wrong base puts someone else's commits in your diff. Say which you picked in the first progress update.
+2. **Base branch.** Decide once which branch this targets and use it as `<base>` everywhere. First that applies: one the task or user names; the target of an existing request for this branch; whatever `klaussy base --explain` resolves, falling back to `{{BASE_BRANCH}}` if the CLI isn't there (it also names any branch `HEAD` may have been cut from instead, and those are a question for the user, not a guess). Say which you picked in the first progress update.
 
 ## Phases
 

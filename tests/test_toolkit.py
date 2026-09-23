@@ -125,9 +125,12 @@ def test_fix_and_test_skills_scope_to_base_branch(repo: Path):
     skills_dir = repo / ".claude" / "skills"
     fix = next(skills_dir.glob("*-fix")) / "SKILL.md"
     test = next(skills_dir.glob("*-test")) / "SKILL.md"
-    # fix/test scope to the branch diff, not the whole repo (substitution applied).
-    assert "develop...HEAD" in fix.read_text()
-    assert "develop...HEAD" in test.read_text()
+    # fix/test scope to the branch diff, not the whole repo. The range is
+    # resolved at run time now, with the scaffolded base as the last fallback.
+    for text in (fix.read_text(), test.read_text()):
+        assert "<base>...HEAD" in text
+        assert "`develop`" in text
+        assert "{{BASE_BRANCH}}" not in text
 
 
 def test_hooks_removes_a_stale_comment_guard_copy(repo: Path):
