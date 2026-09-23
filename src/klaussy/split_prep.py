@@ -18,7 +18,7 @@ import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from klaussy.comment_lint import comment_records
+from klaussy.comment_lint import comment_records, docstring_lines
 from klaussy.review_prep import _detect_base, _run_git, classify, split_file_diffs
 
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -174,33 +174,6 @@ def _added_line_numbers(body: str) -> set[int]:
     return out
 
 
-def _docstring_lines(source: str) -> set[int]:
-    """Every line a module/class/function docstring occupies.
-
-    `comment_lint` reads `#` comments via tokenize and deliberately exempts
-    docstrings, since a docstring isn't the narration it hunts. For sizing a diff
-    they count: five lines of docstring inflate a PR exactly as much as five
-    lines of comment, and the cleanup pass trims them under the same rule.
-    """
-    try:
-        tree = ast.parse(source)
-    except (SyntaxError, ValueError):
-        return set()
-    out: set[int] = set()
-    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-    for node in ast.walk(tree):
-        if not isinstance(node, holders) or not node.body:
-            continue
-        first = node.body[0]
-        if (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
-            out.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
-    return out
-
-
 def _comment_lines_at(repo: Path, ref: str, path: str) -> set[int]:
     """Line numbers that are comment (or docstring) in `path` as of `ref`."""
     source = _file_at(repo, ref, path)
@@ -208,7 +181,7 @@ def _comment_lines_at(repo: Path, ref: str, path: str) -> set[int]:
         return set()
     lines = {row for row, full, _ in comment_records(path, source) if full}
     if path.endswith(".py"):
-        lines |= _docstring_lines(source)
+        lines |= docstring_lines(source)
     return lines
 
 

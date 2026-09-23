@@ -17,6 +17,7 @@ inline `//` to dodge the `http://` trap.
 
 from __future__ import annotations
 
+import ast
 import io
 import re
 import subprocess
@@ -32,6 +33,14 @@ COMMENT_WORD_MAX = 30
 # for the claim-plus-why shape a real comment needs; a third usually restates
 # the code.
 COMMENT_SENTENCE_MAX = 2
+# Share of a change that may be comment and docstring before it reads as
+# narration. Calibrated against this codebase: median 23%, and at 35% the only
+# standing file it flags is one that earns it. A well-documented module sits
+# comfortably under.
+COMMENT_DENSITY_MAX = 0.35
+# Below this many lines a ratio is noise: three docstring lines in a six-line
+# file is 50% and perfectly fine.
+DENSITY_MIN_LINES = 60
 
 # Extensions whose line comments start with `#`. Python is read via tokenize;
 # the rest fall back to the line scanner (full-line comments only).
@@ -94,12 +103,14 @@ class Finding:
     start: int  # 1-based first line
     end: int  # 1-based last line (== start for a single-line finding)
     detail: str  # human reason, e.g. "6 lines" or "38 words"
+    label: str = "verbose comment"
+    advice: str = "strip to the bare minimum and re-commit"
 
     def render(self) -> str:
         loc = f"{self.path}:{self.start}"
         if self.end != self.start:
             loc += f"-{self.end}"
-        return f"{loc}: verbose comment ({self.detail}) — strip to the bare minimum and re-commit"
+        return f"{loc}: {self.label} ({self.detail}) — {self.advice}"
 
 
 def _word_count(text: str) -> int:
@@ -316,6 +327,9 @@ def _overlaps(finding: Finding, scope: set[int]) -> bool:
     return any(ln in scope for ln in range(finding.start, finding.end + 1))
 
 
+_SUPPORTED_EXT = _PY_EXT | _HASH_EXT | _SLASH_EXT
+
+
 def comment_records(path: str, text: str) -> list[_Record]:
     """Comment records for one file, picked by extension. Empty when unsupported."""
     ext = Path(path).suffix.lower()
@@ -329,6 +343,63 @@ def comment_records(path: str, text: str) -> list[_Record]:
     return []
 
 
+def docstring_lines(source: str) -> set[int]:
+    """Every line a module/class/function docstring occupies.
+
+    The verbose-comment checks above exempt docstrings on purpose, since a
+    docstring isn't the narration they hunt. Density counts them: five lines of
+    docstring read as heavily as five lines of comment.
+    """
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[int] = set()
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            out.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+    return out
+
+
+def _density_finding(path: str, text: str, scope: set[int] | None) -> Finding | None:
+    """Flag a change that is mostly prose, which the per-comment checks miss.
+
+    Those judge one comment at a time and skip docstrings, so a file of short,
+    individually reasonable docstrings passes while being half narration.
+    Scoped to the diff, so touching a doc-heavy file doesn't inherit its ratio.
+    """
+    lines = text.splitlines()
+    rows = range(1, len(lines) + 1) if scope is None else sorted(scope)
+    body = [r for r in rows if r <= len(lines) and lines[r - 1].strip()]
+    if len(body) < DENSITY_MIN_LINES:
+        return None
+
+    prose = {row for row, full, _ in comment_records(path, text) if full}
+    if Path(path).suffix.lower() in _PY_EXT:
+        prose |= docstring_lines(text)
+    hits = [r for r in body if r in prose]
+
+    share = len(hits) / len(body)
+    if share <= COMMENT_DENSITY_MAX:
+        return None
+    return Finding(
+        path=path,
+        start=min(hits),
+        end=max(hits),
+        detail=f"{round(share * 100)}% of {len(body)} lines is comment or docstring",
+        label="mostly prose",
+        advice="cut the rationale a reader can get from the code or the commit message",
+    )
+
+
 def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding]:
     """Return verbose-comment findings for one file's text. Empty when clean.
 
@@ -337,10 +408,14 @@ def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding
     pre-existing comments elsewhere in the file don't block a commit. `None`
     (the default) reports across the whole file.
     """
-    records = comment_records(path, text)
-    if not records:
+    if Path(path).suffix.lower() not in _SUPPORTED_EXT:
         return []
-    findings = _findings(path, text, records)
+    records = comment_records(path, text)
+    findings = _findings(path, text, records) if records else []
     if scope is not None:
         findings = [f for f in findings if _overlaps(f, scope)]
+    # Not gated on `records`: a file carrying only docstrings has none, and that
+    # is exactly the shape the per-comment checks miss.
+    if density := _density_finding(path, text, scope):
+        findings.append(density)
     return findings
