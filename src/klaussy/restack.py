@@ -46,9 +46,7 @@ def _ok(repo: Path, *args: str) -> bool:
 def resolve_base(repo: Path, base: str | None) -> str:
     """The ref to restack onto: `origin/<base>` when it exists, else `<base>`.
 
-    Branch choice comes from `klaussy.base_branch`; this only turns it into the
-    ref to rebase onto. Stacked-branch detection is off because restack is the
-    tool for a stack and already knows the chain it was handed.
+    Stacked detection is off: restack was handed its chain already.
     """
     if base is None:
         base = base_branch.resolve(repo, detect_stacked=False).branch

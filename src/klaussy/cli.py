@@ -81,9 +81,8 @@ def version_callback(value: bool) -> None:
 def _detect_base_branch(repo: Path) -> str | None:
     """The base to offer as the scaffolding default, or None if git has no view.
 
-    Only the prompt's default, so stacked-branch detection is off: scaffolding
-    picks the branch the repo compares against in general, not the one whatever
-    branch happens to be checked out right now was cut from.
+    Stacked detection is off: scaffolding wants the repo's usual base, not
+    whatever the checked-out branch happens to sit on.
     """
     resolved = base_mod.resolve(repo, detect_stacked=False)
     if resolved.source == base_mod.SOURCE_FALLBACK and not base_mod.exists(repo, resolved.branch):
@@ -546,12 +545,8 @@ def base(
 ) -> None:
     """Print the branch this repo's changes should be compared against.
 
-    Prints the branch name alone so it can be read straight into a variable.
-    `--explain` adds how it was decided, and names any branch HEAD looks more
-    likely to have been cut from, which is the case a diff range gets wrong
-    silently. It reports those rather than choosing between them: git can't tell
-    a branch this one was cut from apart from one cut off it, and picking wrong
-    puts someone else's commits in the diff.
+    The name alone, so a caller can read it into a variable. `--explain` adds
+    how it was decided and names any branch HEAD may have been cut from instead.
     """
     resolved = base_mod.resolve(_resolve_repo(repo), default=default, detect_stacked=explain)
     sys.stdout.write(resolved.branch + "\n")

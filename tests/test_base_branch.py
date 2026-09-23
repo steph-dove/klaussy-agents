@@ -1,8 +1,7 @@
-"""The single base-branch resolver, and the stacked-branch detection on top.
+"""The single base-branch resolver, and the stacked detection on top.
 
-There were three implementations of this before, two of which preferred `dev`
-over whatever the repo's default actually was. These pin the ladder so a fourth
-one doesn't grow back.
+Three implementations preceded it, two preferring `dev` over the repo's real
+default. These pin the ladder so a fourth doesn't grow back.
 """
 
 from __future__ import annotations
@@ -192,9 +191,7 @@ def test_a_base_that_exists_nowhere_has_no_ref(tmp_path):
 
 
 def test_review_prep_no_longer_prefers_dev_over_the_real_default(tmp_path):
-    """The live bug this collapse fixed: review-prep and split-prep shared a
-    detector that took the first of dev/develop/main/master that existed, so a
-    repo with a stale `dev` got every review diffed against the wrong branch."""
+    """The live bug: review-prep and split-prep shared a dev-first detector."""
     repo = _bare_repo(tmp_path, "main")
     _git(repo, "branch", "dev")
 

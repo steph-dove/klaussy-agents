@@ -202,9 +202,8 @@ def prepare_review(repo: Path | str = ".", base_branch: str | None = None) -> Re
 def _detect_base(repo: Path) -> str:
     """The branch to diff against, per `klaussy.base_branch`.
 
-    Stacked-branch detection is off here: it costs a merge base per branch, and
-    this runs on every review-prep and split-prep. The skills do that check,
-    where there's someone to ask.
+    Stacked detection is off: it costs a merge base per branch, and nothing here
+    can ask. The skills do that check.
     """
     return base_branch.resolve(Path(repo), detect_stacked=False).branch
 

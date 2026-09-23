@@ -1,18 +1,8 @@
-"""Work out which branch a change should be compared against, at run time.
+"""Which branch a change should be compared against, resolved at run time.
 
-The base is substituted into the skills at scaffold time, which stops being
-true the moment a branch is cut from another topic branch: the diff range then
-covers commits the change never added, and nothing says so. This resolves it
-against the repo in front of us instead, and reports how it decided so a caller
-can say which base it used.
-
-The ladder, first that applies: an explicit base; the remote's default branch
-(`origin/HEAD`); the scaffolded default the caller passes; `main`.
-
-One rung is deliberately missing: "the target of an existing request for this
-branch". Reading that needs the forge CLI, and putting a network round trip and
-a `gh auth` dependency underneath every diff range is a bad trade this low in
-the stack. The skills sit above the forge adapters, so they ask there and pass
+Ladder, first that applies: an explicit base; `origin/HEAD`; the scaffolded
+default; a name that exists here. The forge rung ("the target of an open
+request") is left to the skills, which sit above the forge adapters and pass
 the answer down as `explicit`.
 """
 
@@ -64,9 +54,8 @@ def remote_default(repo: Path) -> str:
 def exists(repo: Path, branch: str) -> bool:
     """True when `branch` is a branch here, locally or on origin.
 
-    Checked against `refs/heads` and `refs/remotes` rather than by bare name:
-    `rev-parse --verify main` resolves a *tag* named main just as happily, and
-    a tag can never be the thing a branch was cut from.
+    Checked by full ref, not bare name: `rev-parse --verify main` resolves a
+    tag named main too, and a tag is never a base.
     """
     return any(
         _git(repo, "rev-parse", "--verify", "--quiet", ref).returncode == 0
@@ -75,10 +64,10 @@ def exists(repo: Path, branch: str) -> bool:
 
 
 def preferred_ref(repo: Path, branch: str) -> str | None:
-    """`origin/<branch>` when the repo has it, else the local branch, else None.
+    """`origin/<branch>` if present, else the local branch, else None.
 
-    The remote copy wins: a local base that hasn't been pulled in a week gives a
-    diff range full of other people's already-merged commits.
+    The remote copy wins, or a base nobody has pulled lately fills the range
+    with already-merged commits.
     """
     for ref in (f"origin/{branch}", branch):
         if _git(repo, "rev-parse", "--verify", "--quiet", ref).returncode == 0:
@@ -89,14 +78,10 @@ def preferred_ref(repo: Path, branch: str) -> str | None:
 def fork_candidates(repo: Path, base: str) -> tuple[str, ...]:
     """Branches HEAD may have been cut from instead of `base`.
 
-    A branch qualifies when HEAD's merge base with it is strictly later than
-    HEAD's merge base with `base`: HEAD shares history with that branch which
-    the base doesn't have, which is the shape of a stack.
-
-    This does not try to pick one, and it isn't only parents. A branch cut *off*
-    this one shares exactly the same extra history, so git cannot tell a parent
-    from a child here, and a wrong pick puts someone else's commits in the diff.
-    Detecting that the question exists is the useful part; the caller asks.
+    Qualifies when HEAD's merge base with a branch is later than its merge base
+    with `base`, the shape of a stack. Never picks between them: a branch cut
+    *off* this one has identical extra history, so git can't tell a parent from
+    a child, and guessing wrong puts someone else's commits in the diff.
     """
     base_ref = preferred_ref(repo, base)
     if base_ref is None:
@@ -116,8 +101,7 @@ def fork_candidates(repo: Path, base: str) -> tuple[str, ...]:
         if not ref or ref in skip or ref.endswith("/HEAD"):
             continue
         merge_base = _out(repo, "merge-base", "HEAD", ref)
-        # Same fork point: cut from the same place, so it says nothing about HEAD.
-        # Equal to HEAD: that branch contains this one, so it's downstream, not a base.
+        # Same fork point says nothing; equal to HEAD means downstream of it.
         if not merge_base or merge_base == fork or merge_base == head:
             continue
         if _git(repo, "merge-base", "--is-ancestor", fork, merge_base).returncode == 0:
@@ -135,8 +119,8 @@ def resolve(
     """Pick the base for `repo`, walking the ladder in the module docstring.
 
     `default` is the scaffolded base, used only once git has nothing to say.
-    `detect_stacked` runs a merge base per branch, so turn it off where the
-    answer is already known to be right and the repo is large.
+    `detect_stacked` costs a merge base per branch; off where nobody can be
+    asked anyway.
     """
     if explicit:
         branch, source = explicit, SOURCE_EXPLICIT
@@ -152,11 +136,10 @@ def resolve(
 
 
 def _first_existing(repo: Path, default: str | None) -> str:
-    """Last resort: a branch that's actually here, in the order one is likely.
+    """Last resort: a branch that exists, in the order one is plausibly named.
 
-    Ordered by what a default branch is plausibly called. The old order put
-    `dev` and `develop` first, so a repo whose default is `main` but which still
-    carries a stale `develop` picked `develop` and never said so.
+    Order matters. The old one tried `dev` first, so a repo whose default is
+    `main` but which kept a stale `develop` silently picked `develop`.
     """
     for branch in ("main", "master", "develop", "dev"):
         if exists(repo, branch):
