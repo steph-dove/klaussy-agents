@@ -464,6 +464,35 @@ def _migrate_legacy_commands(repo: Path) -> None:
     console.print(f"[green]✔ Migrated {len(removed)} legacy command(s) → skills.[/green]")
 
 
+def skill_tokens(
+    *,
+    repo_namespace: str,
+    base_branch: str = "main",
+    forge: str | None = None,
+    enrichment: str = "",
+    permissions_target: str = "",
+) -> dict[str, str]:
+    """Every token a skill template can carry, with its value.
+
+    One map, because there were three: scaffolding plus a copy in each eval
+    harness. A token added to one and missed in another doesn't fail, it reaches
+    the model as literal `{{...}}` text, which is how the e2e copy came to carry
+    `{{FORGE}}` and `{{BASE_RESOLUTION}}`.
+    """
+    from klaussy.forge import forge_tokens
+
+    return {
+        "REPO": repo_namespace,
+        "BASE_BRANCH": base_branch,
+        "REPO_SPECIFIC_CHECKS": enrichment,
+        "HUMANIZE": humanize_pointer(repo_namespace),
+        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
+        "PERMISSIONS_TARGET": permissions_target,
+        **forge_tokens(forge),
+    }
+
+
 def scaffold_skills(
     *,
     repo: Path,
@@ -504,13 +533,13 @@ def scaffold_skills(
     enrichment = build_enrichment_block(repo)
 
     tokens = {
-        "REPO_SPECIFIC_CHECKS": enrichment,
-        "REPO": repo_namespace,
-        "BASE_BRANCH": base_branch,
-        "HUMANIZE": humanize_pointer(repo_namespace),
-        "HUMANIZE_RULES": HUMANIZE_BLOCK,
-        "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
-        "PERMISSIONS_TARGET": claude_permissions_target,
+        **skill_tokens(
+            repo_namespace=repo_namespace,
+            base_branch=base_branch,
+            enrichment=enrichment,
+            permissions_target=claude_permissions_target,
+        ),
+        # Detects the forge from the repo's remote, which the plain map can't.
         **build_forge_tokens(repo, forge),
     }
 
