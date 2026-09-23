@@ -102,14 +102,17 @@ VERSION_FILE = ".klaussy-version"
 # true the moment a branch is cut from another topic branch, so the skills work
 # it out against the repo instead and carry the answer as `<base>`.
 BASE_RESOLUTION_BLOCK = (
-    "**Resolve the base first.** Every range below is against `<base>`. Work it"
-    " out once with `klaussy base --explain` and reuse that one value; if the"
-    " `klaussy` CLI isn't on PATH, take `git symbolic-ref --short"
-    " refs/remotes/origin/HEAD` without its `origin/` prefix, and `{{BASE_BRANCH}}`"
-    " if that's empty too. If it names branches `HEAD` may have been cut from"
-    " instead, this branch is probably stacked on one of them and the range would"
-    " cover commits your change never added: ask which base to use, don't pick."
-    " Say which base you used."
+    "**Resolve the base first, by running the command.** Every range below is"
+    " against `<base>`. Run `klaussy base --explain` before any range and reuse"
+    " its answer; if the `klaussy` CLI isn't on PATH, take `git symbolic-ref"
+    " --short refs/remotes/origin/HEAD` without its `origin/` prefix, and"
+    " `{{BASE_BRANCH}}` if that's empty too. **Don't work the base out by eye.**"
+    " Picking the obvious branch gets the same answer most of the time and misses"
+    " the case that matters: the command also reports branches `HEAD` may have"
+    " been cut from, and a branch stacked on another one gets a range covering"
+    " commits your change never added. If it names any, say so and ask which base"
+    " to use rather than picking. Either way, state the base you used, and that"
+    " you checked."
 )
 
 # Shared "write like a human" block, substituted into prose-output skills via
@@ -464,6 +467,35 @@ def _migrate_legacy_commands(repo: Path) -> None:
     console.print(f"[green]✔ Migrated {len(removed)} legacy command(s) → skills.[/green]")
 
 
+def skill_tokens(
+    *,
+    repo_namespace: str,
+    base_branch: str = "main",
+    forge: str | None = None,
+    enrichment: str = "",
+    permissions_target: str = "",
+) -> dict[str, str]:
+    """Every token a skill template can carry, with its value.
+
+    One map, because there were three: scaffolding plus a copy in each eval
+    harness. A token added to one and missed in another doesn't fail, it reaches
+    the model as literal `{{...}}` text, which is how the e2e copy came to carry
+    `{{FORGE}}` and `{{BASE_RESOLUTION}}`.
+    """
+    from klaussy.forge import forge_tokens
+
+    return {
+        "REPO": repo_namespace,
+        "BASE_BRANCH": base_branch,
+        "REPO_SPECIFIC_CHECKS": enrichment,
+        "HUMANIZE": humanize_pointer(repo_namespace),
+        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
+        "PERMISSIONS_TARGET": permissions_target,
+        **forge_tokens(forge),
+    }
+
+
 def scaffold_skills(
     *,
     repo: Path,
@@ -504,13 +536,13 @@ def scaffold_skills(
     enrichment = build_enrichment_block(repo)
 
     tokens = {
-        "REPO_SPECIFIC_CHECKS": enrichment,
-        "REPO": repo_namespace,
-        "BASE_BRANCH": base_branch,
-        "HUMANIZE": humanize_pointer(repo_namespace),
-        "HUMANIZE_RULES": HUMANIZE_BLOCK,
-        "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
-        "PERMISSIONS_TARGET": claude_permissions_target,
+        **skill_tokens(
+            repo_namespace=repo_namespace,
+            base_branch=base_branch,
+            enrichment=enrichment,
+            permissions_target=claude_permissions_target,
+        ),
+        # Detects the forge from the repo's remote, which the plain map can't.
         **build_forge_tokens(repo, forge),
     }
 
