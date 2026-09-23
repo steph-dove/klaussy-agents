@@ -330,3 +330,43 @@ def test_commit_guards_run_the_verbose_check():
         # PATHS placeholder resolves to the staged files, like the other checks.
         resolved = mod._resolve(mod.VERBOSE_COMMENT_CMD, ["a.py", "b.py"])
         assert resolved == "klaussy comment-lint --diff a.py b.py"
+
+
+class TestDensity:
+    """The per-comment checks judge one comment at a time and skip docstrings, so
+    a file of short, individually fine docstrings can still be half narration."""
+
+    @staticmethod
+    def _module(doc_lines: int, code_lines: int) -> str:
+        body = "\n".join(f"    line {n}" for n in range(doc_lines))
+        return f'def f():\n    """Doc.\n\n{body}\n    """\n' + "".join(
+            f"    x{n} = {n}\n" for n in range(code_lines)
+        )
+
+    def test_a_change_that_is_mostly_docstring_is_flagged(self):
+        [finding] = analyze("m.py", self._module(doc_lines=50, code_lines=20))
+        assert "comment or docstring" in finding.detail
+        assert "mostly prose" in finding.render()
+
+    def test_a_well_documented_module_is_not_flagged(self):
+        assert analyze("m.py", self._module(doc_lines=20, code_lines=60)) == []
+
+    def test_a_short_file_is_never_flagged_on_ratio(self):
+        """Three docstring lines in a six-line file is 50% and perfectly fine."""
+        assert analyze("m.py", self._module(doc_lines=10, code_lines=2)) == []
+
+    def test_density_is_measured_over_the_diff_when_scoped(self):
+        """Adding code to a doc-heavy file shouldn't inherit the file's ratio."""
+        source = self._module(doc_lines=80, code_lines=80)
+        lines = source.splitlines()
+        first_code = next(n for n, line in enumerate(lines, 1) if line.strip() == "x0 = 0")
+        code_only = set(range(first_code, len(lines) + 1))
+
+        assert analyze("m.py", source) != [], "the file as a whole is mostly docstring"
+        assert analyze("m.py", source, code_only) == []
+
+    def test_plain_comments_count_too_not_only_docstrings(self):
+        source = "".join(f"# narration line {n}\n" for n in range(50)) + "".join(
+            f"x{n} = {n}\n" for n in range(20)
+        )
+        assert any("comment or docstring" in f.detail for f in analyze("m.py", source))

@@ -2,7 +2,6 @@
 
 import dataclasses
 import json
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -11,6 +10,7 @@ import typer
 from rich.console import Console
 
 from klaussy import __version__
+from klaussy import base_branch as base_mod
 from klaussy import restack as restack_mod
 from klaussy import split_carve as carve_mod
 from klaussy.agents import ALL_AGENTS, BACKENDS, resolve_agents
@@ -79,36 +79,15 @@ def version_callback(value: bool) -> None:
 
 
 def _detect_base_branch(repo: Path) -> str | None:
-    """Detect the base branch, asking git what the default is before guessing.
+    """The base to offer as the scaffolding default, or None if git has no view.
 
-    `origin/HEAD` is the only source here that reflects what the repo's default
-    branch actually is. Name-guessing alone was wrong in a way that stuck: the
-    old order tried `dev` and `develop` first, so a repo whose default is `main`
-    but which still carries a stale `develop` got `develop` baked into the diff
-    range of all twelve skills that substitute the base, and nothing surfaced it
-    afterwards.
-
-    The name list survives as a fallback for a repo with no remote, in the order
-    a default branch is actually likely to be named.
+    Stacked detection is off: scaffolding wants the repo's usual base, not
+    whatever the checked-out branch happens to sit on.
     """
-    head = subprocess.run(
-        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=str(repo),
-    )
-    if head.returncode == 0 and (name := head.stdout.strip()):
-        return name.removeprefix("origin/")
-
-    for branch in ["main", "master", "develop", "dev"]:
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
-            capture_output=True,
-            cwd=str(repo),
-        )
-        if result.returncode == 0:
-            return branch
-    return None
+    resolved = base_mod.resolve(repo, detect_stacked=False)
+    if resolved.source == base_mod.SOURCE_FALLBACK and not base_mod.exists(repo, resolved.branch):
+        return None
+    return resolved.branch
 
 
 def _prompt_base_branch(repo: Path) -> str:
@@ -531,7 +510,7 @@ def secret_scan(
 @app.command(name="review-prep")
 def review_prep(
     base: str | None = typer.Option(
-        None, "--base", "-b", help="Base branch/ref. Auto-detected (dev/main/master) if omitted."
+        None, "--base", "-b", help="Base branch/ref. Resolved from the repo if omitted."
     ),
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     as_json: bool = typer.Option(
@@ -554,10 +533,38 @@ def review_prep(
         sys.stdout.write(render_markdown(payload))
 
 
+@app.command()
+def base(
+    repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
+    default: str | None = typer.Option(
+        None, "--default", help="Scaffolded base, used only if git has no view."
+    ),
+    explain: bool = typer.Option(
+        False, "--explain", help="Also report how it was chosen, and what might make it wrong."
+    ),
+) -> None:
+    """Print the branch this repo's changes should be compared against.
+
+    The name alone, so a caller can read it into a variable. `--explain` adds
+    how it was decided and names any branch HEAD may have been cut from instead.
+    """
+    resolved = base_mod.resolve(_resolve_repo(repo), default=default, detect_stacked=explain)
+    sys.stdout.write(resolved.branch + "\n")
+    if not explain:
+        return
+    sys.stdout.write(f"source: {resolved.source}\n")
+    if resolved.ambiguous:
+        sys.stdout.write(
+            "HEAD may have been cut from one of these instead, ask before trusting the range: "
+            + ", ".join(resolved.candidates)
+            + "\n"
+        )
+
+
 @app.command(name="split-prep")
 def split_prep(
     base: str | None = typer.Option(
-        None, "--base", "-b", help="Base branch/ref. Auto-detected (dev/main/master) if omitted."
+        None, "--base", "-b", help="Base branch/ref. Resolved from the repo if omitted."
     ),
     repo: Path = typer.Option(".", "--repo", "-r", help="Path to the repository."),
     ref: str = typer.Option("HEAD", "--ref", help="Tip of the work to analyse."),

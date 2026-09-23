@@ -18,6 +18,8 @@ import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from klaussy import base_branch
+
 PARENT_KEY = "klaussyparent"
 STATE_FILE = "klaussy-restack.json"
 
@@ -42,16 +44,16 @@ def _ok(repo: Path, *args: str) -> bool:
 
 
 def resolve_base(repo: Path, base: str | None) -> str:
-    """The ref to restack onto: `origin/<base>` when it exists, else `<base>`."""
+    """The ref to restack onto: `origin/<base>` when it exists, else `<base>`.
+
+    Stacked detection is off: restack was handed its chain already.
+    """
     if base is None:
-        head = _git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD", check=False)
-        if head.returncode == 0:
-            return head.stdout.strip()
-        base = "main"
-    for ref in (f"origin/{base}", base):
-        if _ok(repo, "rev-parse", "--verify", "--quiet", ref):
-            return ref
-    raise RestackError(f"base branch {base!r} not found locally or on origin")
+        base = base_branch.resolve(repo, detect_stacked=False).branch
+    ref = base_branch.preferred_ref(repo, base)
+    if ref is None:
+        raise RestackError(f"base branch {base!r} not found locally or on origin")
+    return ref
 
 
 def _state_path(repo: Path) -> Path:

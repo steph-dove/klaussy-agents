@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from klaussy.comment_lint import docstring_lines
 from klaussy.split_prep import FileNode as FN
 from klaussy.split_prep import (
     _added_line_numbers,
-    _docstring_lines,
     _file_at,
     _python_imports,
     _resolve_jsts,
@@ -79,19 +79,19 @@ class TestAddedLineNumbers:
 class TestDocstringLines:
     def test_spans_a_multiline_docstring(self):
         source = '"""One\ntwo\nthree"""\nx = 1\n'
-        assert _docstring_lines(source) == {1, 2, 3}
+        assert docstring_lines(source) == {1, 2, 3}
 
     def test_finds_nested_function_docstrings(self):
         source = 'def f():\n    """Doc."""\n    return 1\n'
-        assert _docstring_lines(source) == {2}
+        assert docstring_lines(source) == {2}
 
     def test_a_bare_string_expression_is_not_a_docstring(self):
         # Only the *first* statement of a module/class/def counts.
         source = "x = 1\n'not a docstring'\n"
-        assert _docstring_lines(source) == set()
+        assert docstring_lines(source) == set()
 
     def test_unparseable_source_yields_nothing(self):
-        assert _docstring_lines("def (:\n") == set()
+        assert docstring_lines("def (:\n") == set()
 
 
 class TestPythonResolution:

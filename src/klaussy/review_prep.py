@@ -21,6 +21,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from klaussy import base_branch
+
 # Dependency-manifest locks: huge, machine-generated, never hand-reviewed line by
 # line. The *manifest* change (package.json, pyproject.toml) stays reviewable;
 # only the lockfile is dropped.
@@ -198,16 +200,12 @@ def prepare_review(repo: Path | str = ".", base_branch: str | None = None) -> Re
 
 
 def _detect_base(repo: Path) -> str:
-    """First of dev/develop/main/master that the repo has; falls back to main."""
-    for branch in ("dev", "develop", "main", "master"):
-        out = subprocess.run(
-            ["git", "rev-parse", "--verify", branch],
-            cwd=str(repo),
-            capture_output=True,
-        )
-        if out.returncode == 0:
-            return branch
-    return "main"
+    """The branch to diff against, per `klaussy.base_branch`.
+
+    Stacked detection is off: it costs a merge base per branch, and nothing here
+    can ask. The skills do that check.
+    """
+    return base_branch.resolve(Path(repo), detect_stacked=False).branch
 
 
 def render_markdown(payload: ReviewPayload) -> str:
