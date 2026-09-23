@@ -1,7 +1,7 @@
 ---
 name: {{REPO}}-explain
 description: Use when the user wants code, a concept, or the current diff explained in this repo. With no specific target, explains the current branch diff; with a target, traces call chains and data flow end-to-end and explains in plain language.
-allowed-tools: Read Grep Glob Bash(git diff *)
+allowed-tools: Read Grep Glob Bash(git diff *) Bash(git symbolic-ref *) Bash(klaussy base *)
 ---
 
 ## Target
@@ -12,9 +12,13 @@ If `$ARGUMENTS` is empty, explain the current branch diff using the dump below. 
 
 ## Current branch diff (used when target is empty)
 
+{{BASE_RESOLUTION}}
+
 ```!
-git diff {{BASE_BRANCH}}...HEAD
+klaussy base --explain
 ```
+
+Then read the branch's work with `git diff <base>...HEAD`.
 
 ## Instructions
 

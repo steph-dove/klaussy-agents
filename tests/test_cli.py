@@ -295,10 +295,16 @@ class TestScaffoldSkills:
         assert "reviewed at `<short-sha>`" in parallel
 
     def test_base_branch_substitution(self, repo: Path):
+        """The scaffolded base is the last fallback now, not the range itself.
+
+        Ranges resolve at run time, so `develop` survives only as the answer for
+        a repo where `klaussy base` and `origin/HEAD` both come up empty.
+        """
         scaffold_skills(repo=repo, base_branch="develop")
         ns = sanitize_skill_namespace(repo.name)
         review_md = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
-        assert "develop...HEAD" in review_md
+        assert "<base>...HEAD" in review_md
+        assert "`develop`" in review_md
         assert "{{BASE_BRANCH}}" not in review_md
 
     def test_idempotent(self, repo: Path):
@@ -1615,6 +1621,42 @@ class TestHumanize:
             assert f"`{ns}-humanize` skill" in text, f"{skill} doesn't name the humanize skill"
             assert "The scrubber is not that pass" in text
             assert "{{REPO}}" not in text, f"{skill} left a literal token"
+
+    BASE_SKILLS = ("explain", "fix", "pr", "qa", "review", "security-audit", "split-pr", "test")
+
+    def test_diff_skills_resolve_the_base_instead_of_carrying_a_literal(self, repo: Path):
+        """A base baked in at scaffold time is wrong for a stacked branch, and
+        nothing surfaces it. These skills work it out against the repo instead."""
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in self.BASE_SKILLS:
+            text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            assert "{{BASE_RESOLUTION}}" not in text, f"{skill} left a literal token"
+            assert "klaussy base" in text, f"{skill} never resolves the base"
+            assert "<base>" in text, f"{skill} carries the block but never uses <base>"
+
+    def test_a_skill_that_resolves_the_base_is_allowed_to_run_the_command(self, repo: Path):
+        """A narrow `allowed-tools` would block the resolve step it now depends on,
+        and the skill would fall back to a base it was told not to trust."""
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in self.BASE_SKILLS:
+            head = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            tools = next(ln for ln in head.splitlines() if ln.startswith("allowed-tools:"))
+            # Bare `Bash` grants everything; `Bash(...)` grants only what it names.
+            unrestricted = re.search(r"\bBash\b(?!\()", tools) is not None
+            if unrestricted:
+                continue
+            assert "Bash(klaussy base *)" in tools, f"{skill} cannot run klaussy base"
+            covers_git = "Bash(git *)" in tools or "Bash(git symbolic-ref *)" in tools
+            assert covers_git, f"{skill} cannot run the symbolic-ref fallback"
+
+    def test_the_base_block_keeps_a_fallback_for_a_repo_without_the_cli(self, repo: Path):
+        scaffold_skills(repo=repo, base_branch="trunk")
+        ns = sanitize_skill_namespace(repo.name)
+        text = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
+        assert "refs/remotes/origin/HEAD" in text
+        assert "`trunk`" in text, "the scaffolded base is the last fallback"
 
     def test_rules_output_has_no_unresolved_token(self):
         """`--rules` feeds tools with no scaffolded skill, so it carries no pointer."""

@@ -10,8 +10,10 @@ QA the current change and capture evidence a reviewer can trust. The point is to
 
 ## Steps
 
+{{BASE_RESOLUTION}}
+
 1. **Read CLAUDE.md** for how this project builds, runs, and tests, plus any e2e, screenshot, or video-capture tooling it already has. **Read any `.claude/rules/*.md`** whose `paths:` glob covers the changed files — they often name the ports, fixtures, or QA conventions for that layer.
-2. **See what changed.** `git diff {{BASE_BRANCH}}...HEAD` for the branch's work, plus `git diff` / `git diff --cached` for uncommitted edits. **Classify each surface the diff touches** (a change can span more than one — QA each with its own method):
+2. **See what changed.** `git diff <base>...HEAD` for the branch's work, plus `git diff` / `git diff --cached` for uncommitted edits. **Classify each surface the diff touches** (a change can span more than one — QA each with its own method):
    - **UI / frontend** — components, styles, templates, pages, client-side behavior.
    - **Backend / API / service** — routes, handlers, business logic, jobs, DB.
    - **CLI / tool** — command entrypoints, flags, output.

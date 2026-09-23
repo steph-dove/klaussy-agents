@@ -8,13 +8,15 @@ Fix all lint, format, and type errors in the current changes.
 
 ## Steps
 
+{{BASE_RESOLUTION}}
+
 1. **Read CLAUDE.md** to find the project's lint, format, and type-check commands. If they're missing, fall back to the stack defaults below.
 2. **Read any `.claude/rules/*.md`** whose `paths:` glob matches the files you're about to touch — they may carry style/typing rules the linter doesn't enforce.
 3. **Scope to this branch's change.** Build the changed-file list — the union of:
-   - `git diff --name-only {{BASE_BRANCH}}...HEAD` (work committed on this branch)
+   - `git diff --name-only <base>...HEAD` (work committed on this branch)
    - `git diff --name-only` (unstaged) and `git diff --name-only --cached` (staged)
 
-   Pass these paths to every command below so the tools judge only what this branch changed — never the whole repo. Pre-existing violations in untouched files are not yours to fix here. If the list is empty, there's nothing to fix; say so and stop. (If `{{BASE_BRANCH}}...HEAD` errors because the base branch isn't present locally, fall back to the uncommitted diff alone.)
+   Pass these paths to every command below so the tools judge only what this branch changed — never the whole repo. Pre-existing violations in untouched files are not yours to fix here. If the list is empty, there's nothing to fix; say so and stop. (If `<base>...HEAD` errors because the base isn't present locally, fall back to the uncommitted diff alone.)
 4. **Run each command in this order, scoped to the changed files** (apply each pass before running the next, so fixes from one don't fight the next):
    1. **Format** first (it normalizes whitespace and quoting that lint rules might complain about).
    2. **Lint** next (it picks up real style/safety issues on top of formatted code).

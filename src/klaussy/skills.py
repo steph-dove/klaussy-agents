@@ -97,6 +97,21 @@ SKILL_NAMES = [
 
 VERSION_FILE = ".klaussy-version"
 
+# Substituted into every skill that computes a diff range, via
+# `{{BASE_RESOLUTION}}`. The base is chosen at scaffold time, which stops being
+# true the moment a branch is cut from another topic branch, so the skills work
+# it out against the repo instead and carry the answer as `<base>`.
+BASE_RESOLUTION_BLOCK = (
+    "**Resolve the base first.** Every range below is against `<base>`. Work it"
+    " out once with `klaussy base --explain` and reuse that one value; if the"
+    " `klaussy` CLI isn't on PATH, take `git symbolic-ref --short"
+    " refs/remotes/origin/HEAD` without its `origin/` prefix, and `{{BASE_BRANCH}}`"
+    " if that's empty too. If it names branches `HEAD` may have been cut from"
+    " instead, this branch is probably stacked on one of them and the range would"
+    " cover commits your change never added: ask which base to use, don't pick."
+    " Say which base you used."
+)
+
 # Shared "write like a human" block, substituted into prose-output skills via
 # the {{HUMANIZE}} token. This is the prompt-side mirror of klaussy-desktop's
 # deterministic humanizer (main/util/humanize-comment.js) — keep the two in sync
@@ -494,6 +509,7 @@ def scaffold_skills(
         "BASE_BRANCH": base_branch,
         "HUMANIZE": humanize_pointer(repo_namespace),
         "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
         "PERMISSIONS_TARGET": claude_permissions_target,
         **build_forge_tokens(repo, forge),
     }
