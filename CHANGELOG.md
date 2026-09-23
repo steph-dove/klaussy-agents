@@ -5,6 +5,61 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.33.0] - 2026-09-23
+
+### Added
+
+- **`klaussy base`.** Prints the branch a change should be compared against, resolved from the
+  repo rather than baked in when the skills were scaffolded: an explicit base, then
+  `origin/HEAD`, then the scaffolded default, then a name that exists. `--explain` also reports
+  how it decided and names any branch `HEAD` may have been cut from. It reports those rather
+  than choosing between them, because git cannot tell a branch this one was cut *from* apart
+  from one cut *off* it, and a wrong pick puts someone else's commits in the diff.
+- **Runtime base resolution in the eight skills that diff against one** (`explain`, `fix`, `pr`,
+  `qa`, `review`, `security-audit`, `split-pr`, `test`). A base fixed at scaffold time is wrong
+  as soon as a branch is cut from another topic branch, and nothing said so: the range silently
+  covered commits the change never added.
+- **A density check in `comment-lint`.** The existing checks judge one comment at a time and
+  exempt docstrings, so a file of individually reasonable docstrings could still be 38% prose
+  and pass. Diff-scoped, 35% threshold calibrated against this codebase, files under 60 lines
+  exempt.
+- **End-to-end coverage of base resolution**, against a repo built to get it wrong: a stale
+  `develop` that isn't the default, and a branch stacked on another branch. A prompt eval cannot
+  reach this, since that harness strips ```! blocks and disallows every tool.
+
+### Fixed
+
+- **`review-prep` and `split-prep` diffed against a stale `dev`.** They shared a detector that
+  took the first of dev/develop/main/master that existed, so any repo carrying an old `dev`
+  branch had every review and split scoped to the wrong base. There were three implementations
+  of this; they are now one.
+- **`self-review` told the agent to revert work it didn't own.** "Revert what isn't yours to
+  change" on an edit already in the working tree destroys the user's uncommitted work. It
+  stashes those paths, finishes, and pops them back.
+- **`split-pr` skipped commit hooks without asking.** Carving commits every layer with
+  `--no-verify`, and some hooks are load-bearing rather than cosmetic. It now names the repo's
+  hooks and waits for a yes.
+- **The `pr` skill ignored the repo's own pull request template**, using its house format
+  instead. It now checks the six GitHub locations and the GitLab one and fills what it finds.
+- **Two rules no pass could execute.** In `humanize`, "Grant a point in four words" sat in a
+  delete-only pass while the rewrite pass was scoped away from it, so a dressed-up concession
+  survived all four passes. In `self-review`, two comment rules contradicted each other on the
+  same input.
+- **Skill templates reached the model with unresolved `{{TOKEN}}` text.** Three copies of the
+  token map existed, and one missing a token doesn't fail, it ships the literal. Twelve skills
+  were affected across `{{FORGE}}`, `{{PERMISSIONS_TARGET}}` and `{{BASE_RESOLUTION}}`. Both
+  eval suites are opt-in, so nothing in CI caught it; a free test now does.
+- **Four skills had an `allowed-tools` too narrow** to run the base-resolution command they
+  depend on, and two could not run its `git symbolic-ref` fallback either.
+
+### Changed
+
+- **Eval cases no longer fail a correct answer for naming a command it rules out.** A new
+  `not commands:` directive bans a string only where the output prescribes running it, so
+  "using raw `git rebase --onto` would desync Graphite" passes.
+- **The longform humanize evals grade by majority of samples.** The old shape ran two samples
+  and failed if either missed, which is worse odds than sampling once.
+
 ## [0.32.0] - 2026-09-22
 
 ### Added
