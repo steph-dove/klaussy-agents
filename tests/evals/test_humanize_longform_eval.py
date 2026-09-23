@@ -128,23 +128,20 @@ def test_long_reply_gets_short_without_losing_the_argument():
 
     # Substance and mechanical tells are guarantees, not rates: a rewrite that
     # drops Redis or ships an em-dash is broken however rarely it happens, and
-    # neither has ever varied between samples. Only the cut is graded by rate.
+    # neither has ever varied between samples. Length is a guarantee too, as a
+    # regime check rather than a quality bar: four passes land under 200 words on
+    # this draft, one tidy-up pass at or above. Clean samples have reached 196,
+    # so a tighter bound grades prose, not flow. Padding is the only rate left.
     for out in outs:
         low = out.lower()
         for kept in MUST_SURVIVE:
             assert kept in low, f"dropped substance {kept!r}: {out!r}"
         assert not harness.ai_tells_present(out), f"tells survived: {harness.ai_tells_present(out)}"
+        assert (words := len(out.split())) <= 200, (
+            f"{words} words, expected the four-pass flow, not one tidy-up pass: {out!r}"
+        )
 
-    graded = []
-    for out in outs:
-        low = out.lower()
-        misses = [f"kept padding {gone!r}" for gone in MUST_GO if gone in low]
-        # Guard, not a quality bar: four passes land at 120-180 on this 330-word
-        # draft, a single tidy-up pass nearer 200.
-        if (words := len(out.split())) > 185:
-            misses.append(f"{words} words, expected the four-pass flow to cut harder")
-        graded.append(misses)
-
+    graded = [[f"kept padding {gone!r}" for gone in MUST_GO if gone in out.lower()] for out in outs]
     _assert_majority_clean(graded, "pass 1 left padding in the draft")
 
 
