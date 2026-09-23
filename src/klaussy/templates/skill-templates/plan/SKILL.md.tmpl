@@ -140,6 +140,8 @@ and what the plan should say instead. A finding without code evidence is a guess
 If the plan holds up, say so in one line. Do not write any files.
 ```
 
+**Send that prompt as written, filling in `<path>` and `<paths>` and nothing else.** Don't restate the plan into it, and don't tell the reviewer which step to look hardest at. The plan is in the file it's about to read, so a summary is the contents arriving by another route; and a step you point at is the one you already doubted, which turns an attack on the whole plan into a check of your own hunch.
+
 Weigh each finding on its evidence. Fix `plan.md` for the ones that hold, and record both checks in its `## Plan review` section: one line per finding with what changed, or why you didn't act on it, plus any requirement the first check found uncovered. Don't run a second round; this is one pass.
 
 ## Phase 7 — Approval gate
