@@ -7,8 +7,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
-> **Write your conventions once.** Keep them in one `CLAUDE.md` and `klaussy` compiles it into the native rules, settings, and skills for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi, on GitHub, GitLab, and Bitbucket.
-
 Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft engineer, `klaussy` is a multi-agent repository boilerplate generator. One command scaffolds conventions, repo-namespaced skills, settings that fit your stack, and guardrails for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi across GitHub, GitLab, and Bitbucket, matching each agent's native file formats and capability profiles.
 
 > **Out of stealth.** `klaussy` spent six months in private, hardened by a group of testers who wired it into their own repos and daily agent work. Now it's open to everyone.
