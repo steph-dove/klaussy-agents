@@ -22,14 +22,13 @@ from pathlib import Path
 from klaussy.checklist import build_enrichment_block
 from klaussy.forge import build_forge_tokens
 from klaussy.skills import (
-    HUMANIZE_BLOCK,
     SKILL_NAMES,
     SKILL_TEMPLATE_ROOT,
     describe_with_alias,
-    humanize_pointer,
     iter_skill_templates,
     render_tokens,
     sanitize_skill_namespace,
+    skill_tokens,
     template_output_name,
 )
 
@@ -137,13 +136,17 @@ def build_skill_payloads(
     templates = resources.files("klaussy").joinpath(SKILL_TEMPLATE_ROOT)
 
     tokens = {
-        "REPO_SPECIFIC_CHECKS": enrichment,
-        "BASE_BRANCH": base_branch,
-        "REPO": namespace,
-        "HUMANIZE": humanize_pointer(namespace),
-        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        **skill_tokens(
+            repo_namespace=namespace,
+            base_branch=base_branch,
+            enrichment=enrichment,
+        ),
+        # Detects the forge from the repo's remote, which the plain map can't.
         **build_forge_tokens(repo, forge),
     }
+    # render.py resolves this one per agent, after this pass, so the sentinel has
+    # to survive it. `render_tokens` leaves a name it isn't given as written.
+    del tokens["PERMISSIONS_TARGET"]
 
     def substitute(text: str) -> str:
         return render_tokens(text, tokens)

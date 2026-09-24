@@ -150,10 +150,14 @@ Output the complete plan in your chat response so the user can see it immediatel
 
 ## Hand off
 
-Stop here. Say what the next step is and let the user take it:
+Stop here, then offer the next step and wait for the answer:
 
 - **Build it:** **`{{REPO}}-implement`** works `plan.md` top-to-bottom, ticking each box as it lands.
 - **Build, review, QA and open the PR:** **`{{REPO}}-rest-of-the-owl`** runs the whole loop unattended.
+
+**Ask which one they want, in a sentence, rather than listing the two and stopping dead.** "Want me to run the owl from here, or just implement?" A plan handed over without an offer usually means the user retypes the task to start the next skill.
+
+**Offering is not starting.** Wait for the reply, however obvious the answer looks. Approving the plan is not approving the build, and a plan skill that reads one as the other is the failure this whole phase exists to prevent.
 
 ## Anti-patterns to avoid (universal craft rules)
 
