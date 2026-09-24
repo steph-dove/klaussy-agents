@@ -1,10 +1,12 @@
 ---
 name: {{REPO}}-restack
 description: Use when the user has a stack of dependent branches or PRs that needs rebasing — the base branch moved, the bottom branch merged, or a mid-stack branch was amended. Derives the parent/child chain from git ancestry, rebases each branch onto its new parent, and force-pushes with a lease. Works with plain git; uses a forge CLI only to retarget PR/MR bases when one is available.
-allowed-tools: Read Grep Bash(klaussy restack *) Bash(git *) Bash(gh *) Bash(glab *)
+allowed-tools: Read Grep Bash(klaussy restack *) Bash(python3 -m klaussy *) Bash(python -m klaussy *) Bash(git *) Bash(gh *) Bash(glab *)
 ---
 
 Rebase a stack of dependent branches so each one sits on top of its parent again, then push the stack. `klaussy restack` does the git mechanics: it maps the chain from ancestry and reflogs, rebases bottom-up with `--onto`, verifies, and pushes with a lease. Your job is the two decisions it can't make: confirming the chain, and resolving conflicts.
+
+{{CLI_FALLBACK}}
 
 If `klaussy` isn't on PATH (the command isn't found), follow `.claude/skills/{{REPO}}-restack/manual.md` instead; it's the same procedure by hand.
 

@@ -1,7 +1,7 @@
 ---
 name: {{REPO}}-pr
 description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, fills the repo's own pull/merge request template when it has one, and writes the result to pr-description.md.
-allowed-tools: Read Grep Glob Bash(git *) Bash(klaussy base *) Write
+allowed-tools: Read Grep Glob Bash(git *) Bash(klaussy base *) Bash(python3 -m klaussy *) Bash(python -m klaussy *) Write
 ---
 
 ## Branch

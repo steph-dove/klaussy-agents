@@ -104,15 +104,29 @@ VERSION_FILE = ".klaussy-version"
 BASE_RESOLUTION_BLOCK = (
     "**Resolve the base first, by running the command.** Every range below is"
     " against `<base>`. Run `klaussy base --explain` before any range and reuse"
-    " its answer; if the `klaussy` CLI isn't on PATH, take `git symbolic-ref"
-    " --short refs/remotes/origin/HEAD` without its `origin/` prefix, and"
-    " `{{BASE_BRANCH}}` if that's empty too. **Don't work the base out by eye.**"
+    " its answer; if the `klaussy` command isn't found, try `python3 -m klaussy"
+    " base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref"
+    " --short refs/remotes/origin/HEAD`"
+    " without its `origin/` prefix, and `{{BASE_BRANCH}}` if that's empty too."
+    " **Don't work the base out by eye.**"
     " Picking the obvious branch gets the same answer most of the time and misses"
     " the case that matters: the command also reports branches `HEAD` may have"
     " been cut from, and a branch stacked on another one gets a range covering"
     " commits your change never added. If it names any, say so and ask which base"
     " to use rather than picking. Either way, state the base you used, and that"
     " you checked."
+)
+
+# Substituted via `{{CLI_FALLBACK}}` into skills that run a klaussy subcommand.
+# Both spellings are named because the skill is read on whatever OS the dev is
+# on: Windows python.org installs expose `python`, macOS and Linux `python3`.
+CLI_FALLBACK_BLOCK = (
+    "**If the `klaussy` command isn't found, run it as `python3 -m klaussy"
+    " <command>`** (`python -m klaussy` on Windows, where `python3` is usually"
+    " absent) **before falling back any further** — the package is often"
+    " installed with only its script directory off PATH. Use the fallback named"
+    " for that step when that fails too, and say which one you used: a fallback"
+    " answers a narrower question than the command it stands in for."
 )
 
 # Shared "write like a human" block, substituted into prose-output skills via
@@ -499,6 +513,7 @@ def skill_tokens(
         "HUMANIZE": humanize_pointer(repo_namespace),
         "HUMANIZE_RULES": HUMANIZE_BLOCK,
         "BASE_RESOLUTION": render_tokens(BASE_RESOLUTION_BLOCK, {"BASE_BRANCH": base_branch}),
+        "CLI_FALLBACK": CLI_FALLBACK_BLOCK,
         "PERMISSIONS_TARGET": permissions_target,
         **forge_tokens(forge),
     }
