@@ -504,6 +504,29 @@ def skill_tokens(
     }
 
 
+def claude_skill_tokens(
+    *, repo_namespace: str, base_branch: str, enrichment: str
+) -> dict[str, str]:
+    """`skill_tokens` with Claude's own permission surface already filled in.
+
+    The Claude scaffold path skips `render.py`, which is where every other agent
+    gets `{{PERMISSIONS_TARGET}}` resolved, so it has to be resolved here. Two
+    paths write Claude skills, `scaffold_skills` and `klaussy checklist`, and
+    they took separate copies of this map until one of them shipped a raw
+    `{{BASE_RESOLUTION}}` in the review skill.
+    """
+    from klaussy.agents.render import permission_target_markdown
+
+    return skill_tokens(
+        repo_namespace=repo_namespace,
+        base_branch=base_branch,
+        enrichment=enrichment,
+        permissions_target=permission_target_markdown(
+            "Claude Code", _CLAUDE_PERMISSIONS_FILE, _CLAUDE_PERMISSION_SYNTAX
+        ),
+    )
+
+
 def scaffold_skills(
     *,
     repo: Path,
@@ -533,22 +556,17 @@ def scaffold_skills(
 
     repo_namespace = sanitize_skill_namespace(repo.name)
 
-    from klaussy.agents.render import permission_target_markdown
     from klaussy.checklist import build_enrichment_block
 
-    claude_permissions_target = permission_target_markdown(
-        "Claude Code", _CLAUDE_PERMISSIONS_FILE, _CLAUDE_PERMISSION_SYNTAX
-    )
     # Filled here rather than left for `klaussy checklist`, which only `init`
     # runs; `klaussy skills` and upgrades would otherwise ship the raw token.
     enrichment = build_enrichment_block(repo)
 
     tokens = {
-        **skill_tokens(
+        **claude_skill_tokens(
             repo_namespace=repo_namespace,
             base_branch=base_branch,
             enrichment=enrichment,
-            permissions_target=claude_permissions_target,
         ),
         # Detects the forge from the repo's remote, which the plain map can't.
         **build_forge_tokens(repo, forge),

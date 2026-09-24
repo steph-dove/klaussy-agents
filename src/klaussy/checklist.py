@@ -8,12 +8,12 @@ from pathlib import Path
 
 from rich.console import Console
 
+from klaussy.forge import build_forge_tokens
 from klaussy.skills import (
-    HUMANIZE_BLOCK,
     SKILL_TEMPLATE_ROOT,
     TEMPLATE_SUFFIX,
     apply_alias_to_frontmatter,
-    humanize_pointer,
+    claude_skill_tokens,
     iter_skill_templates,
     render_tokens,
     sanitize_skill_namespace,
@@ -342,11 +342,13 @@ def generate_checklist(
     repo_namespace = sanitize_skill_namespace(repo.name)
 
     tokens = {
-        "REPO_SPECIFIC_CHECKS": enrichment_block,
-        "BASE_BRANCH": base_branch,
-        "REPO": repo_namespace,
-        "HUMANIZE": humanize_pointer(repo_namespace),
-        "HUMANIZE_RULES": HUMANIZE_BLOCK,
+        **claude_skill_tokens(
+            repo_namespace=repo_namespace,
+            base_branch=base_branch,
+            enrichment=enrichment_block,
+        ),
+        # Detects the forge from the repo's remote, which the plain map can't.
+        **build_forge_tokens(repo),
     }
 
     def _substitute(text: str) -> str:
