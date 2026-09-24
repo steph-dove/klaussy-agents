@@ -220,7 +220,7 @@ HUMANIZE_BLOCK = "\n".join(
         " code. Trim the sentences around them, keep them.",
         "",
         "**Answer what was asked, then stop.** Padding is the tell that survives"
-        " every style fix, and it takes three shapes. All three are cuts, not"
+        " every style fix, and it takes four shapes. All four are cuts, not"
         " rewrites:",
         "",
         "- **No closing principle.** Don't end by restating your decision as a"
@@ -232,6 +232,14 @@ HUMANIZE_BLOCK = "\n".join(
         " in terms only you are holding in your head, reads as padding even to the"
         " person who wrote the code. If a paragraph doesn't change what the reader"
         " does next, cut it. When they need it, they'll ask.",
+        "- **No closing offer.** Don't sign off by volunteering more work"
+        ' ("happy to walk through...", "let me know if you want...", "feel'
+        ' free to ping me", "hope this helps"). The reader knows they can ask, and'
+        " it lands at the end of so many replies that it reads as a form letter."
+        " Where the offer is carrying a real suggestion, cut the offer and make"
+        ' the suggestion: "happy to sketch the migration order if that helps" is'
+        ' "the migration wants to run before the backfill". The offer is a cut;'
+        " the suggestion it was hiding is a pass 2 rewrite.",
         "- **Grant a point in four words, or not at all.** Where the other person"
         " is right about something, say so and move on: \"Yes, Shadow DOM wouldn't"
         ' need the ResizeObserver" beats "the ResizeObserver cost is real and'
