@@ -115,7 +115,7 @@ Scans every file the agent reads, and on agents that support it (Claude, Antigra
 
 ### 2. Comment humanizer (`comment_guard.py`)
 
-Scrubs AI filler, robotic formatting, and chatty openers out of comments before they post, on GitHub (`gh pr comment`, `gh pr review`, `gh issue create`, …) and GitLab (`glab mr note`, `glab mr create`, `glab issue update`, …). On Claude the body gets rewritten in place and the cleaned command runs. Other agents get the post blocked once, with the humanized command handed back to re-run.
+Scrubs AI filler, robotic formatting, and chatty openers out of PR/MR and issue comments before they post, whenever the agent posts through a forge CLI (`gh pr comment`, `gh pr review`, `glab mr note`, `glab issue update`, …). On Claude the body gets rewritten in place and the cleaned command runs. Other agents get the post blocked once, with the humanized command handed back to re-run.
 
 The scrubber only removes mechanical tells, says so, and points at the `<repo>-humanize` skill for anything that needs a rewrite. **Bitbucket isn't covered.** It has no comment CLI, so posts go through `curl` against the REST API, and a guard that silently missed half of those would be worse than none. Run `<repo>-humanize` before posting there.
 
