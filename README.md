@@ -7,8 +7,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
-<a href="https://www.producthunt.com/products/klaussy-desktop/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-klaussy&#0045;desktop" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1307346&theme=light" alt="Klaussy&#0032;Desktop - Hand&#0032;it&#0032;a&#0032;ticket&#0046;&#0032;Come&#0032;back&#0032;to&#0032;a&#0032;green&#0032;PR&#0046;&#0032;Free&#0032;and&#0032;local&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-
 Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft App Center engineer, `klaussy` is a multi-agent repository boilerplate generator. One command scaffolds conventions, repo-namespaced skills, settings that fit your stack, and guardrails for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi across GitHub, GitLab, and Bitbucket, matching each agent's native file formats and capability profiles.
 
 > **Out of stealth.** `klaussy` spent six months in private, hardened by a group of testers who wired it into their own repos and daily agent work. Now it's open to everyone.
