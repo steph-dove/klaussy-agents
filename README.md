@@ -11,6 +11,23 @@ Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft App Center engineer, `klau
 
 > **Out of stealth.** `klaussy` spent six months in private, hardened by a group of testers who wired it into their own repos and daily agent work. Now it's open to everyone.
 
+## Try it out
+
+```bash
+pip install klaussy-agents
+cd your-repo
+klaussy init
+```
+
+Then, in your agent:
+
+```
+/<repo>-grant-permissions
+/<repo>-rest-of-the-owl <task link or description>
+```
+
+`<repo>` is your repo's name. Grant permissions first so the owl isn't stopping to ask before every test run.
+
 ---
 
 ## Quick start
