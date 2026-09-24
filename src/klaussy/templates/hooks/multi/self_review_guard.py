@@ -115,13 +115,39 @@ def _git(args: list[str]) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
+# Agent tooling dirs, skipped for untracked files only: a freshly scaffolded
+# hook script is an untracked .py, and the guard's first act in a new repo
+# should not be a nudge about its own installation.
+_TOOLING_PREFIXES = (
+    ".claude/",
+    ".gemini/",
+    ".cursor/",
+    ".github/",
+    ".agents/",
+    ".opencode/",
+    ".kimi-code/",
+    ".cline/",
+    ".codex/",
+)
+
+
 def _has_uncommitted_code() -> bool:
-    """True if unstaged or staged changes touch a source file."""
+    """True if unstaged, staged or brand-new changes touch a source file.
+
+    `git diff` sees neither side of an untracked file, so a session whose whole
+    output is new files looked clean and the review never fired. That is the
+    session most worth reviewing, since nothing in it has been read before.
+    """
     files: set[str] = set()
-    for extra in (["--name-only"], ["--name-only", "--cached"]):
-        out = _git(["diff", *extra])
+    for args in (["diff", "--name-only"], ["diff", "--name-only", "--cached"]):
+        out = _git(args)
         if out:
             files.update(line for line in out.splitlines() if line)
+
+    untracked = _git(["ls-files", "--others", "--exclude-standard"]) or ""
+    files.update(
+        line for line in untracked.splitlines() if line and not line.startswith(_TOOLING_PREFIXES)
+    )
     return any(f.lower().endswith(CODE_EXTS) for f in files)
 
 

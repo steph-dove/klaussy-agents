@@ -109,11 +109,46 @@ def _is_test_source(path: str) -> bool:
     )
 
 
-def scan(text: str) -> list[tuple[int, str, str]]:
-    """Return (line_no, label, match_text) for every injection pattern hit."""
+# `system:` / `admin:` at line start is ordinary YAML, k8s, compose and ini
+# syntax, so the role-prefix pattern is skipped for config. The others still
+# apply: config can hide an injection, just not that way.
+_ROLE_PREFIX_LABEL = "role-prefix injection"
+_CONFIG_EXTS = frozenset(
+    {
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".properties",
+        ".service",
+        ".env",
+    }
+)
+
+
+def _is_config(path: str) -> bool:
+    """True for a file whose format uses `key:` lines as structure."""
+    if not path:
+        return False
+    name = Path(path).name.lower()
+    return name.startswith(".env") or Path(name).suffix in _CONFIG_EXTS
+
+
+def scan(text: str, path: str = "") -> list[tuple[int, str, str]]:
+    """Return (line_no, label, match_text) for every injection pattern hit.
+
+    `path` opts a config file out of the role-prefix pattern. It defaults to
+    empty, so fetched web content is always scanned with every pattern.
+    """
+    skip = {_ROLE_PREFIX_LABEL} if _is_config(path) else frozenset()
     findings: list[tuple[int, str, str]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         for pattern, label in INJECTION_PATTERNS:
+            if label in skip:
+                continue
             m = pattern.search(line)
             if m:
                 findings.append((lineno, label, m.group(0)))
@@ -189,6 +224,7 @@ def main() -> int:
         # read the named file from disk — matching how each event delivers data.
         text = _extract_inline_content(payload)
         source = "file content"
+        scan_path = _extract_path(payload) if text else ""
         if not text:
             text = _extract_fetch_body(payload)
             source = "fetched web content"
@@ -204,8 +240,9 @@ def main() -> int:
             except OSError:
                 return 0
             source = str(p)
+            scan_path = path
 
-        findings = scan(text[:MAX_BYTES])
+        findings = scan(text[:MAX_BYTES], scan_path)
         if not findings:
             return 0
         _report(source, findings)
