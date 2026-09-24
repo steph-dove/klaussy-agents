@@ -41,6 +41,8 @@ Comments inflate a diff without adding anything a reviewer has to reason about, 
 
    **This commit is now `<tip>`** — the ref every later phase carves from and verifies against. Re-record `git rev-parse HEAD`. `<branch>-prestack` still points at the *pre-cleanup* work and stays that way: it's the undo for the comment pass as well as the carve, which is exactly why it isn't the thing Phase 5 compares against.
 
+{{CLI_FALLBACK}}
+
 3. **Measure what's actually left.** Run `klaussy split-prep`, which resolves the base itself. It reports code lines separately from comment and docstring lines, flags the files where comment is still most of what changed, and proposes layers from the import graph. **Decide on the code-lines figure, not the raw one.** If the `klaussy` CLI isn't on PATH, fall back to `klaussy review-prep`, or to `git diff <base>...HEAD --stat` while discounting generated files yourself — and say which fallback you used, since the layer proposal is unavailable in both.
 
 4. **Judge on shape, not just size.** Around 400 **code** lines is where a split starts paying for itself, but the number is a prompt to think, not a rule:
