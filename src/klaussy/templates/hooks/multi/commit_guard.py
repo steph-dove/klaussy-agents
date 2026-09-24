@@ -31,6 +31,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from functools import lru_cache
 
 # Sentinels replaced by klaussy at scaffold time. Any may be None.
 FORMAT_CMD: str | None = "__KLAUSSY_FORMAT_CMD__"
@@ -134,8 +135,94 @@ def _applicable_paths(cmd: str, paths: list[str]) -> list[str]:
     return [p for p in paths if p.lower().endswith(exts)]
 
 
+# git's global options that take a separate value. Everything else before the
+# subcommand is either a valueless flag (`--no-pager`, `--paginate`) or joins its
+# value on with `=`, so only these swallow the token after them.
+_GIT_VALUE_OPTS = frozenset(
+    {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
+)
+
+# Shell separators shlex leaves as bare tokens, so `a && b` splits in two.
+_SEPARATORS = frozenset({";", "&&", "||", "|", "&"})
+
+
+def _segments(command: str) -> list[list[str]] | None:
+    """`command` split into shell segments, each a token list.
+
+    None when shlex can't parse it (an unbalanced quote), which sends callers
+    back to the regexes. Splitting after shlex rather than before keeps a `;`
+    inside a quoted commit message from splitting the command.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return None
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _SEPARATORS:
+            if current:
+                segments.append(current)
+            current = []
+        else:
+            current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _git_subcommand(tokens: list[str]) -> str | None:
+    """The subcommand in one `git ...` segment, skipping global options.
+
+    `git --no-pager commit` and `git -C sub commit` both answer `commit`. The
+    regexes only match a global option that carries a value, so any valueless
+    flag walked straight through the guard.
+    """
+    if not tokens or os.path.basename(tokens[0]) != "git":
+        return None
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if not token.startswith("-"):
+            return token
+        index += 2 if token in _GIT_VALUE_OPTS else 1
+    return None
+
+
+def _runs_git(command: str, subcommand: str, fallback: "re.Pattern[str]") -> bool:
+    """True if any segment of `command` runs `git <subcommand>`."""
+    segments = _segments(command)
+    if segments is None:
+        return bool(fallback.search(command))
+    return any(_git_subcommand(tokens) == subcommand for tokens in segments)
+
+
+@lru_cache(maxsize=1)
+def _repo_root() -> str | None:
+    """The working tree's root, or None outside a repo.
+
+    `git diff --name-only` reports paths from the root while the hook runs in
+    the agent's cwd. From a subdirectory every path failed the `os.path.exists`
+    check below, the path-scoped checks were handed nothing, and the whole gate
+    skipped without saying so.
+
+    Cached because every check command asks for it, and broad in what it
+    swallows because a guard that raises is a guard that blocks every tool call
+    on some agents.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True
+        )
+        if out.returncode != 0:
+            return None
+        return out.stdout.strip() or None
+    except Exception:
+        return None
+
+
 def _is_git_commit(command: str) -> bool:
-    return bool(GIT_COMMIT_RE.search(command))
+    return _runs_git(command, "commit", GIT_COMMIT_RE)
 
 
 def _commits_all(command: str) -> bool:
@@ -161,7 +248,7 @@ def _stages_files(command: str) -> bool:
     path-scoped check and let the commit through unjudged. Treated like
     `git commit -a`: fold the working tree into the paths the checks see.
     """
-    return bool(GIT_ADD_RE.search(command))
+    return _runs_git(command, "add", GIT_ADD_RE)
 
 
 def _skips_verify(command: str) -> bool:
@@ -247,7 +334,8 @@ def _changed_paths(include_unstaged: bool) -> list[str]:
             continue
         if out.returncode == 0:
             found.update(line for line in out.stdout.splitlines() if line)
-    return sorted(p for p in found if os.path.exists(p))
+    root = _repo_root() or os.curdir
+    return sorted(p for p in found if os.path.exists(os.path.join(root, p)))
 
 
 def _resolve(cmd: str, paths: list[str]) -> str | None:
@@ -312,7 +400,9 @@ def _run(cmd: str) -> int:
     else:
         argv = [exe, *tokens[1:]]
     try:
-        return subprocess.run(argv).returncode
+        # From the root, so a path-scoped command gets the paths git
+        # reported and a tool finds the project config it reads.
+        return subprocess.run(argv, cwd=_repo_root()).returncode
     except (OSError, ValueError):
         return 0
 
