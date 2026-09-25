@@ -61,7 +61,7 @@ plan.md is written and its adversarial review came back clean. The task is to ad
 
 ### expect
 - contains: phase 2 | implement
-- not contains: want me to | would you like | shall I
+- contains: don't wait | do not wait | not wait | without waiting | same turn
 
 ## case: waits-in-the-foreground-when-headless
 
