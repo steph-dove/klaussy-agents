@@ -20,7 +20,9 @@ const SELF_REVIEW_DIRECTIVE =
   "standard library and existing dependencies over new packages or hand-rolled " +
   "code, kept comments to a single WHY-line (no narration or restating the code), " +
   "left no dead code or debug prints, and covered the change with tests that pass. " +
-  "Fix anything that falls short, then finish. If it already holds, say so briefly and stop."
+  "Fix anything that falls short. This reply is the last one the user sees, so after one " +
+  "line on the review, restate the result you were reporting before it (what's done, " +
+  "what's left, any question you asked) instead of ending on the review alone."
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|vue|svelte|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|sql)$/i
 const nudgedSessions = new Set()
 

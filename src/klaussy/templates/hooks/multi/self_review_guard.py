@@ -47,7 +47,9 @@ DIRECTIVE = (
     "existing code instead of reinventing it, preferred the standard library and "
     "existing dependencies over new packages or hand-rolled code, left no dead code "
     "or debug prints, and covered the change with tests that pass. Fix anything that "
-    "falls short, then finish. If it already holds, say so briefly and stop."
+    "falls short. This reply is the last one the user sees, so after one line on the "
+    "review, restate the result you were reporting before it (what's done, what's "
+    "left, any question you asked) instead of ending on the review alone."
 )
 
 # Source-file suffixes that make a diff worth a review pass. A docs/config-only

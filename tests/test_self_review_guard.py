@@ -130,3 +130,12 @@ def test_guard_ignores_non_code_changes(tmp_path):
     # A docs-only change must not trigger the nudge.
     (repo / "README.md").write_text("# hi there\n")
     assert _run_guard(guard_path, repo, {"session_id": f"d-{tmp_path.name}"}) == (0, "")
+
+
+def test_directive_keeps_the_interrupted_report(guard):
+    # The block makes the review reply the run's final output; a headless run
+    # returns only that, so it has to carry the report it displaced.
+    js = resources.files("klaussy").joinpath("templates/hooks/multi/opencode_plugin.js")
+    for text in (guard.DIRECTIVE, js.read_text()):
+        assert "restate the result you were reporting" in text
+        assert "say so briefly and stop" not in text

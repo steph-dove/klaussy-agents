@@ -75,6 +75,7 @@ Now implement the fix.
 3. **Run the full test suite.** If other tests break, your fix caused a regression. Do not patch the other tests to make them pass — re-examine your fix.
 4. **Run linters/formatters** if available.
 5. **Check your diff.** Run `git diff` and verify every changed line is necessary for the fix. Remove anything unrelated.
+6. **Report back.** Give the root cause in a sentence, the fix and the test that pins it, and the suite result.
 
 ---
 
