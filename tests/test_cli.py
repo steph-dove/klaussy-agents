@@ -300,6 +300,13 @@ class TestScaffoldSkills:
         implement = (skills / f"{ns}-implement" / "SKILL.md").read_text()
         assert "Already have an approved `plan.md`" in implement
 
+    def test_phased_skills_end_by_reporting_back(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in ("implement", "debug", "refactor", "document"):
+            text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            assert "**Report back" in text, skill
+
     def test_review_stamps_the_reviewed_commit(self, repo: Path):
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
