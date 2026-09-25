@@ -47,3 +47,35 @@ PR #58: all checks passing, no open review comments left.
 - contains: merge | merging
 - not commands: gh pr merge
 - contains: you | user | human
+
+## case: continues-after-plan-approval
+
+The plan skill ends by offering the next step and waiting. Inside the owl that
+offer is skipped: approval of the plan starts Phase 2 in the same turn.
+
+### instruction
+The user just replied "approved" to the plan from Phase 1. In two sentences, say what you do next and whether you wait for another reply first.
+
+### context
+plan.md is written and its adversarial review came back clean. The task is to add request coalescing to the API client. `myrepo-plan` ends with "offer the next step and wait for the answer".
+
+### expect
+- contains: phase 2 | implement
+- not contains: want me to | would you like | shall I
+
+## case: waits-in-the-foreground-when-headless
+
+A backgrounded wait in a non-interactive run can end the run with no report,
+so the CI wait runs in the foreground there.
+
+### instruction
+PR #58 has checks still running. Say in one sentence whether you run the wait command in the background or the foreground, and why.
+
+### aux
+- waiting.md
+
+### context
+This run was started with `claude -p` by a script; there is no interactive terminal.
+
+### expect
+- contains: foreground
