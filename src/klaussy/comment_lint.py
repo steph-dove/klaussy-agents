@@ -33,10 +33,7 @@ COMMENT_WORD_MAX = 30
 # for the claim-plus-why shape a real comment needs; a third usually restates
 # the code.
 COMMENT_SENTENCE_MAX = 2
-# Share of a change that may be comment and docstring before it reads as
-# narration. Calibrated against this codebase: median 23%, and at 35% the only
-# standing file it flags is one that earns it. A well-documented module sits
-# comfortably under.
+# Share of a change that may be comment and docstring before it reads as narration.
 COMMENT_DENSITY_MAX = 0.35
 # Below this many lines a ratio is noise: three docstring lines in a six-line
 # file is 50% and perfectly fine.
@@ -90,8 +87,7 @@ _WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*")
 # and a trailing URL from splitting a sentence — their dots are mid-token.
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 
-# Words whose trailing dot is an abbreviation, not a sentence end — without
-# these, `e.g. Claude` reads as a break. Compared lowercased, terminators stripped.
+# Abbreviations where a dot does not mark a sentence break.
 _ABBREVIATIONS = frozenset({"e.g", "i.e", "etc", "vs", "cf", "al", "approx", "resp", "viz"})
 
 

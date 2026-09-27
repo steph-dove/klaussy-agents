@@ -23,10 +23,6 @@ from __future__ import annotations
 
 import re
 
-# Sentence-initial filler openers, stripped at the start of the text or a line.
-# Two families: chatbot "note that" scaffolding, and editorializing verdict
-# openers ("Personally", "Honestly", ...) that prime a blunt/dismissive read of
-# whatever follows. Both are safe to drop with no loss of meaning.
 _OPENERS = (
     r"(?:It(?:'?s| is) worth noting that|It(?:'?s| is) important to note that"
     r"|It(?:'?s| is) worth mentioning that|It(?:'?s| is) important to remember that"
@@ -59,10 +55,6 @@ _APOLOGIES = (
     r"|Apologies for the (?:oversight|confusion|mistake))"
 )
 
-# Filler / ranking praise that leads a comment ("Great catch", "Nice find") — a
-# reliable AI tell. Kept to fixed adjective+noun phrases; free-form ranking ("the
-# sharpest catch in the review") and "good catch" at a bot stay prompt-side, since
-# generalizing them would strip legitimate prose ("the most important issue here").
 _PRAISE = (
     r"(?:(?:Great|Nice|Good|Excellent|Fantastic|Awesome|Wonderful|Solid"
     r"|Strong|Fair)[ \t]+(?:catch|find|point|call|callout|call-out"
@@ -75,9 +67,6 @@ _SCAFFOLD_RE = re.compile(r"(?:^|\n)\s*" + _SCAFFOLD + r"\s*$", re.IGNORECASE)
 _PRAISE_LINE_RE = re.compile(
     r"(^|\n)[ \t]*" + _PRAISE + r"[ \t]*[.!]*[ \t]*(?=\n|$)", re.IGNORECASE
 )
-# A praise phrase leading into real content, separated by punctuation
-# ("Great catch, this races" / "Nice find. This leaks") — strip it, recapitalize.
-# Punctuation is required so "Good point about X" (a real sentence) is left alone.
 _PRAISE_LEAD_RE = re.compile(r"(^|\n)[ \t]*" + _PRAISE + r"[ \t]*[,.:!]+[ \t]*(\w)", re.IGNORECASE)
 _THANK_BOT_LEAD_RE = re.compile(r"(^|\n)[ \t]*" + _THANK_BOT + r"[ \t,!.?]*(\w)", re.IGNORECASE)
 _THANK_BOT_LINE_RE = re.compile(r"(^|\n)[ \t]*" + _THANK_BOT + r"[ \t,!.?]*(?=\n|$)", re.IGNORECASE)

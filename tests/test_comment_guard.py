@@ -53,11 +53,6 @@ def test_find_body_forms(claude):
 
 
 # --- GitLab (glab) ---------------------------------------------------------
-#
-# The guards only ever matched `gh`, so on a GitLab repo — where forge.py puts
-# `glab` commands into the skills — comments posted unscrubbed. glab is fiddlier
-# than gh: the body flag depends on the subcommand, and the short forms collide
-# with unrelated options.
 
 
 def _feed_any(mod, monkeypatch, command):

@@ -19,10 +19,6 @@ import pytest
 
 SKILL = "address-review"
 
-# A `gh` that records every call and answers the three read endpoints. The
-# payloads live inside the script, and the script lives outside the repo's
-# directory tree: an agent that can read a fixture file will read it instead of
-# calling `gh`, and then the test stops observing the thing it was written for.
 GH_SHIM = """#!/bin/bash
 echo "$@" >> "$GH_LOG"
 inline='[{"id":991,"path":"src/api/session.py","line":12,"user":{"login":"marco"},

@@ -133,14 +133,6 @@ def gemini_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".gemini/hooks"
 
     def _cmd(name: str) -> str:
-        # Invoke via klaussy's `klaussy-hook` launcher rather than a Python token:
-        # Gemini's hook config is a single command string with no per-OS field,
-        # and `python3`/`python` don't both resolve across OSes, so a token would
-        # freeze to the scaffolding machine. `klaussy-hook` is a pip console
-        # script on PATH everywhere and runs the guard under klaussy's own
-        # interpreter. Gemini expands $GEMINI_PROJECT_DIR itself before the shell
-        # (documented), so the path resolves from any cwd on both bash and
-        # PowerShell.
         return f'klaussy-hook "$GEMINI_PROJECT_DIR/{hooks_dir}/{name}"'
 
     before: list[dict] = []
@@ -210,12 +202,6 @@ def cursor_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".cursor/hooks"
 
     hooks: dict[str, list[dict]] = {}
-    # Cursor execs the command path directly; rely on the script's shebang.
-    # The relative path is intentional and safe: Cursor runs project hooks
-    # (.cursor/hooks.json) from the repo root (documented), so no project-dir
-    # prefix is needed — unlike Claude/Gemini/Codex. Do NOT "absolutize" this.
-    # failClosed: a crashing/malformed guard blocks the action rather than
-    # silently allowing it (the guards are hardened to exit cleanly anyway).
     before_shell: list[dict] = []
     if fmt or lint or com:
         _install_script(
@@ -266,18 +252,9 @@ def codex_hooks(repo: Path, *, force: bool) -> None:
     hooks_dir = ".codex/hooks"
 
     def _cmd(name: str) -> str:
-        # Codex has no project-root env var and runs hook commands from the
-        # session cwd, so a bare relative path is unsafe; `git rev-parse
-        # --show-toplevel` self-resolves the repo root from any subdir
-        # (klaussy-scaffolded repos are git repos).
         return f'python3 "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
 
     def _cmd_win(name: str) -> str:
-        # Codex's documented per-OS override: `commandWindows` runs instead of
-        # `command` on Windows. `py -3` is the launcher stock python.org Windows
-        # installs expose (there is no `python3`). Because Codex chooses per the
-        # CONSUMER's OS at run time, `command` stays POSIX and this stays Windows
-        # regardless of the scaffolding OS — so a mixed-OS team is covered.
         return f'py -3 "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
 
     def _entry(name: str) -> dict:
@@ -339,15 +316,6 @@ def copilot_hooks(repo: Path, *, force: bool) -> None:
     fmt, lint, com = _commit_cmds(repo)
     hooks_dir = ".github/hooks"
 
-    # Copilot command hooks support an OS split: `bash` (Linux/macOS) and
-    # `powershell` (Windows). Use both so hooks run regardless of platform.
-    # sessionStart is Copilot's only context-injection event (preToolUse and
-    # userPromptSubmitted can't inject), so the guidance lands once per session.
-    # Wired unconditionally (independent of lint/format).
-    # Copilot has no project-root env var, but each hook entry takes a `cwd`
-    # field; pin it to "." so the relative bash/powershell commands resolve from
-    # the repo root. The OS-split form rules out a `$(...)`/env-var prefix
-    # (powershell wouldn't honor bash syntax), so `cwd` is the lever.
     _install_guidance_script(repo, f"{hooks_dir}/{GUIDANCE_GUARD}", "copilot")
     hooks_cfg: dict = {
         "sessionStart": [
@@ -455,10 +423,6 @@ def antigravity_hooks(repo: Path, *, force: bool) -> None:
     py = _hook_python()
 
     def _cmd(name: str) -> str:
-        # Antigravity's hook cwd/env contract is UNVERIFIED against primary docs,
-        # so we self-resolve the repo root via `git rev-parse --show-toplevel` —
-        # safe from any cwd, independent of any env var. See the README caveat
-        # (the plugin config path/event names here are also unverified).
         return f'{py} "$(git rev-parse --show-toplevel)/{hooks_dir}/{name}"'
 
     _install_script(repo, f"{hooks_dir}/{READ_GUARD}", "read_guard.py")

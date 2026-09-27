@@ -1,24 +1,4 @@
-"""The base a skill diffs against, decided in a repo built to get it wrong.
-
-A prompt eval cannot cover this. The harness there strips ```! blocks and
-disallows every tool, so the agent has no way to run `klaussy base` and no repo
-to run it against; the best such a test can show is that the skill *says* it
-would resolve. This builds the repo instead and looks at the answer.
-
-The fixture carries both ways the old behaviour failed at once. `develop` exists
-but is not the default, which is what made scaffolding and review-prep pick it.
-And `feat/ui` sits on `feat/api` rather than on `main`, so a range against the
-default covers a whole branch of someone else's commits.
-
-What this proves and doesn't: that the agent lands on the right base and notices
-the stack. Not how it got there, deliberately. On the first real run it never
-called `klaussy base` at all and worked the answer out from `git branch
---contains` instead, which is a fine way to arrive. Pinning the mechanism would
-have failed a correct review. Read a failure here as "a review was scoped to the
-wrong commits", which is worth catching however it happened.
-
-Costs one real agent run; see e2e_harness.py for the gate.
-"""
+"""The base a skill diffs against, decided in a repo built to get it wrong."""
 
 from __future__ import annotations
 

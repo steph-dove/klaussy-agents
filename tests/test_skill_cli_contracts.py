@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "evals"))
 # matches prose like "klaussy isn't on PATH". `humanize` is excluded: prose
 # skills name it to point at that skill, not to shell out.
 _KLAUSSY_CMD = re.compile(r"`klaussy ([a-z][a-z-]+)")
-_DELEGATED = {"humanize", "ships", "settings"}
+_DELEGATED = {"humanize", "ships", "settings", "init", "skills", "checklist"}
 
 # Bare `Bash` allows anything; otherwise the grant has to name the command.
 _BARE_BASH = re.compile(r"(^|\s)Bash(\s|$)")

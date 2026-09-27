@@ -118,11 +118,6 @@ def _parse_rules_dir(rules_dir: Path) -> list[str]:
             stripped = line.strip()
             if not stripped.startswith("- "):
                 continue
-            # Strip `**bold**` markers from the rule body BEFORE composing the
-            # output bullet. Otherwise the `**` from the glob pattern (e.g.
-            # `src/api/**/*.py`) and the `**` opening the title both feed into
-            # _build_convention_checks's bold-strip regex, which greedily
-            # pairs them and silently eats the glob.
             rule_body = re.sub(r"\*\*(.+?)\*\*", r"\1", stripped[2:])
             bullets.append(f"- for {glob_label}: {rule_body}")
 

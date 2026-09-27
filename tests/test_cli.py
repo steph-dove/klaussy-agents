@@ -1439,9 +1439,6 @@ class TestMultiAgentHooks:
         assert "Pre-Plan Guardrails" in rules.read_text()
 
     # --- hook commands resolve their script from the project root -----------
-    # Agents run hook commands from the session cwd, which is not guaranteed to
-    # be the repo root, so a bare relative path can fail to resolve. Each agent
-    # gets the mechanism verified against its own docs; lock those in here.
 
     def test_claude_hook_commands_use_project_dir_placeholder(self, repo: Path):
         from klaussy.hooks import scaffold_hooks

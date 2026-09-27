@@ -21,10 +21,6 @@ def repo(tmp_path: Path) -> Path:
 
 
 def test_codex_emits_per_os_command_override(repo: Path):
-    # Codex is the one non-Copilot agent with a first-class per-OS override.
-    # `command` stays POSIX (python3) and `commandWindows` uses the Windows
-    # launcher (py -3); Codex picks per the CONSUMER's OS, so both are hardcoded
-    # by target OS rather than by the scaffolding machine.
     from klaussy.agents.backends import CodexBackend
 
     CodexBackend().emit_hooks(repo, force=True)
