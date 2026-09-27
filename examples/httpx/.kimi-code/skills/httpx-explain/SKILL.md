@@ -11,7 +11,11 @@ If `$ARGUMENTS` is empty, explain the current branch diff using the dump below. 
 
 ## Current branch diff (used when target is empty)
 
-Run `git diff master...HEAD` and use its output.
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
+Run `klaussy base --explain` and use its output.
+
+Then read the branch's work with `git diff <base>...HEAD`.
 
 ## Instructions
 

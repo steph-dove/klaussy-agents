@@ -8,7 +8,11 @@ Address the review feedback on the current PR. Every comment gets a response: a 
 
 ## Phase 1: Gather the feedback
 
-1. **Get the review comments** for the current branch's request, using the adapter below. Pull the inline (line-level) comments, the summary review bodies, and the general conversation comments; the inline ones are where the substance usually is, but a request made in the conversation is just as binding. Fetch every page: a partial read drops comments without any error. If there's no request yet, no CLI, or no credentials, ask the user to paste the feedback and carry on from there.
+1. **Get the review comments** by running all three read commands in the adapter below, exactly as written. They are three separate endpoints: inline (line-level) comments, review summary bodies, and conversation comments. The inline ones carry most of the substance, but a request made in the conversation is just as binding.
+
+   Run each one with its `--paginate` (or the host's equivalent). A read without it stops at the first page and drops the rest with no error, which looks identical to "there were no more comments".
+
+   **Don't substitute a single summary command for those three.** `gh pr view --json comments,reviews` and its equivalents return the conversation and review bodies only, truncated, with no inline comments at all, so the feedback you most need is the part that goes missing. If there's no request yet, no CLI, or no credentials, ask the user to paste the feedback and carry on from there.
 2. **Read CLAUDE.md** and any `.claude/rules/*.md` covering the touched files — a fix must still satisfy the repo's conventions.
 3. **Build the change list.** For each comment, capture: the file/line, what's asked, and the reviewer's intent (not just the literal words). Group comments that touch the same code so you fix each spot once.
 
@@ -36,6 +40,8 @@ Address the review feedback on the current PR. Every comment gets a response: a 
 | Reply in a thread | `gh api --method POST repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body=<text>` |
 | Answer a conversation comment | `gh pr comment <n> --body-file <file>` (these aren't threaded, so quote or link the comment you're answering) |
 | Resolve a thread | two steps, see below — REST can't do it |
+
+**`gh pr view --json comments` is not one of these reads.** It returns conversation comments only, truncated, with no inline review comments and no review bodies. Use the three `gh api --paginate` reads above.
 
 **Feedback lives in three places, and each list is paged.** Inline comments, review summary bodies, and comments on the conversation tab are separate endpoints; read all three, since a reviewer who writes "please also rename X" in the conversation expects it handled like a line comment. Without `--paginate` each call returns only the first 30, so a busy request silently loses the rest. Pages print as separate JSON arrays; add `--slurp` when piping to `jq` and you want one.
 

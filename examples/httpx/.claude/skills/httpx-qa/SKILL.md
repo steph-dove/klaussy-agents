@@ -10,8 +10,10 @@ QA the current change and capture evidence a reviewer can trust. The point is to
 
 ## Steps
 
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
 1. **Read CLAUDE.md** for how this project builds, runs, and tests, plus any e2e, screenshot, or video-capture tooling it already has. **Read any `.claude/rules/*.md`** whose `paths:` glob covers the changed files — they often name the ports, fixtures, or QA conventions for that layer.
-2. **See what changed.** `git diff master...HEAD` for the branch's work, plus `git diff` / `git diff --cached` for uncommitted edits. **Classify each surface the diff touches** (a change can span more than one — QA each with its own method):
+2. **See what changed.** `git diff <base>...HEAD` for the branch's work, plus `git diff` / `git diff --cached` for uncommitted edits. **Classify each surface the diff touches** (a change can span more than one — QA each with its own method):
    - **UI / frontend** — components, styles, templates, pages, client-side behavior.
    - **Backend / API / service** — routes, handlers, business logic, jobs, DB.
    - **CLI / tool** — command entrypoints, flags, output.

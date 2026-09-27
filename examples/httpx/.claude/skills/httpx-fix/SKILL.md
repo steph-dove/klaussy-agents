@@ -8,13 +8,15 @@ Fix all lint, format, and type errors in the current changes.
 
 ## Steps
 
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
 1. **Read CLAUDE.md** to find the project's lint, format, and type-check commands. If they're missing, fall back to the stack defaults below.
 2. **Read any `.claude/rules/*.md`** whose `paths:` glob matches the files you're about to touch — they may carry style/typing rules the linter doesn't enforce.
 3. **Scope to this branch's change.** Build the changed-file list — the union of:
-   - `git diff --name-only master...HEAD` (work committed on this branch)
+   - `git diff --name-only <base>...HEAD` (work committed on this branch)
    - `git diff --name-only` (unstaged) and `git diff --name-only --cached` (staged)
 
-   Pass these paths to every command below so the tools judge only what this branch changed — never the whole repo. Pre-existing violations in untouched files are not yours to fix here. If the list is empty, there's nothing to fix; say so and stop. (If `master...HEAD` errors because the base branch isn't present locally, fall back to the uncommitted diff alone.)
+   Pass these paths to every command below so the tools judge only what this branch changed — never the whole repo. Pre-existing violations in untouched files are not yours to fix here. If the list is empty, there's nothing to fix; say so and stop. (If `<base>...HEAD` errors because the base isn't present locally, fall back to the uncommitted diff alone.)
 4. **Run each command in this order, scoped to the changed files** (apply each pass before running the next, so fixes from one don't fight the next):
    1. **Format** first (it normalizes whitespace and quoting that lint rules might complain about).
    2. **Lint** next (it picks up real style/safety issues on top of formatted code).

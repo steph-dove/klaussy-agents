@@ -80,6 +80,7 @@ Only after the test is green again move on to the next step.
    - No unrelated files were modified.
    - No debug code or commented-out code remains.
 3. **Verify callers.** Re-grep for callers of anything you moved or renamed. Confirm every reference was updated.
+4. **Report back.** Say what moved and where, and that the suite matches the Phase 1 baseline.
 
 ## When NOT to use
 

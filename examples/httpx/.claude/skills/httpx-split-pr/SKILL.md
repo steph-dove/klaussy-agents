@@ -10,14 +10,16 @@ Nothing here is destructive if you follow Phase 1 — the original work is prese
 
 ## Phase 0: Find the work and normalize it
 
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
 Everything downstream carves from a **single reference commit**, so establish one first.
 
 1. `git status --porcelain` — is there uncommitted work?
-2. `git rev-list --count origin/master..HEAD` — are there commits ahead of the base?
+2. `git rev-list --count <base>..HEAD` — are there commits ahead of the base?
 3. Normalize to one tip:
    - **Committed only** → the tip is `HEAD`.
    - **Uncommitted only, or both** → commit everything onto the current branch as a single throwaway commit (`git add -A && git commit -m "wip: pre-split snapshot"`). That commit is the tip. It never gets pushed; it exists so the split has a fixed thing to carve from and so nothing is riding in the working tree while you switch branches.
-4. **Check ownership.** `git log origin/master..<tip> --format='%an' | sort -u`. If the work includes commits by someone else, stop and confirm before restructuring it — a split rewrites their commits into branches with your name on the carving.
+4. **Check ownership.** `git log <base>..<tip> --format='%an' | sort -u`. If the work includes commits by someone else, stop and confirm before restructuring it — a split rewrites their commits into branches with your name on the carving.
 
 ## Phase 1: Build the safety net
 
@@ -39,7 +41,9 @@ Comments inflate a diff without adding anything a reviewer has to reason about, 
 
    **This commit is now `<tip>`** — the ref every later phase carves from and verifies against. Re-record `git rev-parse HEAD`. `<branch>-prestack` still points at the *pre-cleanup* work and stays that way: it's the undo for the comment pass as well as the carve, which is exactly why it isn't the thing Phase 5 compares against.
 
-3. **Measure what's actually left.** Run `klaussy split-prep --base master`. It reports code lines separately from comment and docstring lines, flags the files where comment is still most of what changed, and proposes layers from the import graph. **Decide on the code-lines figure, not the raw one.** If the `klaussy` CLI isn't on PATH, fall back to `klaussy review-prep`, or to `git diff master...HEAD --stat` while discounting generated files yourself — and say which fallback you used, since the layer proposal is unavailable in both.
+**If the `klaussy` command isn't found, run it as `python3 -m klaussy <command>`** (`python -m klaussy` on Windows, where `python3` is usually absent) **before falling back any further** — the package is often installed with only its script directory off PATH. Use the fallback named for that step when that fails too, and say which one you used: a fallback answers a narrower question than the command it stands in for.
+
+3. **Measure what's actually left.** Run `klaussy split-prep`, which resolves the base itself. It reports code lines separately from comment and docstring lines, flags the files where comment is still most of what changed, and proposes layers from the import graph. **Decide on the code-lines figure, not the raw one.** If the `klaussy` CLI isn't on PATH, fall back to `klaussy review-prep`, or to `git diff <base>...HEAD --stat` while discounting generated files yourself — and say which fallback you used, since the layer proposal is unavailable in both.
 
 4. **Judge on shape, not just size.** Around 400 **code** lines is where a split starts paying for itself, but the number is a prompt to think, not a rule:
    - **Split** when the diff contains units a reviewer could evaluate independently — a schema change under an API change under a UI change, or a mechanical rename sitting alongside real logic.
@@ -77,7 +81,7 @@ Then present the plan **before creating anything**.
 Present the plan as a map with a per-layer line count and a one-line rationale, then wait for approval:
 
 ```
-master
+<base>
   └─ <branch>-1-schema      ~120 lines   migration + model fields, no callers yet
       └─ <branch>-2-api     ~240 lines   routes and handlers reading the new fields
           └─ <branch>-3-ui  ~180 lines   the form, plus its component tests
@@ -92,7 +96,7 @@ The user is already stopped here, so fold in anything else the run needs from th
 Write the approved plan as JSON, bottom layer first, at the path `git rev-parse --git-path klaussy-split.json` prints (inside the git dir, so it never lands in the tree):
 
 ```json
-{"base": "master", "tip": "<tip sha>", "layers": [
+{"base": "<base>", "tip": "<tip sha>", "layers": [
   {"branch": "<branch>-1-schema", "message": "feat(db): add the schema", "paths": ["migrations/", "src/schema.py"]},
   {"branch": "<branch>-2-api", "message": "feat(api): add the endpoint", "paths": ["api/"]}
 ]}
@@ -104,7 +108,9 @@ A file whose hunks belong to different layers can't be carved whole. Carve those
 
 **Do not edit code while carving.** A split moves lines between branches; it doesn't change them. The comment pass already happened in Phase 2 and is baked into `<tip>` — don't tidy anything else on the way past, or check 1 below will fail and you won't know whether the cause was the carve or the tidying. If a layer needs a small bridge to stand alone (an import, an `__all__` entry, a stub the next layer replaces), that's part of the carve and worth calling out in the PR body. If you find an actual bug mid-split, write it down and fix it in a follow-up — a behavior change smuggled into a restructuring is invisible to review.
 
-**And the repo's own commit hooks will edit code while you carve, if you let them.** A hook that formats, lints with a fix flag, or runs a review that applies its own suggestions reads each layer commit as fresh authorship and rewrites it — the edit this phase forbids, arriving from the one direction you weren't watching. Turn them off for the carve (`--no-verify`, or whatever opt-out the repo documents) and say in the report that you did. Never interrupt one that's already running: a formatter killed halfway leaves its edits staged, the next commit swallows them, and the layer now differs from `<tip>` by changes nobody chose.
+**And the repo's own commit hooks will edit code while you carve, if you let them.** A hook that formats, lints with a fix flag, or runs a review that applies its own suggestions reads each layer commit as fresh authorship and rewrites it — the edit this phase forbids, arriving from the one direction you weren't watching. Never interrupt one that's already running: a formatter killed halfway leaves its edits staged, the next commit swallows them, and the layer now differs from `<tip>` by changes nobody chose.
+
+**Ask before turning them off.** `split-carve` commits every layer with `--no-verify`, so running it skips whatever the repo's hooks do, and some of them are load-bearing: a secret scan, a commit-message gate, a guard that blocks a bad commit rather than reformatting one. Say which hooks this repo has (`ls .git/hooks`, plus any `.pre-commit-config.yaml`, `lefthook.yml`, `.husky/`), that carving skips them and why, and get the user's yes before you carve. If they'd rather not skip them, that's a hand carve with hooks left on and a re-check that each layer still matches `<tip>` afterwards — slower, and it can fail, which is the honest trade. Whichever way it goes, say in the report which hooks were skipped.
 
 ## Phase 5: Verify, before anything is pushed
 
@@ -120,14 +126,14 @@ If a layer can't be made to stand alone after a couple of attempts, that seam is
 Bottom-up, one branch per command. A layer's parent has to exist on the remote before a request can target it, so push and open in the same pass rather than pushing everything first:
 
 ```
-git push -u origin <branch>-1-schema     → open request 1 against master
+git push -u origin <branch>-1-schema     → open request 1 against <base>
 git push -u origin <branch>-2-api        → open request 2 against <branch>-1-schema
 git push -u origin <branch>-3-ui         → open request 3 against <branch>-2-api
 ```
 
 **Push guards run once per layer, and judge each one as if it were the whole change.** A layer that deliberately adds code nothing calls yet is the point of a stack and a finding to a guard, so expect refusals over exactly the seams you designed. A per-push review also re-reads the same lines once per layer, which is slow enough to look like a hang and can block the stack over something that has been sitting in the base branch for months. Bypass them for the push, say that you did, and let Phase 5 carry the weight instead: check 1 proves the stack is identical to a `<tip>` that nothing has escaped review on.
 
-**Pass the base explicitly on every request, and read it back.** This is the step that quietly doesn't happen: leave the base off and the forge CLI defaults to the repo's default branch, so all three requests land on `master` and each one shows the sum of everything beneath it — the exact review problem the split existed to solve, now spread across three pages. After opening each request, check its base field (`gh pr view <n> --json baseRefName` and the equivalents in the adapter below) and fix it with the retarget command if it isn't the branch below.
+**Pass the base explicitly on every request, and read it back.** This is the step that quietly doesn't happen: leave the base off and the forge CLI defaults to the repo's default branch, so all three requests land on `<base>` and each one shows the sum of everything beneath it — the exact review problem the split existed to solve, now spread across three pages. After opening each request, check its base field (`gh pr view <n> --json baseRefName` and the equivalents in the adapter below) and fix it with the retarget command if it isn't the branch below.
 
 **Then register a real stack if the host has one.** Chained bases make the diffs right; a native stack is what gives the request pages a stack map, navigation between layers, and cascading rebase, and it's what makes the set read as one change rather than three coincidences. The forge commands below say whether this host has such a thing and which command builds it.
 
@@ -194,7 +200,7 @@ Never merge the stack yourself.
 - **Every layer builds and passes on its own,** or the seam is wrong. Fix the seam, not the test.
 - **Bottom-up for everything** — carve, verify, push, open, merge.
 - **Don't split someone else's commits without asking.**
-- **Every layer above the bottom targets the layer below it.** An omitted base silently becomes `master`; confirm each request's base after opening it, never assume.
+- **Every layer above the bottom targets the layer below it.** An omitted base silently becomes `<base>`; confirm each request's base after opening it, never assume.
 - **Ship an actual stack, not just a chain, wherever the host supports one.** If the repo already uses a stack tool (Graphite, git-town, spr, ghstack), build it with that tool's commands so its metadata stays consistent; otherwise use the host's native stack from the forge commands in Phase 6, offering to install its tooling if it's missing. Say which you used, and say so too when the host has neither.
 
 ## When NOT to use

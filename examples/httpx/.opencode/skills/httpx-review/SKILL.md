@@ -13,21 +13,18 @@ You are conducting a thorough PR review. Follow these phases in order.
 
 ## Phase 1: Context Gathering
 
-If `master` is missing or unset, default to `dev` if it exists, otherwise `main`.
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
 
-The diff stat, full diff, commit log, and branch name below are pre-rendered as dynamic context — you do not need to fetch them yourself.
+### Base and branch
 
-### Diff stat
+Run these commands and use their output:
 
-Run `git diff --stat master...HEAD` and use its output.
+- `klaussy base --explain`
+- `git branch --show-current`
 
-### Commit log
+### What you still need to fetch
 
-Run `git log master..HEAD --oneline` and use its output.
-
-### Branch name
-
-Run `git branch --show-current` and use its output.
+The diff stat and commit log depend on `<base>`, so run them once you have it: `git diff --stat <base>...HEAD` and `git log <base>..HEAD --oneline`.
 
 ### What you still need to do
 
@@ -36,7 +33,9 @@ Run `git branch --show-current` and use its output.
    - **Local is behind** (`git merge-base --is-ancestor HEAD origin/<branch>` succeeds): stop and tell the user the checkout is stale. Review after they pull; don't pull for them.
    - **Local is ahead or has diverged:** say so, name the unpushed commits (`git log --oneline origin/<branch>..HEAD`), and ask whether to review local HEAD or the pushed commit.
    - **No remote branch:** the branch was never pushed. Review local HEAD and say so in the verdict.
-1. **Get the reviewable diff.** Run `klaussy review-prep --base master`. It returns the diff trimmed to reviewable files — lockfiles, generated/vendored trees, minified/binary blobs, and pure renames are dropped — followed by an **Excluded from review** manifest listing what it dropped and why. Use this trimmed diff as *the diff* for the rest of the review. If the `klaussy` CLI isn't on PATH (the command errors), fall back to `git diff master...HEAD` for the full untrimmed diff and proceed as before. Kept as a tool call rather than injected — even trimmed, diffs can be large.
+**If the `klaussy` command isn't found, run it as `python3 -m klaussy <command>`** (`python -m klaussy` on Windows, where `python3` is usually absent) **before falling back any further** — the package is often installed with only its script directory off PATH. Use the fallback named for that step when that fails too, and say which one you used: a fallback answers a narrower question than the command it stands in for.
+
+1. **Get the reviewable diff.** Run `klaussy review-prep`, which resolves the base itself. It returns the diff trimmed to reviewable files — lockfiles, generated/vendored trees, minified/binary blobs, and pure renames are dropped — followed by an **Excluded from review** manifest listing what it dropped and why. Use this trimmed diff as *the diff* for the rest of the review. If the `klaussy` CLI isn't on PATH (the command errors), fall back to `git diff <base>...HEAD` for the full untrimmed diff and proceed as before. Kept as a tool call rather than injected — even trimmed, diffs can be large.
 2. **Don't read the full files yet.** The small-PR path reads them next; on the parallel path each lens reads what it needs, so reading them here too would pay for every file twice.
 3. Count the total **reviewable** lines changed — use the `N changed line(s)` figure in the review-prep summary line (on the `git diff` fallback, take the `--stat` total but ignore any lockfile / generated / vendored / minified / binary files).
 4. If the branch name contains a ticket reference (e.g. FEAT-1234), note it for context.
