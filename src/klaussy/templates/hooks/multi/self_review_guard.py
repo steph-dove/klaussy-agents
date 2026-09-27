@@ -134,12 +134,7 @@ _TOOLING_PREFIXES = (
 
 
 def _has_uncommitted_code() -> bool:
-    """True if unstaged, staged or brand-new changes touch a source file.
-
-    `git diff` sees neither side of an untracked file, so a session whose whole
-    output is new files looked clean and the review never fired. That is the
-    session most worth reviewing, since nothing in it has been read before.
-    """
+    """True if unstaged, staged or brand-new changes touch a source file."""
     files: set[str] = set()
     for args in (["diff", "--name-only"], ["diff", "--name-only", "--cached"]):
         out = _git(args)

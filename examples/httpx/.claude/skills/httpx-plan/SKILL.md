@@ -140,6 +140,8 @@ and what the plan should say instead. A finding without code evidence is a guess
 If the plan holds up, say so in one line. Do not write any files.
 ```
 
+**Send that prompt as written, filling in `<path>` and `<paths>` and nothing else.** Don't restate the plan into it, and don't tell the reviewer which step to look hardest at. The plan is in the file it's about to read, so a summary is the contents arriving by another route; and a step you point at is the one you already doubted, which turns an attack on the whole plan into a check of your own hunch.
+
 Weigh each finding on its evidence. Fix `plan.md` for the ones that hold, and record both checks in its `## Plan review` section: one line per finding with what changed, or why you didn't act on it, plus any requirement the first check found uncovered. Don't run a second round; this is one pass.
 
 ## Phase 7 — Approval gate
@@ -148,10 +150,16 @@ Output the complete plan in your chat response so the user can see it immediatel
 
 ## Hand off
 
-Stop here. Say what the next step is and let the user take it:
+Stop here, then offer the next step and wait for the answer:
 
 - **Build it:** **`httpx-implement`** works `plan.md` top-to-bottom, ticking each box as it lands.
 - **Build, review, QA and open the PR:** **`httpx-rest-of-the-owl`** runs the whole loop unattended.
+
+**Ask which one they want, in a sentence, rather than listing the two and stopping dead.** "Want me to run the owl from here, or just implement?" A plan handed over without an offer usually means the user retypes the task to start the next skill.
+
+**Offering is not starting.** Wait for the reply, however obvious the answer looks. Approving the plan is not approving the build, and a plan skill that reads one as the other is the failure this whole phase exists to prevent.
+
+**Run as the owl's Phase 1, skip the offer.** The user already chose the whole loop, so the approval in Phase 7 is the only stop: once they approve, hand straight to the owl's Phase 2 (**`httpx-implement`**) in the same turn.
 
 ## Anti-patterns to avoid (universal craft rules)
 

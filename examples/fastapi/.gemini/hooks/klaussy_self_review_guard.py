@@ -47,7 +47,9 @@ DIRECTIVE = (
     "existing code instead of reinventing it, preferred the standard library and "
     "existing dependencies over new packages or hand-rolled code, left no dead code "
     "or debug prints, and covered the change with tests that pass. Fix anything that "
-    "falls short, then finish. If it already holds, say so briefly and stop."
+    "falls short. This reply is the last one the user sees, so after one line on the "
+    "review, restate the result you were reporting before it (what's done, what's "
+    "left, any question you asked) instead of ending on the review alone."
 )
 
 # Source-file suffixes that make a diff worth a review pass. A docs/config-only
@@ -115,13 +117,34 @@ def _git(args: list[str]) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
+# Agent tooling dirs, skipped for untracked files only: a freshly scaffolded
+# hook script is an untracked .py, and the guard's first act in a new repo
+# should not be a nudge about its own installation.
+_TOOLING_PREFIXES = (
+    ".claude/",
+    ".gemini/",
+    ".cursor/",
+    ".github/",
+    ".agents/",
+    ".opencode/",
+    ".kimi-code/",
+    ".cline/",
+    ".codex/",
+)
+
+
 def _has_uncommitted_code() -> bool:
-    """True if unstaged or staged changes touch a source file."""
+    """True if unstaged, staged or brand-new changes touch a source file."""
     files: set[str] = set()
-    for extra in (["--name-only"], ["--name-only", "--cached"]):
-        out = _git(["diff", *extra])
+    for args in (["diff", "--name-only"], ["diff", "--name-only", "--cached"]):
+        out = _git(args)
         if out:
             files.update(line for line in out.splitlines() if line)
+
+    untracked = _git(["ls-files", "--others", "--exclude-standard"]) or ""
+    files.update(
+        line for line in untracked.splitlines() if line and not line.startswith(_TOOLING_PREFIXES)
+    )
     return any(f.lower().endswith(CODE_EXTS) for f in files)
 
 

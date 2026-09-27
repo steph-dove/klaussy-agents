@@ -22,9 +22,9 @@ Go through every item against the diff. For each, either confirm it holds or fix
 - Did you add a new third-party dependency? That's a decision to raise with the user, not to slip in — flag it.
 
 **Comments**
-- Deleting is the default; keeping one needs a reason you could defend in review. Go comment by comment and cut every one that restates the code, narrates steps, or reads as changelog ("Now we handle…", "Added to fix…").
+- Deleting is the default; keeping one needs a reason you could defend in review. Go comment by comment and cut every one that restates the code or narrates steps ("Now we handle…", "First we loop over…").
+- Changelog framing ("Added to fix…", "Updated so that…") always goes, but look underneath it before you cut the line: if there's a real *why* in there, keep the why on its own and drop the framing — that's a condense, not a delete. Delete the line only when nothing survives the framing.
 - What survives gets one sentence, and only where it earns its place: a *why*, a gotcha, an invariant, a link. A second sentence usually means the first one restated the code.
-- A comment that mixes narration with a real *why* keeps the why and loses the rest: condense it, don't delete it.
 - Prefer a clearer name over a comment.
 
 **Imports**
@@ -38,7 +38,8 @@ Go through every item against the diff. For each, either confirm it holds or fix
 - New behavior has tests (happy path + error/edge paths). A bug fix has a test that fails without the fix. Run the suite from CLAUDE.md and confirm it's green.
 
 **Scope and minimalism**
-- Every changed line serves the task. No unrelated refactoring, renaming, or reformatting rode along. Revert what isn't yours to change.
+- Every changed line serves the task. No unrelated refactoring, renaming, or reformatting rode along.
+- **Never revert a change you didn't make.** An unrelated edit in the working tree may be the user's own uncommitted work, and `git checkout --` on it destroys something they can't get back. Set it aside instead: `git stash push -m "<why>" -- <paths>` naming only the files that aren't yours, finish the review on what's left, then `git stash pop` to hand it back. Say what you stashed and that you restored it. If the unrelated change is tangled into the same hunks as yours, don't split it by hand: name it in the report and let the user decide.
 
 **Conventions and correctness**
 - Matches the repo's existing patterns, naming, and structure (and any `.claude/rules/*.md` covering the touched files).

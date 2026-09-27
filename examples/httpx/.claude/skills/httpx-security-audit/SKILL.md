@@ -1,12 +1,14 @@
 ---
 name: httpx-security-audit
 description: Use when the user wants a focused security pass over the current change — scanning the branch diff for leaked secrets, injection and SSRF, broken access control, unsafe deserialization, and newly added or vulnerable dependencies. Narrower and deeper than the general review skill: it applies only the security lenses and reports findings; it does not refactor or fix. Also known as `klaussy-security-audit`.
-allowed-tools: Read Grep Glob Bash(git diff *) Bash(git log *)
+allowed-tools: Read Grep Glob Bash(git diff *) Bash(git log *) Bash(git symbolic-ref *) Bash(klaussy base *) Bash(python3 -m klaussy *) Bash(python -m klaussy *)
 ---
 
 You are running a security audit of the current change. Scope is the diff against the base branch and the immediate context of what it touches — not the whole tree, and not style or architecture. Report findings only; do not edit code.
 
-If `master` is missing or unset, default to `dev` if it exists, otherwise `main`. Read the change with `git diff master...HEAD` first.
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
+Read the change with `git diff <base>...HEAD` first. Auditing the wrong range means reporting someone else's commits as this change's findings.
 
 ## Lenses
 

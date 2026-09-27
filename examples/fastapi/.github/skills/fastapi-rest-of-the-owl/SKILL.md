@@ -6,6 +6,7 @@ description: Use when the user hands you a task definition and wants the ENTIRE 
 > **Adapted for GitHub Copilot.**
 >
 > - This skill orchestrates parallel sub-agents using Claude's `Agent` tool / `subagent_type` syntax. Most coding agents now have their own parallel sub-agent or task mechanism (e.g. Cursor's `Task`, Codex's `spawn_agent`, Gemini subagents, Copilot's `task`) — use yours and translate the wording. If it truly has none, apply each lens or angle yourself, sequentially, and combine the findings.
+> - Where it references "plan mode" or `ExitPlanMode`, use your agent's own plan/approval mode if it has one; otherwise present your plan and wait for explicit approval before editing any files.
 
 ## Task
 
@@ -25,14 +26,31 @@ You are an orchestrator. Each phase below names the sibling skill that owns that
 
 Track the run with TodoWrite: one todo per phase, `in_progress` when you start it, `completed` when it's done. The flow is long and mostly unattended; the todo list is how the user follows along.
 
-**Keep the main context lean.** Everything you read stays in this conversation and is re-read on every later turn, so hand the read-heavy phases (review, self-review, QA) to a sub-agent when your agent has one. Give it the skill to follow, the base branch, and the exact shape of what to return; it returns a short summary and you act on that. Two exceptions run inline: an agent with no sub-agents, and a review of 150 or more reviewable lines, which takes review's parallel path (a sub-agent can't start sub-agents of its own).
+**Close every phase in the chat.** When a phase's gate is met, write one line saying so before you start the next: `Phase 3 done: review clean, 2 findings fixed, suite green.` The todo list alone doesn't reach a user reading the transcript or a run's final output, and a turn that ends on a tool call with no text looks like a hang.
+
+**Keep the main context lean.** Everything you read stays in this conversation and is re-read on every later turn, so hand the read-heavy phases (review, self-review, QA) to a sub-agent when your agent has one. Give it the skill to follow, the base branch, and the exact shape of what to return, and tell it that shape replaces the skill's own output section and that it reports rather than stopping to ask; it returns a short summary and you act on that. Two exceptions run inline: an agent with no sub-agents, and a review of 150 or more reviewable lines, which takes review's parallel path (a sub-agent can't start sub-agents of its own).
+
+### Where the owl overrides a skill's stopping points
+
+The sibling skills are written to run on their own, so several end by handing back to the user. Inside the owl that hand-back is the next phase, not the end of the turn. These override the skills:
+
+- **plan:** its approval gate stands. Show the plan and wait for the user's OK; that is the one planned stop in the whole run. Skip its hand-off offer ("want me to run the owl…?"): once the plan is approved, exit plan mode and start Phase 2 in the same turn.
+- **implement:** the plan is already approved, so skip its Phases 1–3 and its `ExitPlanMode` request and start at Phase 4, working `plan.md` top to bottom.
+- **review:** in Phase 3 the branch may be unpushed or ahead of its remote; review local HEAD and say so rather than asking which to review. Its verdict comes back to you, not only to `REVIEW_OUTPUT.md`.
+- **qa:** when it finds nothing to observe at runtime (docs or config only), that's Phase 4 passing, not the run ending. Say so and go to Phase 5.
+- **pr:** it only writes `pr-description.md`. Open the request yourself with the adapter's create command, passing that file as the body.
+- **address-review:** its summary closes Phase 8, not the owl. Check CI again (Phase 7) and then land (Phase 9).
 
 **Stop and hand back** — don't barrel ahead — whenever a phase hits something a human must decide: a missing secret or env var, an ambiguous requirement, a destructive migration, or a test failure that looks like a real bug in existing code rather than in your change.
 
 ## Pre-flight
 
 1. **Permissions.** If routine dev permissions aren't configured for this worktree yet, run **`fastapi-grant-permissions`** so editing, tests, git and the forge CLI don't prompt all run.
-2. **Base branch.** Decide once which branch this targets and use it as `<base>` everywhere. First that applies: one the task or user names; the target of an existing request for this branch; the remote default (`git symbolic-ref --short refs/remotes/origin/HEAD` minus `origin/`); `master`. If the branch was cut from another topic branch instead, ask rather than guess — a wrong base puts someone else's commits in your diff. Say which you picked in the first progress update.
+2. **Base branch.** Decide once which branch this targets and use it as `<base>` everywhere, and say which you picked in the first progress update. A branch the task or user names wins, then the target of an existing request for this branch; otherwise resolve it:
+
+**If the `klaussy` command isn't found, run it as `python3 -m klaussy <command>`** (`python -m klaussy` on Windows, where `python3` is usually absent) **before falling back any further** — the package is often installed with only its script directory off PATH. Use the fallback named for that step when that fails too, and say which one you used: a fallback answers a narrower question than the command it stands in for.
+
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
 
 ## Phases
 
@@ -45,14 +63,14 @@ Track the run with TodoWrite: one todo per phase, `in_progress` when you start i
 | 5 | **`fastapi-pr`** | The request is open against `<base>`, its number and URL reported. Commit on a topic branch (never straight to `<base>`) and push first. Embed the QA evidence from Phase 4 in the body. |
 | 6 | **`fastapi-review`** again, now that it's a real PR | Findings fixed, committed, pushed. A PR at rest reads differently: integration seams and the change as a whole surface here. |
 | 7 | `waiting.md`, then the adapter's CI commands | Every check is green. |
-| 8 | `waiting.md`, then **`fastapi-address-review`** | Every comment answered and its thread resolved. Pushing fixes re-triggers CI, so go back to 7 if anything goes red. |
+| 8 | `waiting.md`, then **`fastapi-address-review`** | Every comment answered with a change or a reason. Pushing fixes re-triggers CI, so go back to 7 if anything goes red. |
 | 9 | — | Stop. Report and hand back. |
 
 **Phase 4 is a gate, not a formality.** If QA shows the change is broken or ugly, go back to phase 2 or 3, fix it, and re-QA. Don't open a PR on a change QA has already failed and leave it for CI or the reviewer to catch.
 
 **Phase 7: fixing CI.** Pull each failing check's logs with the adapter's log command and fix the real cause. A flaky check gets one re-run before you treat it as genuine. If a failure is in code your change didn't touch and can't have caused, stop and tell the user rather than guessing.
 
-**Phase 9: landing.** Report the PR link, its check status, which review comments you addressed and how, the QA artifacts folder and anything still to attach by hand, and the one thing left: the user's merge. Mark all TodoWrite tasks complete. Say plainly if you stopped early and why.
+**Phase 9: landing.** Report the PR link, its check status, which review comments you addressed and how, the QA artifacts folder and anything still to attach by hand, and the one thing left: the user's merge. Mark all TodoWrite tasks complete. Say plainly if you stopped early and why. This report is the last thing in the run, so never end on a tool call: if you stop anywhere, for any reason, the report still gets written.
 
 ### Forge commands (GitHub)
 

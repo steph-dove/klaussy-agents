@@ -1,25 +1,33 @@
 ---
 name: fastapi-pr
-description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, then writes a Summary / Changes / Test Plan / Notes block to pr-description.md. Also known as `klaussy-pr`.
+description: Use when the user wants a PR description generated for the current branch. Reads commit history, file changes, and CLAUDE.md, fills the repo's own pull/merge request template when it has one, and writes the result to pr-description.md. Also known as `klaussy-pr`.
 ---
 
 ## Branch
 
 Run `git branch --show-current` and use its output.
 
-## Commit history vs base
+## Base
 
-Run `git log master..HEAD --oneline` and use its output.
+Run `klaussy base --explain` and use its output.
 
-## Files changed
+## Commit history and files changed
 
-Run `git diff master...HEAD --stat` and use its output.
+Both ranges need `<base>`, so run them yourself: `git log <base>..HEAD --oneline` and `git diff <base>...HEAD --stat`.
 
 ## Instructions
 
 Generate a PR description for the changes summarized above. Extract any ticket reference (e.g. FEAT-1234) from the branch name. Read CLAUDE.md for project conventions and any PR template rules. For key changed files, read them to understand the full context — do not paraphrase from the diff alone.
 
-Output format:
+**Resolve the base first, by running the command.** Every range below is against `<base>`. Run `klaussy base --explain` before any range and reuse its answer; if the `klaussy` command isn't found, try `python3 -m klaussy base --explain` (`python -m klaussy` on Windows), then `git symbolic-ref --short refs/remotes/origin/HEAD` without its `origin/` prefix, and `master` if that's empty too. **Don't work the base out by eye.** Picking the obvious branch gets the same answer most of the time and misses the case that matters: the command also reports branches `HEAD` may have been cut from, and a branch stacked on another one gets a range covering commits your change never added. If it names any, say so and ask which base to use rather than picking. Either way, state the base you used, and that you checked.
+
+### Use the repo's own template if it has one
+
+Look for one before writing anything: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE/` (a directory of them), the same three names at the repo root or under `docs/`, and for GitLab `.gitlab/merge_request_templates/*.md`.
+
+When one exists it wins outright. Keep its headings, their order, and their exact wording, fill each section with real content, and leave its checklists and HTML comments in place, ticking only what you've actually confirmed. A template is the reviewers' agreement about what a PR says; replacing it with the house format below throws that away and reads as though you didn't look. If the directory form holds several, pick the one whose name matches the change and say which you used.
+
+Only when there is no template, use this format:
 
 ```markdown
 ## Summary
@@ -58,7 +66,7 @@ Rules:
 - Focus on the "why" not just the "what".
 - If the branch name has a ticket reference, include it in the summary.
 - Keep it concise. No filler.
-- **A short PR gets a short description.** One bullet under Changes is a fine answer for a one-file fix; padding it out to fill the template wastes the reviewer's time. Drop the Notes section entirely when there's nothing a reviewer needs flagged, rather than writing "N/A" or inventing something.
+- **A short PR gets a short description.** One bullet under Changes is a fine answer for a one-file fix; padding it out to fill the template wastes the reviewer's time. Drop the Notes section entirely when there's nothing a reviewer needs flagged, rather than writing "N/A" or inventing something. Section names the repo's own template asks for are the exception: leave those in place and say briefly why one is empty, since a reviewer scanning for a heading they expect will notice it missing.
 - If there are database changes, call them out explicitly.
 - If there are new dependencies, mention them.
 
@@ -71,5 +79,5 @@ Write the output to `pr-description.md` in the repo root.
 ## When NOT to use
 
 - The user wants the PR or MR opened for real — this skill only writes the description text into a file, so hand the file to whichever create command their host takes.
-- The branch has no commits ahead of `master` — there's nothing to describe; tell the user instead.
+- The branch has no commits ahead of `<base>` — there's nothing to describe; tell the user instead.
 - The user wants a release-notes-style summary spanning multiple PRs — different shape; don't try to fit it in this template.

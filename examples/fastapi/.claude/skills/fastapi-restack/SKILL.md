@@ -1,10 +1,12 @@
 ---
 name: fastapi-restack
 description: Use when the user has a stack of dependent branches or PRs that needs rebasing — the base branch moved, the bottom branch merged, or a mid-stack branch was amended. Derives the parent/child chain from git ancestry, rebases each branch onto its new parent, and force-pushes with a lease. Works with plain git; uses a forge CLI only to retarget PR/MR bases when one is available. Also known as `klaussy-restack`.
-allowed-tools: Read Grep Bash(klaussy restack *) Bash(git *) Bash(gh *) Bash(glab *)
+allowed-tools: Read Grep Bash(klaussy restack *) Bash(python3 -m klaussy *) Bash(python -m klaussy *) Bash(git *) Bash(gh *) Bash(glab *)
 ---
 
 Rebase a stack of dependent branches so each one sits on top of its parent again, then push the stack. `klaussy restack` does the git mechanics: it maps the chain from ancestry and reflogs, rebases bottom-up with `--onto`, verifies, and pushes with a lease. Your job is the two decisions it can't make: confirming the chain, and resolving conflicts.
+
+**If the `klaussy` command isn't found, run it as `python3 -m klaussy <command>`** (`python -m klaussy` on Windows, where `python3` is usually absent) **before falling back any further** — the package is often installed with only its script directory off PATH. Use the fallback named for that step when that fails too, and say which one you used: a fallback answers a narrower question than the command it stands in for.
 
 If `klaussy` isn't on PATH (the command isn't found), follow `.claude/skills/fastapi-restack/manual.md` instead; it's the same procedure by hand.
 
@@ -12,7 +14,7 @@ If `klaussy` isn't on PATH (the command isn't found), follow `.claude/skills/fas
 
 ## 1. Map and confirm
 
-Run `klaussy restack plan --base master`. It fetches, then prints the chain bottom-up, which branches already landed in the base, who authored the commits, and any line that needs you:
+Run `klaussy restack plan`, which resolves the base itself (pass `--base` to override). It fetches, then prints the chain bottom-up, which branches already landed in the base, who authored the commits, and any line that needs you:
 
 - **BLOCKED** (dirty tree): let the user commit or stash. Never restack over uncommitted work.
 - **ASK** (two branches on one commit): ask which is the parent.

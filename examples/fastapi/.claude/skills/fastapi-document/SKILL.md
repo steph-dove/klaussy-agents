@@ -28,6 +28,7 @@ Add documentation where it earns its place, and only there. The hard part of thi
 
 - **Re-read each doc against the code it describes** — an inaccurate comment is worse than none. Confirm params, return types, and described behavior actually match.
 - If the repo builds docs (e.g. Sphinx, TypeDoc, mkdocs — check CLAUDE.md), build them to confirm nothing is malformed.
+- **Report back** which files you documented, and anything you left undocumented on purpose.
 
 **Humanize anything a human will read.** Before prose ships — a PR body, a review comment or reply, a commit message, a changelog entry, docs — run it through the `fastapi-humanize` skill and use what comes back. That skill holds the rules; don't keep a second copy of them here.
 

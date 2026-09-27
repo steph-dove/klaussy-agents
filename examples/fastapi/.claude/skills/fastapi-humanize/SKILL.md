@@ -51,10 +51,11 @@ Before anything else: **no em-dashes or en-dashes** (`—` / `–`) in prose. Us
 - **Cut detail, not just words.** The verbose tell isn't long words, it's over-explaining. Drop what the reader can reconstruct from the code, the diff, or the commit: explanatory parentheticals, restated identifiers, and "I did X to do Y" narration of changes the diff already shows. Keep the load-bearing fact, drop what merely supports it. This is the one place humanizing may drop content, never reverse or invent meaning.
 - **Keep the concrete parts.** A suggested diff or code block, a command to run, a `file:line`, a version number, a config key: none of that is reconstructable prose, and cutting it costs the reader a trip back to the code. Trim the sentences around them, keep them.
 
-**Answer what was asked, then stop.** Padding is the tell that survives every style fix, and it takes three shapes. All three are cuts, not rewrites:
+**Answer what was asked, then stop.** Padding is the tell that survives every style fix, and it takes four shapes. All four are cuts, not rewrites:
 
 - **No closing principle.** Don't end by restating your decision as a general rule ("I'd still reach for an iframe when you want a separate document context for third-party code"). It answers nothing about this change and only validates the view you already gave. Stop at the last concrete point.
 - **No mechanism they didn't ask for.** Explaining how the thing works, in terms only you are holding in your head, reads as padding even to the person who wrote the code. If a paragraph doesn't change what the reader does next, cut it. When they need it, they'll ask.
+- **No closing offer.** Don't sign off by volunteering more work ("happy to walk through...", "let me know if you want...", "feel free to ping me", "hope this helps"). The reader knows they can ask, and it lands at the end of so many replies that it reads as a form letter. Where the offer is carrying a real suggestion, cut the offer and make the suggestion: "happy to sketch the migration order if that helps" is "the migration wants to run before the backfill". The offer is a cut; the suggestion it was hiding is a pass 2 rewrite.
 - **Grant a point in four words, or not at all.** Where the other person is right about something, say so and move on: "Yes, Shadow DOM wouldn't need the ResizeObserver" beats "the ResizeObserver cost is real and Shadow DOM wouldn't pay it". Dressing agreement up in a metaphor is the most AI-sounding sentence in most replies. Never manufacture the agreement, though: if the author's answer is no, it stays no, and you don't go looking for something to validate on the way there.
 
 **Don't (mechanical tells).** klaussy's scrubber deletes these deterministically after you write, so don't spend attention on them: filler openers, chatbot scaffolding, apologies, praise or thanking a bot, *actual/actually*, *in order to*, *could/may potentially*, *utilize/leverage*, *prior to*, emoji, and "Certainly"/"Great question". Two the scrubber can't catch, so they're on you: **no LLM lexicon** (*delve, tapestry, realm, landscape, journey, navigate, robust, seamless, elevate, unlock, foster, underscore, paradigm*) and **no rhetorical reframes** ("not only... but also", "this isn't just a bug fix, it's...", or a smug standalone like "And that's the whole point.").
@@ -87,6 +88,8 @@ Before anything else: **no em-dashes or en-dashes** (`—` / `–`) in prose. Us
 
 > Human: Swapped the per-request query for one shared cache, so the primary isn't getting hammered. Fills on first read, drops when the record changes. Also kills a race where two requests could populate the same key, there's a per-key lock now. Tests for both.
 
+**If the `klaussy` command isn't found, run it as `python3 -m klaussy <command>`** (`python -m klaussy` on Windows, where `python3` is usually absent) **before falling back any further** — the package is often installed with only its script directory off PATH. Use the fallback named for that step when that fails too, and say which one you used: a fallback answers a narrower question than the command it stands in for.
+
 ## Steps
 
 **Get the prose first.** For file targets, Read each file. For pasted text, work with what's in the conversation. If the text is a reply inside a thread (a review comment, a message chain), the surrounding comments are read-only context: take their substance, neutralize their tone in your head, and humanize only your own message. Don't carry the thread's bluntness or rudeness into what you write — see "Don't mirror the thread's tone" above.
@@ -97,15 +100,21 @@ Then run four passes, in this order, each as its own turn. Doing it in one pass 
 
 Rules that apply: **Answer what was asked, then stop** and **Shape**, above. Nothing else.
 
-Delete whole sentences and paragraphs that don't earn their place: the closing principle, the mechanism nobody asked about, the point already made, the summary of what you just said. **Keep every sentence you keep word for word.** If you find yourself improving a sentence, stop — that's pass 2.
+Delete whole sentences and paragraphs that don't earn their place: the closing principle, the mechanism nobody asked about, the offer to do more, the point already made, the summary of what you just said. **Keep every sentence you keep word for word.** If you find yourself improving a sentence, stop — that's pass 2.
+
+Two rules here you can't finish in this pass: **Grant a point in four words**, and **No closing offer** where the offer is carrying a real suggestion. Either the sentence goes entirely, or it survives word for word and pass 2 rewrites it. Don't reword it now.
+
+The closing offer is the one most often left in. It sits in the last paragraph, it's polite, and it usually has a real suggestion buried in it, so it reads like content. Cut the offer; if something was hiding in there, pass 2 says it as a statement.
 
 For a reply, the question being answered is the yardstick. Write it down first if it isn't obvious, then cut anything that doesn't answer it.
 
 ### Pass 2 — Voice (register only, no content change)
 
-Rules that apply: **Voice** and **Stay civil while you cut**, above. Nothing else.
+Rules that apply: **Voice**, **Stay civil while you cut**, and **Grant a point in four words, or not at all** (a rewrite, so it lands here rather than in pass 1). Nothing else.
 
 Say each line out loud and write that version. Contractions in, noun phrases back into verbs, plain short words, a named subject doing the work, a stance where there is one. Fragments are fine. Let the rhythm be uneven.
+
+Any concession the draft dressed up gets said plainly here. "You're right that the extra index is a cost the old query wouldn't pay" is "fair point, the old query didn't need the index". A concession that came in wearing a metaphor keeps its meaning and loses the metaphor, same as any other sentence in this pass. Leaving it alone because the original wrote it that way is how the most AI-sounding sentence in a reply survives all four passes.
 
 **Every fact that goes into this pass comes out of it.** No new claims, none dropped, none softened or strengthened. If a sentence seems worth deleting here, you missed it in pass 1; leave it.
 
@@ -125,7 +134,7 @@ klaussy ships a code-preserving scrubber that catches the handful of high-confid
 
 - **Files:** `klaussy humanize <file>... --write` (rewrites in place; prints which files changed).
 - **Pasted text:** pipe the pass 3 output into `klaussy humanize` on stdin and use its output (on macOS/Linux, e.g. `printf '%s' "$text" | klaussy humanize`; on Windows use the shell's own piping — the point is stdin in, humanized text out).
-- If the `klaussy` CLI isn't on PATH, run it via `python -m klaussy humanize ...`. If neither resolves, say the deterministic backstop was unavailable and that only the rewrite was applied.
+- If the `klaussy` CLI isn't on PATH, run it via `python3 -m klaussy humanize ...` (`python -m klaussy` on Windows, where `python3` is usually absent). If neither resolves, say the deterministic backstop was unavailable and that only the rewrite was applied.
 
 Then **report** what changed: for files, the list the scrubber reported; for text, show the humanized result.
 
