@@ -4,7 +4,9 @@ Read this at Phase 7. Waiting is where this skill can spend the most for nothing
 
 - **Put the wait inside one shell command.** It polls and sleeps on its own, prints nothing while it waits, and exits once — when the event happens or the window closes. Never poll by re-running a status command turn after turn.
 - **Keep its output to the final state.** Watch modes redraw on every refresh and all of that comes back to you. Send the watch output to the null device (`/dev/null`; `$null` in PowerShell, `NUL` in cmd), then print the final status once.
-- **Background it if your agent can wake you on exit.** In Claude Code, run it with Bash `run_in_background` and do nothing until the exit notification arrives. Don't check on it in between, and don't use a tool that streams every output line back to you. Without that, run it in the foreground with a long timeout, splitting the window into chunks if the timeout is shorter than the wait.
+- **Run it in the foreground by default**, with a long timeout, splitting the window into chunks if the timeout is shorter than the wait. The command's exit hands control straight back to you, whatever agent or mode you're in.
+- **Background it only in an interactive session that wakes you on exit** (Claude Code's Bash `run_in_background`, with the user's terminal open). A non-interactive run (`claude -p`, a desktop app or script driving the agent, CI) can end the moment your turn does, and the notification then never arrives: the run stops mid-owl with no report. If you aren't sure which you're in, stay in the foreground. When you do background it, don't check on it in between, and don't use a tool that streams every output line back to you.
+- **Say what you're waiting on before you wait.** One line (`Waiting on CI for #58, up to 30 min.`) before the wait command, and one with the outcome after it. A wait that starts and ends silently reads as a hang.
 
 ## Waiting for CI (Phase 7)
 

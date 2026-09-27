@@ -8,6 +8,8 @@ Here is the task to implement (the user described it in their message).
 
 Do NOT start coding yet. Follow these phases in strict order.
 
+**Already have an approved `plan.md`** (from the plan skill, or as the owl's Phase 2)? Then Phases 1–3 are done and approved: skip them, don't ask for approval again, and start at Phase 4, working the plan top to bottom.
+
 ## Phase 1: Understand the Task
 
 Read the user's task description carefully. Identify:
@@ -102,6 +104,7 @@ After implementation, verify your work before presenting it as done.
    - Commented-out code.
    - Debug logging you added during development.
    - Any change not directly tied to the task.
+5. **Report back.** Say what changed and where, the test result, and anything you noticed but left alone. Inside the owl this is one line and the owl carries on to its next phase.
 
 ---
 

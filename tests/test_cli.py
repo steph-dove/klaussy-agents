@@ -284,6 +284,29 @@ class TestScaffoldSkills:
         assert "--watch --fail-fast --interval 60 > /dev/null" in waiting
         assert "waiting.md" in (owl / "SKILL.md").read_text()
 
+    def test_rest_of_the_owl_overrides_sibling_hand_backs(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        skills = repo / ".claude" / "skills"
+        owl = (skills / f"{ns}-rest-of-the-owl" / "SKILL.md").read_text()
+        for sibling in ("plan", "implement", "review", "qa", "pr", "address-review"):
+            assert f"- **{sibling}:**" in owl, sibling
+        assert "start Phase 2 in the same turn" in owl
+        assert "never end on a tool call" in owl
+        waiting = (skills / f"{ns}-rest-of-the-owl" / "waiting.md").read_text()
+        assert "foreground by default" in waiting
+        plan = (skills / f"{ns}-plan" / "SKILL.md").read_text()
+        assert "Run as the owl's Phase 1, skip the offer." in plan
+        implement = (skills / f"{ns}-implement" / "SKILL.md").read_text()
+        assert "Already have an approved `plan.md`" in implement
+
+    def test_phased_skills_end_by_reporting_back(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        for skill in ("implement", "debug", "refactor", "document"):
+            text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
+            assert "**Report back" in text, skill
+
     def test_review_stamps_the_reviewed_commit(self, repo: Path):
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
