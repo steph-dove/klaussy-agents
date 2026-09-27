@@ -91,10 +91,6 @@ def test_hooks_scaffolds_guards(repo: Path):
 
 
 def test_claude_hook_commands_use_launcher():
-    # No Python interpreter token in the committed command: `python3` no-ops on a
-    # Windows checkout and `python` isn't guaranteed on Linux/macOS, and Claude's
-    # config has no per-OS field to choose. `klaussy-hook` resolves on PATH on
-    # every OS, so the hook works regardless of the scaffolding machine.
     from klaussy import hooks
 
     for command in (

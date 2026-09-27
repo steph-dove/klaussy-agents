@@ -16,13 +16,6 @@ import harness
 
 from klaussy.humanize import humanize
 
-# The spec's quality bar here is a rate, not a guarantee. The model rewrites this
-# 330-word draft from scratch every run and lands a fully clean cut in most of
-# them, not all: measured over ~14 samples, padding survives roughly one run in
-# four. Sampling once and demanding perfection makes the test a coin flip, and
-# the old shape was worse than that, running two samples and failing if either
-# one missed. So each sample is graded whole and the majority has to come back
-# clean, which is the claim the skill can actually support.
 SAMPLES = 3
 
 QUESTION = (
@@ -133,18 +126,9 @@ def test_long_reply_gets_short_without_losing_the_argument():
         low = out.lower()
         for kept in MUST_SURVIVE:
             assert kept in low, f"dropped substance {kept!r}: {out!r}"
-        # A tell the rewrite introduced is a guarantee. One the draft already
-        # carried is padding, graded by rate below: `great question` is on both
-        # lists, so hard-failing it here made a padding miss outrank the policy
-        # this test states.
         introduced = [t for t in harness.ai_tells_present(out) if t not in MUST_GO]
         assert not introduced, f"the rewrite introduced tells: {introduced}: {out!r}"
 
-    # Padding and length are rates, and the same rate: of 39 samples, every one
-    # over 200 words also kept padding, and the clean ones topped out at 194. So
-    # length is a symptom here rather than an independent signal, and asserting
-    # it per sample just smuggles the padding rate back in as a hard failure.
-    # They are graded apart so the report says which one moved.
     padding = [
         [f"kept padding {gone!r}" for gone in MUST_GO if gone in out.lower()] for out in outs
     ]

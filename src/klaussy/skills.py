@@ -97,10 +97,6 @@ SKILL_NAMES = [
 
 VERSION_FILE = ".klaussy-version"
 
-# Substituted into every skill that computes a diff range, via
-# `{{BASE_RESOLUTION}}`. The base is chosen at scaffold time, which stops being
-# true the moment a branch is cut from another topic branch, so the skills work
-# it out against the repo instead and carry the answer as `<base>`.
 BASE_RESOLUTION_BLOCK = (
     "**Resolve the base first, by running the command.** Every range below is"
     " against `<base>`. Run `klaussy base --explain` before any range and reuse"
@@ -129,10 +125,6 @@ CLI_FALLBACK_BLOCK = (
     " answers a narrower question than the command it stands in for."
 )
 
-# Shared "write like a human" block, substituted into prose-output skills via
-# the {{HUMANIZE}} token. This is the prompt-side mirror of klaussy-desktop's
-# deterministic humanizer (main/util/humanize-comment.js) — keep the two in sync
-# so an agent's output and the desktop post-processor agree on what reads human.
 HUMANIZE_BLOCK = "\n".join(
     [
         "### Write like a person, not a chatbot",
@@ -602,10 +594,6 @@ def scaffold_skills(
             filename = template_output_name(template_file.name)
             target = skill_dir / filename
 
-            # The review skill alone supports a custom SKILL.md override (since
-            # it also receives repo-specific check enrichment via `klaussy
-            # checklist`). Sibling files like sub-agents.md still come from the
-            # built-in templates.
             if skill == "review" and filename == "SKILL.md" and review_template is not None:
                 content = review_template.read_text()
             else:

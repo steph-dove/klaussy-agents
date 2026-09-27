@@ -14,21 +14,9 @@ from klaussy.skills import _read_version, _write_version
 
 console = Console()
 
-# Claude Code runs hook commands in the session's current directory, which is
-# NOT guaranteed to be the project root, so a bare relative path can fail to
-# resolve; ${CLAUDE_PROJECT_DIR} always expands to the project root. See
-# https://code.claude.com/docs/en/hooks.md ("Path Placeholders").
 PROJECT_DIR = "${CLAUDE_PROJECT_DIR}"
 
 
-# Hook commands invoke the guard through klaussy's `klaussy-hook` launcher rather
-# than naming a Python interpreter directly. `python3` is absent on a stock
-# python.org Windows install and `python` isn't guaranteed on Linux/macOS, and
-# Claude's hook config has no per-OS command field to choose between them — so a
-# hardcoded token would break whenever the run OS differs from the scaffold OS.
-# `klaussy-hook` is a pip console script (on PATH as `klaussy-hook`/`.exe`), so it
-# resolves on every OS and runs the guard under klaussy's own interpreter. The
-# path is quoted so a project dir with spaces survives ${CLAUDE_PROJECT_DIR}.
 def _cmd(relpath: str) -> str:
     return f'klaussy-hook "{PROJECT_DIR}/{relpath}"'
 
@@ -301,11 +289,6 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     if not isinstance(existing_hooks, dict):
         existing_hooks = {}
 
-    # Version gate (mirrors scaffold_skills): once a repo's hooks are at the
-    # current klaussy version AND a hooks block is present, skip — no rewrite, no
-    # churn. A version bump re-runs the install so newly-added hooks land
-    # automatically; a missing block re-installs even at the same version so the
-    # app is never left without the hooks it relies on.
     if not force and existing_hooks and _read_version(hooks_dir) == __version__:
         console.print(f"[dim]Hooks already up to date (v{__version__}), skipping.[/dim]")
         return settings_file
@@ -314,14 +297,6 @@ def scaffold_hooks(*, repo: Path, force: bool = False) -> Path:
     format_cmd = _detect_format_command(repo)
     comment_check_cmd = _detect_comment_check_command(repo)
 
-    # Managed scripts are generated artifacts — always (re)install them so a repo
-    # whose settings.json predates a script (e.g. plan_guidance) still gets it.
-    # Read-injection guard scans file/URL content for prompt-injection markers
-    # before Claude consumes it (PreToolUse blocks malicious local files; the
-    # WebFetch PostToolUse hook surfaces a warning since a fetch can't be inspected
-    # pre-flight). Pre-plan guidance fires on EnterPlanMode, the instant plan mode
-    # opens, injecting klaussy's guardrails via additionalContext so they shape the
-    # plan itself.
     _install_guard_script(repo)
     _install_plan_guidance_script(repo, "claude")
     # Drop the copy older versions scaffolded: the guard runs from the package

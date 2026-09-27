@@ -95,10 +95,6 @@ def load_skill_body(
     return text.strip()
 
 
-# Disallowing every action tool forces a single-shot text answer: the CLI is
-# agentic, and without this a multi-step skill spec ("enter plan mode", "read
-# CLAUDE.md") sends the model off investigating an empty dir until it times out.
-# A prompt eval wants the completion, not the agent loop.
 _NO_TOOLS = [
     "Bash",
     "Edit",
@@ -183,9 +179,7 @@ def run_skill(
 
 # --- assertion helpers -------------------------------------------------------
 
-# High-confidence deterministic AI tells. Prose output that contains any of these
-# failed the humanization spec. Kept as explicit substrings (not the scrubber's
-# idempotence) so the check is obvious and has no whitespace false positives.
+# High-confidence deterministic AI tells.
 AI_TELLS = [
     "—",
     "it's worth noting",
