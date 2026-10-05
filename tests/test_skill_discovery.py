@@ -121,6 +121,17 @@ def test_emitted_names_round_trip_for_every_template():
         assert not any(n.endswith(TEMPLATE_SUFFIX) for n in emitted)
 
 
+@pytest.mark.parametrize(
+    "path", sorted(TEMPLATE_DIR.glob("*/SKILL.md" + TEMPLATE_SUFFIX)), ids=lambda p: p.parent.name
+)
+def test_template_frontmatter_parses_as_yaml(path):
+    # An unquoted ": " inside a plain description makes every agent drop the skill.
+    text = re.sub(r"\{\{\w+\}\}", "x", path.read_text())
+    _, fm, _ = text.split("---", 2)
+    parsed = yaml.safe_load(fm)
+    assert isinstance(parsed.get("description"), str)
+
+
 def test_iter_skill_templates_skips_unmarked_files(tmp_path):
     # A stray .DS_Store or editor backup must not be copied into a user's repo.
     (tmp_path / "SKILL.md.tmpl").write_text("x")

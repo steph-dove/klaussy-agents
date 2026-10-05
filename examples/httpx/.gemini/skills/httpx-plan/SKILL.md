@@ -1,6 +1,6 @@
 ---
 name: httpx-plan
-description: Use when the user wants a plan for a non-trivial task in this repo. Runs discovery, parallel exploration of the codebase, clarifying questions and parallel architectures, then checks the plan against the requirements and against the repo itself (an adversarial sub-agent) before writing an approved plan.md. Planning only: it stops at the approval gate and hands implementation to the implement skill. Also known as `klaussy-plan`.
+description: Use when the user wants a plan for a non-trivial task in this repo. Runs discovery, parallel exploration of the codebase, clarifying questions and parallel architectures, then checks the plan against the requirements and against the repo itself (an adversarial sub-agent) before writing an approved plan.md. Planning only — it stops at the approval gate and hands implementation to the implement skill. Also known as `klaussy-plan`.
 ---
 
 > **Adapted for Gemini CLI.**
