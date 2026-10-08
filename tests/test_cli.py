@@ -1949,9 +1949,9 @@ class TestScrubCli:
         assert result.stdout == "Fix this, now."
 
     def test_humanize_alias_is_hidden_from_help(self):
-        result = runner.invoke(app, ["--help"])
-        assert re.search(r"│ scrub\s", result.stdout)
-        assert not re.search(r"│ humanize\s", result.stdout)
+        hidden = {c.name or c.callback.__name__: c.hidden for c in app.registered_commands}
+        assert hidden["scrub"] is False
+        assert hidden["humanize"] is True
 
 
 class TestGitignore:
