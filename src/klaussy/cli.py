@@ -365,9 +365,9 @@ def github(
 
 
 @app.command()
-def humanize(
+def scrub(
     files: list[Path] | None = typer.Argument(
-        None, help="Files to humanize. Reads stdin and writes stdout if omitted."
+        None, help="Files to scrub. Reads stdin and writes stdout if omitted."
     ),
     write: bool = typer.Option(
         False, "--write", "-w", help="Rewrite files in place instead of printing."
@@ -379,16 +379,13 @@ def humanize(
         False, "--rules", help="Print the prompt-side humanization rules and exit."
     ),
 ) -> None:
-    """Deterministically scrub the mechanical AI tells from prose, preserving all code.
+    """Regex-delete dashes, filler openers and a few hedges. Not the humanize skill.
 
-    A conservative subset only: dashes, a fixed list of filler openers and
-    scaffolding phrases, a few hedges. It never cuts, shortens, or restyles
-    anything, so it is the backstop for a rewrite and not a humanize pass on its
-    own — that is the `<repo>-humanize` skill, which runs this last.
+    It never cuts, shortens, or restyles anything. To humanize prose, run the
+    `<repo>-humanize` skill, which calls this as its last step.
 
     The canonical scrubber shared with klaussy-desktop. With no files it reads
-    stdin and writes the result to stdout — so other tools can pipe through it
-    (e.g. `printf '%s' "$comment" | klaussy humanize`).
+    stdin and writes the result to stdout (`printf '%s' "$comment" | klaussy scrub`).
 
     `--rules` prints the prompt-side block instead of scrubbing. The scrubber is
     a conservative subset of it, so a tool that builds its own review prompt can
@@ -410,17 +407,22 @@ def humanize(
             changed = True
         if check:
             if cleaned != original:
-                console.print(f"[yellow]would humanize {path}[/yellow]")
+                console.print(f"[yellow]would scrub {path}[/yellow]")
             continue
         if write:
             if cleaned != original:
                 path.write_text(cleaned)
-                console.print(f"[green]✔ humanized {path}[/green]")
+                console.print(f"[green]✔ scrubbed {path}[/green]")
         else:
             sys.stdout.write(cleaned)
 
     if check and changed:
         raise typer.Exit(1)
+
+
+# klaussy-desktop and scaffolded comment guards pipe through `klaussy humanize`; it must
+# stay silent on stdout.
+app.command("humanize", hidden=True)(scrub)
 
 
 @app.command(name="comment-lint")

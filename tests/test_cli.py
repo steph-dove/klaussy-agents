@@ -1629,17 +1629,14 @@ class TestHumanize:
         assert "{{HUMANIZE_RULES}}" not in text
 
     def test_prose_skills_name_the_humanize_skill(self, repo: Path):
-        """Agents were running `klaussy humanize` and calling the prose done.
-
-        The block has to point at the skill by name, with {{REPO}} resolved,
-        or the CLI stays the most discoverable thing in the file.
-        """
+        """Naming the scrubber CLI in every prose skill advertised it, so only humanize may."""
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         for skill in self.PROSE_SKILLS:
             text = (repo / ".claude" / "skills" / f"{ns}-{skill}" / "SKILL.md").read_text()
             assert f"`{ns}-humanize` skill" in text, f"{skill} doesn't name the humanize skill"
-            assert "The scrubber is not that pass" in text
+            assert "klaussy humanize" not in text, f"{skill} advertises the old CLI name"
+            assert "klaussy scrub" not in text, f"{skill} advertises the scrubber"
             assert "{{REPO}}" not in text, f"{skill} left a literal token"
 
     BASE_SKILLS = ("explain", "fix", "pr", "qa", "review", "security-audit", "split-pr", "test")
@@ -1680,7 +1677,7 @@ class TestHumanize:
 
     def test_rules_output_has_no_unresolved_token(self):
         """`--rules` feeds tools with no scaffolded skill, so it carries no pointer."""
-        result = runner.invoke(app, ["humanize", "--rules"])
+        result = runner.invoke(app, ["scrub", "--rules"])
         assert result.exit_code == 0
         assert "{{REPO}}" not in result.stdout
 
@@ -1908,7 +1905,7 @@ class TestHumanizeScrubber:
         assert humanize("") == ""
 
 
-class TestHumanizeCli:
+class TestScrubCli:
     def test_rules_prints_the_shared_block(self):
         """`--rules` is how another tool embeds the prompt-side rules.
 
@@ -1917,24 +1914,24 @@ class TestHumanizeCli:
         """
         from klaussy.skills import HUMANIZE_BLOCK
 
-        result = runner.invoke(app, ["humanize", "--rules"])
+        result = runner.invoke(app, ["scrub", "--rules"])
         assert result.exit_code == 0
         assert result.stdout.strip() == HUMANIZE_BLOCK.strip()
 
     def test_rules_does_not_read_stdin(self):
-        result = runner.invoke(app, ["humanize", "--rules"], input="Fix this — now.")
+        result = runner.invoke(app, ["scrub", "--rules"], input="Fix this — now.")
         assert result.exit_code == 0
         assert "Fix this" not in result.stdout
 
     def test_stdin_to_stdout(self):
-        result = runner.invoke(app, ["humanize"], input="Fix this — now.")
+        result = runner.invoke(app, ["scrub"], input="Fix this — now.")
         assert result.exit_code == 0
         assert "Fix this, now." in result.stdout
 
     def test_write_in_place(self, tmp_path: Path):
         f = tmp_path / "REVIEW_OUTPUT.md"
         f.write_text("It's worth noting that this leaks — close it.\n")
-        result = runner.invoke(app, ["humanize", str(f), "--write"])
+        result = runner.invoke(app, ["scrub", str(f), "--write"])
         assert result.exit_code == 0
         assert f.read_text() == "This leaks, close it."
 
@@ -1942,9 +1939,19 @@ class TestHumanizeCli:
         f = tmp_path / "pr.md"
         original = "Leaks a connection — wrap it."
         f.write_text(original)
-        result = runner.invoke(app, ["humanize", str(f), "--check"])
+        result = runner.invoke(app, ["scrub", str(f), "--check"])
         assert result.exit_code == 1
         assert f.read_text() == original  # unmodified
+
+    def test_humanize_alias_still_pipes_for_desktop_and_old_guards(self):
+        result = runner.invoke(app, ["humanize"], input="Fix this — now.")
+        assert result.exit_code == 0
+        assert result.stdout == "Fix this, now."
+
+    def test_humanize_alias_is_hidden_from_help(self):
+        result = runner.invoke(app, ["--help"])
+        assert re.search(r"│ scrub\s", result.stdout)
+        assert not re.search(r"│ humanize\s", result.stdout)
 
 
 class TestGitignore:

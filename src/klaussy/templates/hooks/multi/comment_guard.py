@@ -14,7 +14,7 @@ nowhere.
 
 Hardened to never crash: any unexpected payload or error exits 0 (allow), since
 some agents (e.g. Copilot preToolUse) treat a crashing hook as a deny of every
-tool call. Pure stdlib; scrubbing shells out to `klaussy humanize`.
+tool call. Pure stdlib; scrubbing shells out to `klaussy scrub`.
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ def _find_body_file(tokens: list[str]) -> str | None:
 
 def _humanize(text: str) -> str | None:
     try:
-        result = subprocess.run(["klaussy", "humanize"], input=text, capture_output=True, text=True)
+        result = subprocess.run(["klaussy", "scrub"], input=text, capture_output=True, text=True)
     except (OSError, ValueError):
         return None
     if result.returncode != 0:
@@ -261,9 +261,9 @@ def _humanize_file(path: str) -> tuple[str, bool] | None:
     if not _write_atomic(Path(path), cleaned):
         return (f"klaussy comment guard: couldn't rewrite {path}, so it wasn't scrubbed.", False)
     return (
-        f"klaussy comment guard: humanized {path}, mechanical tells only. "
-        "The guard can't cut or restyle anything, so run the repo's humanize "
-        "skill if the body still reads like a model wrote it.",
+        f"klaussy comment guard: scrubbed dashes and filler from {path}. That isn't "
+        "humanizing; run the repo's humanize skill if the body still reads like a "
+        "model wrote it.",
         True,
     )
 
@@ -327,7 +327,7 @@ def main() -> int:
                 _report(notes)
                 print(
                     "klaussy comment guard: this comment has AI tells. Post it as "
-                    "its own command (not chained) so it can be humanized, or "
+                    "its own command (not chained) so it can be scrubbed, or "
                     "write the body to a file and pass --body-file.",
                     file=sys.stderr,
                 )
@@ -338,7 +338,7 @@ def main() -> int:
             _report(notes)
             print(
                 "klaussy comment guard: this comment has AI tells. Re-post the "
-                "humanized version:\n" + shlex.join(new_tokens),
+                "scrubbed version:\n" + shlex.join(new_tokens),
                 file=sys.stderr,
             )
             return 2

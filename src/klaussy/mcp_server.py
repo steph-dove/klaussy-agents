@@ -200,27 +200,29 @@ def klaussy_github(repo: str = ".", force: bool = False) -> str:
 
 
 @mcp.tool()
-def klaussy_humanize(
+def klaussy_scrub(
     text: str | None = None,
     files: str = "",
     repo: str = ".",
     write: bool = False,
     check: bool = False,
 ) -> str:
-    """Deterministically strip AI tells from prose, preserving all code.
+    """Regex-delete dashes, filler openers and a few hedges from prose.
 
-    Pass `text` to scrub a string and get the cleaned result back (the common
-    case). Or pass `files` (a comma-separated list of paths) to scrub them on
-    disk: `write=True` rewrites in place, `check=True` reports whether any file
-    would change without modifying it. This is the canonical scrubber shared
-    with klaussy-desktop.
+    This is not humanizing and can't stand in for it: it never cuts, shortens,
+    or restyles anything. To humanize prose, run the repo's `<repo>-humanize`
+    skill, which calls this only as its last step.
+
+    Pass `text` to scrub a string, or `files` (comma-separated paths) to scrub
+    them on disk: `write=True` rewrites in place, `check=True` reports whether
+    any file would change without modifying it.
     """
     if text is not None:
         return humanize_text(text)
     paths = [f.strip() for f in files.split(",") if f.strip()]
     if not paths:
         return "Provide `text` to scrub a string, or `files` to process on disk."
-    args = ["humanize", *paths]
+    args = ["scrub", *paths]
     if write:
         args.append("--write")
     if check:
