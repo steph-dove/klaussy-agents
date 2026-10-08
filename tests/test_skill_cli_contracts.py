@@ -25,10 +25,9 @@ from klaussy.skills import SKILL_NAMES, SKILL_TEMPLATE_ROOT
 sys.path.insert(0, str(Path(__file__).resolve().parent / "evals"))
 
 # A klaussy subcommand the skill runs itself. The backtick is required, or this
-# matches prose like "klaussy isn't on PATH". `humanize` is excluded: prose
-# skills name it to point at that skill, not to shell out.
+# matches prose like "klaussy isn't on PATH".
 _KLAUSSY_CMD = re.compile(r"`klaussy ([a-z][a-z-]+)")
-_DELEGATED = {"humanize", "ships", "settings", "init", "skills", "checklist"}
+_DELEGATED = {"ships", "settings", "init", "skills", "checklist"}
 
 # Bare `Bash` allows anything; otherwise the grant has to name the command.
 _BARE_BASH = re.compile(r"(^|\s)Bash(\s|$)")

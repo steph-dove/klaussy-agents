@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from klaussy.mcp_server import klaussy_humanize, klaussy_status, mcp
+from klaussy.mcp_server import klaussy_scrub, klaussy_status, mcp
 
 
 def _tool_names() -> set[str]:
@@ -23,7 +23,7 @@ def test_one_tool_per_cli_command_plus_status():
         # Deprecated alias for klaussy_pr_template, kept so pinned MCP configs
         # keep working. Drop it (and this entry) in the next major version.
         "klaussy_github",
-        "klaussy_humanize",
+        "klaussy_scrub",
         "klaussy_status",
     }
 
@@ -36,11 +36,11 @@ def test_status_reports_every_skill(tmp_path):
     assert any("-humanize/" in key for key in reported)
 
 
-def test_humanize_text_scrubs_inline_without_subprocess():
-    out = klaussy_humanize(text="A great solution — it works.")
+def test_scrub_text_inline_without_subprocess():
+    out = klaussy_scrub(text="A great solution — it works.")
     assert "—" not in out
     assert out == "A great solution, it works."
 
 
-def test_humanize_requires_text_or_files():
-    assert "Provide" in klaussy_humanize()
+def test_scrub_requires_text_or_files():
+    assert "Provide" in klaussy_scrub()

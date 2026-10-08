@@ -206,7 +206,7 @@ def test_multi_blocks_and_suggests_humanized(multi, monkeypatch, capsys):
     )
     assert multi.main() == 2
     err = capsys.readouterr().err
-    assert "humanized" in err.lower()
+    assert "scrubbed version" in err
     assert "Clean." in err
 
 
@@ -259,7 +259,7 @@ def test_body_file_is_scrubbed_in_place(mod_name, claude, multi, monkeypatch, bo
     monkeypatch.setattr(mod, "_humanize", lambda t: "Clean version.")
     monkeypatch.setattr(mod, "_is_untracked", lambda p: True)
     note, scrubbed = mod._humanize_file(str(body_file))
-    assert scrubbed and "humanized" in note
+    assert scrubbed and "isn't humanizing" in note and "humanize skill" in note
     assert body_file.read_text(encoding="utf-8") == "Clean version."
 
 
@@ -288,7 +288,7 @@ def test_claude_scrubs_pr_body_file_and_notes_it(claude, monkeypatch, capsys, bo
     monkeypatch.setattr(claude, "_is_untracked", lambda p: True)
     _feed(claude, monkeypatch, f"gh pr create --title t --body-file {body_file}")
     assert claude.main() == 0
-    assert "humanized" in json.loads(capsys.readouterr().out)["systemMessage"]
+    assert "scrubbed" in json.loads(capsys.readouterr().out)["systemMessage"]
     assert body_file.read_text(encoding="utf-8") == "Clean version."
 
 

@@ -339,17 +339,11 @@ HUMANIZE_BLOCK = "\n".join(
 # rules. Kept out of HUMANIZE_BLOCK: `--rules` feeds tools with no skill to point at.
 _HUMANIZE_SKILL_POINTER = (
     "**Humanize anything a human will read.** Before prose ships — a PR body, a"
-    " review comment or reply, a commit message, a changelog entry, docs — run it"
-    " through the `{{REPO}}-humanize` skill and use what comes back. That skill"
-    " holds the rules; don't keep a second copy of them here.\n\n"
-    "**The scrubber is not that pass.** `klaussy humanize` deletes a fixed"
-    " list of mechanical tells (dashes, filler openers, a few hedges) and changes"
-    " nothing else. It can't cut a paragraph that shouldn't exist, turn a noun"
-    " phrase back into a verb, drop the closing principle, or make three sentences"
-    " one, and that's most of what makes prose read as generated. Anything a human"
-    " will read gets the `{{REPO}}-humanize` skill: cut, voice, check, then scrub."
-    " Running the CLI, or `klaussy humanize --check`, is not that pass and doesn't"
-    " stand in for it."
+    " review comment or reply, a commit message, a changelog entry, docs — load"
+    " the `{{REPO}}-humanize` skill, run its passes on the text, and use what"
+    " comes back. That skill holds the rules; don't keep a second copy of them"
+    " here. Running any command or tool on the text instead of loading the skill"
+    " is not humanizing it."
 )
 
 

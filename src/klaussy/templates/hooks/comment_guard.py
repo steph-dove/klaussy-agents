@@ -6,7 +6,7 @@ as a PreToolUse hook on `Bash`. Covers `gh` and `glab`. A body literal is
 rewritten through
 `updatedInput`, so the command runs cleaned with no extra round trip; a
 `--body-file` is scrubbed in place unless git reports it tracked, so a committed
-doc is never mutated. Pure stdlib; scrubbing shells out to `klaussy humanize`,
+doc is never mutated. Pure stdlib; scrubbing shells out to `klaussy scrub`,
 the same implementation the skill and CLI use. If that isn't on PATH, or the
 body is neither a plain literal nor a readable file, the command runs unchanged.
 """
@@ -153,9 +153,9 @@ def _find_body_file(tokens: list[str]) -> str | None:
 
 
 def _humanize(text: str) -> str | None:
-    """Scrub via `klaussy humanize`; None if it can't run (missing/failed)."""
+    """Scrub via `klaussy scrub`; None if it can't run (missing/failed)."""
     try:
-        result = subprocess.run(["klaussy", "humanize"], input=text, capture_output=True, text=True)
+        result = subprocess.run(["klaussy", "scrub"], input=text, capture_output=True, text=True)
     except OSError:
         return None
     if result.returncode != 0:
@@ -246,9 +246,9 @@ def _humanize_file(path: str) -> tuple[str, bool] | None:
     if not _write_atomic(Path(path), cleaned):
         return (f"klaussy comment guard: couldn't rewrite {path}, so it wasn't scrubbed.", False)
     return (
-        f"klaussy comment guard: humanized {path}, mechanical tells only. "
-        "The guard can't cut or restyle anything, so run the repo's humanize "
-        "skill if the body still reads like a model wrote it.",
+        f"klaussy comment guard: scrubbed dashes and filler from {path}. That isn't "
+        "humanizing; run the repo's humanize skill if the body still reads like a "
+        "model wrote it.",
         True,
     )
 
@@ -315,7 +315,7 @@ def main() -> int:
             notes.append(
                 "klaussy comment guard: the body in this chained command has AI "
                 "tells and was left as-is. Post it as its own command, or write "
-                "it to a file and use --body-file, to have it humanized."
+                "it to a file and use --body-file, to have it scrubbed."
             )
             continue
 
