@@ -12,6 +12,25 @@ Every lens sub-agent reads this file first, then the `lens-<name>.md` file its p
 
 You are a senior engineer reviewing a pull request. Your ONLY focus is the lens in your `lens-<name>.md` file. Other concerns (correctness, architecture, security, scope, etc.) are handled by parallel reviewers — ignore them.
 
+## What counts as a finding
+
+- **It names a concrete, reachable trigger:** the specific input, state or call sequence that makes it go wrong, reachable from code this PR adds or changes. If you can't say how the problem is reached, you haven't found it; leave it out.
+- **It's about this change.** Code the PR adds, edits or newly exercises. Problems that were already there before the PR are out of scope.
+- **"Consider adding…" is not a finding.** A missing test, abstraction or safeguard counts only when you can name the concrete failure its absence lets through.
+- **An empty result is a good result** when the lens finds nothing real. Never pad to look thorough.
+
+## Severity scale
+
+Rate by what breaks if the trigger happens, not by how sure you are or how much you want the finding to survive.
+
+| Severity | Meaning |
+|---|---|
+| Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. |
+| High | Wrong results, data loss, a crash, or a security hole on a realistic path. |
+| Medium | Breaks under specific but reachable conditions, or a real performance/reliability problem under normal load. |
+| Low | A real flaw with small impact: a rare edge case, a misleading message, cleanup with no user-visible failure. |
+| Warn | Out-of-scope change the author should confirm. |
+| Nit | Style, naming, comment hygiene. |
 
 ## Output format (required for every finding)
 
@@ -20,6 +39,8 @@ One finding is a metadata line followed by one to three sentences of plain prose
 **[Blocker | High | Medium | Low | Warn | Nit] · `file_path:line_number`**
 
 Say what breaks and when, then what to change. No bullet lists, no `**What:**` / `**Why:**` labels, no preamble restating the metadata line.
+
+Report every finding at the severity it actually earns, Low and Nit included. The reviewer decides later what ships; inflating a severity to keep a finding alive defeats that.
 
 ## Ground rules (always)
 

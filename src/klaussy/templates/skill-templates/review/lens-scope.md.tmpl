@@ -1,6 +1,6 @@
-# Lens: Scope & Conventions
+# Lens: Scope, Conventions & Quality
 
-## Look for: Scope, Project Conventions
+## Look for: Scope, Project Conventions, Readability, Tests
 
 ### Scope
 - Identify the primary intent of the PR from the branch name, commit messages, and the bulk of the changes.
@@ -12,6 +12,15 @@
 {{REPO_SPECIFIC_CHECKS}}
 
 If no repo-specific checks are listed above, read CLAUDE.md and any matching `.claude/rules/*.md` for the area being changed, and verify the PR adheres to the conventions and known pitfalls listed there.
+
+### Readability & Maintainability
+- Ambiguous naming, overly clever code, dead code or unreachable branches.
+- Comment hygiene: comments that restate what the code plainly does, narrate obvious steps, or read as changelog / "AI-tell" notes ("// Now we handle…", "// Added to fix…"); multi-line blocks where one short line (or none) would do. Fix = delete or condense to a one-line WHY. Do NOT flag docstrings/JSDoc on public APIs, license/file headers, or genuine "why" comments.
+- These are Nit or Low by the severity scale; rate them honestly.
+
+### Tests
+- Only a specific risky branch the PR adds with no test exercising it, named with the failure a test would have caught. "Add more tests" or "cover the edge cases" is not a finding.
+- Tests that assert nothing meaningful, or mocks that hide the behavior under test.
 
 ## Additional rules
 

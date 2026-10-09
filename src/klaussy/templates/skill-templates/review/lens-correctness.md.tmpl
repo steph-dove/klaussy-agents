@@ -8,6 +8,12 @@
 - Incorrect return values or wrong types.
 - Boundary conditions: empty inputs, nil/null, max values, overflow.
 - State mutations that violate invariants.
+- **Removed behavior:** for every deleted or replaced line, name the guard, invariant or behavior it enforced and confirm the new code still enforces it, or that dropping it is intentional and safe.
+- **References resolve:** every new import, call, attribute, config key or route points at something that exists with that name and signature. Grep for it; don't assume.
+
+### Changed text
+- User-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action.
+- Translation files hold that locale's language (no Italian in `messages_lt`, no Traditional Chinese in `zh_CN`), and placeholders and markup match the source string.
 
 ### Concurrency & State
 - Race conditions, shared mutable state.

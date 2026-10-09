@@ -64,6 +64,9 @@ NOISE_DIR_PARTS = frozenset(
 NOISE_SUFFIXES = (".min.js", ".min.css", ".map")
 GENERATED_SUFFIXES = (".pb.go", "_pb2.py", "_pb2_grpc.py", ".g.dart", ".freezed.dart")
 
+# At or above this many reviewable lines the review fans out to lens sub-agents.
+PARALLEL_THRESHOLD = 150
+
 _DIFF_HEADER = re.compile(r"^diff --git a/(.+?) b/(.+)$")
 _BINARY = re.compile(r"^(Binary files .* differ|GIT binary patch)$", re.MULTILINE)
 
@@ -97,6 +100,7 @@ class ReviewPayload:
 
     decisions: list[Decision]
     trimmed_diff: str
+    forced_path: str | None = None
 
     @property
     def kept(self) -> list[Decision]:
@@ -113,6 +117,12 @@ class ReviewPayload:
     @property
     def dropped_lines(self) -> int:
         return sum(d.added + d.removed for d in self.dropped)
+
+    @property
+    def path(self) -> str:
+        if self.forced_path:
+            return self.forced_path
+        return "parallel" if self.kept_lines >= PARALLEL_THRESHOLD else "small"
 
 
 def _run_git(args: list[str], repo: Path) -> str:
@@ -181,7 +191,9 @@ def classify(fd: FileDiff) -> tuple[bool, str]:
     return True, "reviewable"
 
 
-def prepare_review(repo: Path | str = ".", base_branch: str | None = None) -> ReviewPayload:
+def prepare_review(
+    repo: Path | str = ".", base_branch: str | None = None, path: str | None = None
+) -> ReviewPayload:
     """Produce the trimmed reviewable diff + keep/drop manifest for a branch."""
     repo = Path(repo).resolve()
     base = base_branch or _detect_base(repo)
@@ -196,7 +208,7 @@ def prepare_review(repo: Path | str = ".", base_branch: str | None = None) -> Re
         )
         if keep:
             kept_bodies.append(fd.body)
-    return ReviewPayload(decisions=decisions, trimmed_diff="".join(kept_bodies))
+    return ReviewPayload(decisions=decisions, trimmed_diff="".join(kept_bodies), forced_path=path)
 
 
 def _detect_base(repo: Path) -> str:
@@ -208,7 +220,7 @@ def _detect_base(repo: Path) -> str:
     return base_branch.resolve(Path(repo), detect_stacked=False).branch
 
 
-def render_markdown(payload: ReviewPayload) -> str:
+def render_markdown(payload: ReviewPayload, *, summary_only: bool = False) -> str:
     """Render the payload for injection into the review skill's context."""
     kept, dropped = payload.kept, payload.dropped
     lines: list[str] = []
@@ -219,14 +231,28 @@ def render_markdown(payload: ReviewPayload) -> str:
     )
     lines.append(summary)
     lines.append("")
-    lines.append("## Reviewable diff")
-    lines.append("")
-    if payload.trimmed_diff.strip():
-        lines.append("```diff")
-        lines.append(payload.trimmed_diff.rstrip("\n"))
-        lines.append("```")
+    if payload.forced_path:
+        reason = f"set by --path; {payload.kept_lines} reviewable lines"
     else:
-        lines.append("_No reviewable changes after trimming._")
+        comparison = "≥" if payload.path == "parallel" else "<"
+        reason = f"{payload.kept_lines} reviewable lines {comparison} {PARALLEL_THRESHOLD}"
+    lines.append(f"**Review path: {payload.path}** ({reason})")
+    if not summary_only:
+        lines.append("")
+        lines.append("## Reviewable diff")
+        lines.append("")
+        if payload.trimmed_diff.strip():
+            lines.append("```diff")
+            lines.append(payload.trimmed_diff.rstrip("\n"))
+            lines.append("```")
+        else:
+            lines.append("_No reviewable changes after trimming._")
+    else:
+        lines.append("")
+        lines.append(f"## Reviewable files ({len(kept)})")
+        lines.append("")
+        for d in kept:
+            lines.append(f"- `{d.path}` (+{d.added} / -{d.removed})")
     if dropped:
         lines.append("")
         lines.append(f"## Excluded from review ({len(dropped)} file(s))")
@@ -251,5 +277,6 @@ def render_dict(payload: ReviewPayload) -> dict:
         ],
         "kept_lines": payload.kept_lines,
         "dropped_lines": payload.dropped_lines,
+        "path": payload.path,
         "trimmed_diff": payload.trimmed_diff,
     }

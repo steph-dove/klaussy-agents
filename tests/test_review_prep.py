@@ -5,7 +5,13 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from klaussy.cli import app
 from klaussy.review_prep import (
+    PARALLEL_THRESHOLD,
+    Decision,
+    ReviewPayload,
     classify,
     prepare_review,
     render_dict,
@@ -137,3 +143,42 @@ def test_render_markdown_has_manifest_and_summary():
     assert "review-prep:" in md  # summary comment
     d = render_dict(pl)
     assert d["dropped_lines"] == 90 and d["kept_lines"] == 3
+
+
+def _payload(kept_lines: int):
+    return ReviewPayload(
+        decisions=[Decision("src/app.py", True, "reviewable", kept_lines, 0)],
+        trimmed_diff="diff --git a/src/app.py b/src/app.py\n+x\n",
+    )
+
+
+def test_review_path_switches_to_parallel_at_threshold():
+    assert _payload(PARALLEL_THRESHOLD - 1).path == "small"
+    assert _payload(PARALLEL_THRESHOLD).path == "parallel"
+    assert "**Review path: parallel** (150 reviewable lines ≥ 150)" in render_markdown(
+        _payload(PARALLEL_THRESHOLD)
+    )
+    assert render_dict(_payload(10))["path"] == "small"
+
+
+def test_summary_lists_files_without_the_diff():
+    md = render_markdown(_payload(3), summary_only=True)
+    assert "**Review path: small**" in md
+    assert "- `src/app.py` (+3 / -0)" in md
+    assert "## Reviewable diff" not in md and "+x" not in md
+
+
+def test_forced_path_overrides_size():
+    pl = ReviewPayload(
+        decisions=[Decision("src/app.py", True, "reviewable", 3, 0)],
+        trimmed_diff="",
+        forced_path="parallel",
+    )
+    assert pl.path == "parallel"
+    assert "**Review path: parallel** (set by --path; 3 reviewable lines)" in render_markdown(pl)
+
+
+def test_cli_rejects_unknown_path(tmp_path: Path):
+    result = CliRunner().invoke(app, ["review-prep", "--repo", str(tmp_path), "--path", "big"])
+    assert result.exit_code != 0
+    assert "small or parallel" in result.output

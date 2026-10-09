@@ -2,6 +2,8 @@
 
 Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The comment format, validation rubric, tone rules and "Write like a person" rules in the review SKILL.md still apply; this file adds the fan-out, validation and synthesis.
 
+**On this path you don't review the code yourself.** Launching the lens sub-agents and the validation sub-agents is required, however small or familiar the diff looks; reading the files and writing findings yourself instead is the failure this file exists to prevent. Your work is picking lenses, validating through sub-agents, and synthesizing. The only exception is an environment with no sub-agent tool, which the note at the top of the skill covers.
+
 ## Fan out to lens sub-agents
 
 1. **Pick the lenses.** Correctness, Architecture, Security and Scope always run. Add **Agentic & Evals** only when the diff touches AI, agent or eval code:
@@ -22,20 +24,25 @@ Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The 
    ```
 
    The lens files are `lens-correctness.md`, `lens-architecture.md`, `lens-security.md`, `lens-scope.md`, `lens-agentic.md` and `lens-adr.md`. For the design-doc lens, add the doc paths to its prompt. Don't paste the diff, the scaffold or the lens text: each pasted copy is output you pay for once per sub-agent, and the sub-agent reads the files anyway.
-3. **Launch all selected sub-agents in a single message** with the Agent tool (`subagent_type: general-purpose`), so they run in parallel.
+3. **Launch all selected sub-agents in a single message** with the Agent tool (`subagent_type: general-purpose`), so they run in parallel. If they run in the background, wait until every lens has reported before moving on; a lens you didn't hear back from is not an empty lens.
 
-**Model tiering (optional, if your sub-agent tool accepts a per-call model).** Run the mechanical Scope & Conventions lens on a fast, cheap model (e.g. `haiku`) and keep the reasoning-heavy lenses on the default model. Because the lenses run in parallel, this saves cost rather than wall-clock. No per-call model control? Run them all on the default model.
+**Model tiering (optional, if your sub-agent tool accepts a per-call model).** Run the mechanical Scope, Conventions & Quality lens on a fast, cheap model (e.g. `haiku`) and keep the reasoning-heavy lenses on the default model. Because the lenses run in parallel, this saves cost rather than wall-clock. No per-call model control? Run them all on the default model.
 
 ## Phase 3: Validation
 
-Validate every finding before synthesis. The rubric lives in `.claude/skills/{{REPO}}-review/lens-validation.md`; read it once.
+Every finding goes through a validation sub-agent before synthesis, however few there are. You collected them from the lenses and are the worst-placed reviewer to doubt them, so don't validate inline.
 
-- **More than 6 findings:** split them into batches of 4–6, grouped by file so each validator reads a file once. Spawn one validation sub-agent per batch, all in a single message. Its prompt is the base branch, the batch of findings verbatim, and "Read .claude/skills/{{REPO}}-review/lens-validation.md and follow it. Write no files." Collect the survivors.
-- **6 or fewer:** apply the rubric inline yourself; the fan-out isn't worth it.
+1. **Deduplicate first.** When several lenses flagged the same issue, keep the most detailed finding and the highest severity, so each problem is validated once.
+2. **Number the findings** `F1`, `F2`, … and reduce each to a claim: `<ID> · <severity> · <file:line> · <one line saying what breaks>`. Leave out the lens's reasoning and suggested fix. The validator has to find the trigger in the code itself rather than check the argument it was handed.
+3. **Split the claims into batches** of at most 6, grouped by file so each validator reads a file once. One claim is still one batch.
+4. **Spawn one validation sub-agent per batch**, all in a single message. Its prompt is the base branch, the batch of claims, and "Read .claude/skills/{{REPO}}-review/lens-validation.md and follow it. Write no files."
+5. **Apply the verdicts.** Each validator returns a verdict for every claim. Drop the DROPs, set the new severity on DOWNGRADEs, and keep the original lens wording for everything that survives. A claim with no verdict goes back to a validator; it doesn't ship unvalidated.
+
+If no lens returned a finding, skip this phase.
 
 ## Phase 4: Synthesis
 
-1. **Deduplicate.** When several lenses flagged the same issue, keep the most detailed comment and the highest severity.
+1. **Drop Low, Warn and Nit** unless the user asked for minor findings. Do this only now, after validation: severities were set honestly upstream, so don't raise one here to keep it.
 2. **Sort by severity:** Blocker > High > Medium > Low > Warn > Nit.
 3. **Cross-cutting check.** Look for issues spanning two lenses' domains, such as a correctness bug that is also a security hole, and add a combined comment if the lenses missed the intersection. Read only the files those findings point at; the lenses already read the rest.
 4. **Assess overall quality** from the findings as a whole.
