@@ -39,7 +39,7 @@ The diff stat and commit log depend on `<base>`, so run them once you have it: `
 2. **Don't read the full files yet.** The small-PR path reads them next; on the parallel path each lens reads what it needs, so reading them here too would pay for every file twice.
 3. Note the **Review path** line `review-prep` printed (`small` or `parallel`). Only on the `git diff` fallback do you count lines yourself: take the `--stat` total, ignoring lockfile / generated / vendored / minified / binary files.
 4. If the branch name contains a ticket reference (e.g. FEAT-1234), note it for context.
-5. **Detect Architecture Decision Records / design docs.** Check the changed files for an ADR, RFC, or technical design doc using two signals:
+5. **Detect Architecture Decision Records / design docs.** `review-prep` names any it found (in its lens list, or a "Design docs changed" line). Only on the `git diff` fallback, check the changed files yourself using two signals:
    - **Path**: any of `docs/adr/`, `doc/adr/`, `adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, `rfcs/`, `docs/rfcs/`, `docs/design/`, `design-docs/`, or filenames like `NNNN-title.md`, `ADR-NNNN-*.md`, `*.adr.md`, `*.rfc.md`, `*.design.md`.
    - **Content**: a changed Markdown file containing ≥3 of the headings `## Status`, `## Context`, `## Decision`, `## Consequences`; or MADR headings (`## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`); or Rust-RFC headings (`## Motivation`, `## Rationale and alternatives`, `## Drawbacks`); or YAML frontmatter with `status:` / `deciders:` keys.
 

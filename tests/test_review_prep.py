@@ -182,3 +182,48 @@ def test_cli_rejects_unknown_path(tmp_path: Path):
     result = CliRunner().invoke(app, ["review-prep", "--repo", str(tmp_path), "--path", "big"])
     assert result.exit_code != 0
     assert "small or parallel" in result.output
+
+
+def _file(path: str, added: list[str]) -> str:
+    body = "".join(f"+{line}\n" for line in added)
+    return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -0,0 +1 @@\n{body}"
+
+
+def _parallel(*files: str) -> ReviewPayload:
+    return ReviewPayload(
+        decisions=[Decision("src/app.py", True, "reviewable", PARALLEL_THRESHOLD, 0)],
+        trimmed_diff="".join(files),
+    )
+
+
+def test_parallel_path_lists_the_base_lenses():
+    pl = _parallel(_file("src/app.py", ["x = 1"]))
+    assert pl.lenses == ["correctness", "architecture", "security", "scope"]
+    md = render_markdown(pl, summary_only=True)
+    assert "**Launch these 4 lens sub-agents in one message**" in md
+    assert "- security → `lens-security.md`" in md
+    assert render_dict(pl)["lenses"] == pl.lenses
+
+
+def test_agentic_lens_on_skill_paths_and_llm_imports():
+    assert "agentic" in _parallel(_file(".claude/skills/x/SKILL.md", ["hi"])).lenses
+    assert "agentic" in _parallel(_file("src/bot.py", ["import anthropic"])).lenses
+    assert "agentic" in _parallel(_file("src/bot.ts", ['import OpenAI from "openai"'])).lenses
+    assert "agentic" not in _parallel(_file("src/app.py", ["import os"])).lenses
+
+
+def test_design_docs_add_the_adr_lens_or_a_small_path_note():
+    adr = _file("docs/adr/0007-queues.md", ["# Use queues"])
+    nygard = _file("notes/plan.md", ["## Status", "## Context", "## Decision"])
+    plain = _file("README.md", ["## Status", "words"])
+    pl = _parallel(adr, nygard, plain)
+    assert pl.design_docs == ["docs/adr/0007-queues.md", "notes/plan.md"]
+    assert pl.lenses[-1] == "adr"
+    assert "(design docs: docs/adr/0007-queues.md, notes/plan.md)" in render_markdown(pl)
+
+    small = ReviewPayload(
+        decisions=[Decision("docs/adr/0007-queues.md", True, "reviewable", 3, 0)],
+        trimmed_diff=adr,
+    )
+    assert small.lenses == []
+    assert "**Design docs changed:** docs/adr/0007-queues.md" in render_markdown(small)

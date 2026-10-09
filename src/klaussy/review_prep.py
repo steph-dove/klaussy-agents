@@ -67,6 +67,31 @@ GENERATED_SUFFIXES = (".pb.go", "_pb2.py", "_pb2_grpc.py", ".g.dart", ".freezed.
 # At or above this many reviewable lines the review fans out to lens sub-agents.
 PARALLEL_THRESHOLD = 150
 
+BASE_LENSES = ("correctness", "architecture", "security", "scope")
+
+_AGENTIC_PATH = re.compile(
+    r"(^|/)(skills|agents|\.claude|evals)/"
+    r"|(^|/)mcp_[^/]*\.(py|ts|js)$|(^|/)mcp-server[^/]*$|(^|/)\.mcp\.json$"
+    r"|(^|/)eval_[^/]*\.(py|ts|js)$|\.eval\.(py|ts|js)$"
+    r"|(^|/)SKILL\.md$|\.prompt\.md$"
+)
+_AGENTIC_CODE = re.compile(
+    r"^\+.*(\b(import|from|require\()\s*['\"]?(anthropic|openai|langchain|langgraph|llama_index"
+    r"|mcp|inspect_ai|langsmith|promptfoo|ragas)\b|@anthropic-ai/sdk|@openai/openai"
+    r"|\bsystem_prompt\s*=)",
+    re.MULTILINE,
+)
+_DESIGN_DOC_PATH = re.compile(
+    r"(^|/)(docs?/adrs?|adr|docs/decisions|docs/architecture/decisions|rfcs|docs/rfcs"
+    r"|docs/design|design-docs)/"
+    r"|(^|/)(\d{4}-[^/]+|ADR-\d+-[^/]+|[^/]+\.(adr|rfc|design))\.md$"
+)
+_DESIGN_DOC_HEADINGS = (
+    ("## Status", "## Context", "## Decision", "## Consequences"),
+    ("## Context and Problem Statement", "## Considered Options", "## Decision Outcome"),
+    ("## Motivation", "## Rationale and alternatives", "## Drawbacks"),
+)
+
 _DIFF_HEADER = re.compile(r"^diff --git a/(.+?) b/(.+)$")
 _BINARY = re.compile(r"^(Binary files .* differ|GIT binary patch)$", re.MULTILINE)
 
@@ -119,10 +144,43 @@ class ReviewPayload:
         return sum(d.added + d.removed for d in self.dropped)
 
     @property
+    def design_docs(self) -> list[str]:
+        return [fd.path for fd in split_file_diffs(self.trimmed_diff) if _is_design_doc(fd)]
+
+    @property
+    def lenses(self) -> list[str]:
+        """Lens sub-agents the parallel path launches; empty on the small path."""
+        if self.path != "parallel":
+            return []
+        files = split_file_diffs(self.trimmed_diff)
+        agentic = any(
+            _AGENTIC_PATH.search(fd.path) or _AGENTIC_CODE.search(fd.body) for fd in files
+        )
+        return [
+            *BASE_LENSES,
+            *(["agentic"] if agentic else []),
+            *(["adr"] if self.design_docs else []),
+        ]
+
+    @property
     def path(self) -> str:
         if self.forced_path:
             return self.forced_path
         return "parallel" if self.kept_lines >= PARALLEL_THRESHOLD else "small"
+
+
+def _is_design_doc(fd: FileDiff) -> bool:
+    if _DESIGN_DOC_PATH.search(fd.path):
+        return True
+    if not fd.path.endswith(".md"):
+        return False
+    added = [line[1:].strip() for line in fd.body.splitlines() if line.startswith("+")]
+    if any(line.startswith(("status:", "deciders:")) for line in added):
+        return True
+    nygard, *others = _DESIGN_DOC_HEADINGS
+    if sum(h in added for h in nygard) >= 3:
+        return True
+    return any(all(h in added for h in group) for group in others)
 
 
 def _run_git(args: list[str], repo: Path) -> str:
@@ -237,6 +295,20 @@ def render_markdown(payload: ReviewPayload, *, summary_only: bool = False) -> st
         comparison = "≥" if payload.path == "parallel" else "<"
         reason = f"{payload.kept_lines} reviewable lines {comparison} {PARALLEL_THRESHOLD}"
     lines.append(f"**Review path: {payload.path}** ({reason})")
+    docs = payload.design_docs
+    if payload.lenses:
+        lines.append("")
+        lines.append(
+            f"**Launch these {len(payload.lenses)} lens sub-agents in one message**, using the "
+            "prompt in parallel.md, then send every finding through validation sub-agents. "
+            "Don't review the diff yourself:"
+        )
+        for lens in payload.lenses:
+            extra = f" (design docs: {', '.join(docs)})" if lens == "adr" else ""
+            lines.append(f"- {lens} → `lens-{lens}.md`{extra}")
+    elif docs:
+        lines.append("")
+        lines.append(f"**Design docs changed:** {', '.join(docs)}. Also apply `lens-adr.md`.")
     if not summary_only:
         lines.append("")
         lines.append("## Reviewable diff")
@@ -278,5 +350,7 @@ def render_dict(payload: ReviewPayload) -> dict:
         "kept_lines": payload.kept_lines,
         "dropped_lines": payload.dropped_lines,
         "path": payload.path,
+        "lenses": payload.lenses,
+        "design_docs": payload.design_docs,
         "trimmed_diff": payload.trimmed_diff,
     }

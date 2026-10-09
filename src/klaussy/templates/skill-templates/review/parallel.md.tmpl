@@ -6,14 +6,14 @@ Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The 
 
 ## Fan out to lens sub-agents
 
-1. **Pick the lenses.** Correctness, Architecture, Security and Scope always run. Add **Agentic & Evals** only when the diff touches AI, agent or eval code:
+1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness, Architecture, Security and Scope always run. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
    - files under `**/skills/**`, `**/agents/**`, `**/.claude/**`
    - MCP server files: `**/mcp_*.{py,ts,js}`, `**/mcp-server*.*`, `**/.mcp.json`
    - eval suites: `**/evals/**`, `**/eval_*.{py,ts,js}`, `*.eval.{py,ts,js}`
    - imports of `anthropic`, `openai`, `langchain`, `langgraph`, `llama_index`, `mcp`, `@anthropic-ai/sdk`, `@openai/openai`, `inspect_ai`, `langsmith`, `promptfoo`, `ragas`
    - system-prompt or skill-body string changes (`SKILL.md`, `*.prompt.md`, `system_prompt = "..."` literals)
 
-   Add **Architecture Decision & Design Doc** when Phase 1 detected an ADR, RFC or design doc.
+   **Architecture Decision & Design Doc** is added when the diff changes an ADR, RFC or design doc.
 2. **Give each sub-agent a short prompt.** Every lens sub-agent reads its own instructions and fetches the diff itself, so its prompt is just:
 
    ```
