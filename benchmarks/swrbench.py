@@ -219,7 +219,9 @@ def run_instance(inst: dict, args: argparse.Namespace, judge: dict) -> dict | No
             print(f"[{iid}] ready at {path}; judge prompt {len(prompt)} chars", flush=True)
             return None
         print(f"[{iid}] reviewing in {path}", flush=True)
-        review = runner.run_review(path, model=args.model, budget_usd=args.budget_usd)
+        review = runner.run_review(
+            path, model=args.model, budget_usd=args.budget_usd, instruction=args.instruction
+        )
         failed = runner.review_failed(review)
         if failed:
             print(f"[{iid}] review failed, not scored or saved: {failed}", flush=True)
@@ -249,6 +251,7 @@ def main() -> None:
     parser.add_argument("--model", help="Reviewer model (default: KLAUSSY_BENCH_MODEL or Opus 5.5)")
     parser.add_argument("--judge-model", default=JUDGE_MODEL)
     parser.add_argument("--budget-usd", type=float, default=10.0, help="Per-PR review cap")
+    parser.add_argument("--instruction", default="", help="Extra user request for the review")
     parser.add_argument(
         "--skip-enrich",
         action="store_true",

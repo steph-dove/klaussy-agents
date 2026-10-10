@@ -1,3 +1,4 @@
+import argparse
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "benchmarks"))
 
 import label_fps  # noqa: E402
 import martian  # noqa: E402
+import reviewbench_agent  # noqa: E402
 import runner  # noqa: E402
 import swrbench  # noqa: E402
 
@@ -450,3 +452,55 @@ def test_swr_main_keeps_going_when_one_instance_fails(tmp_path, monkeypatch, cap
     out = capsys.readouterr().out
     assert "[a-1] failed, not scored: RuntimeError: clone failed" in out
     assert "Not scored (1): a-1" in out
+
+
+def test_swr_run_instance_passes_the_instruction_to_the_review(tmp_path, monkeypatch):
+    calls = {}
+
+    def run_review(path, **kw):
+        calls.update(kw)
+        return {"report": "r"}
+
+    monkeypatch.setattr(runner, "merge_base", lambda *a: "base")
+    monkeypatch.setattr(runner, "prepare_repo", lambda *a, **kw: tmp_path)
+    monkeypatch.setattr(runner, "run_review", run_review)
+    monkeypatch.setattr(runner, "review_failed", lambda r: None)
+    monkeypatch.setattr(swrbench, "judge_review", lambda *a: {"pred_points": []})
+    inst = {
+        "instance_id": "o__r-1",
+        "change_introduced": True,
+        "repo": "o/r",
+        "pr_commits": [{"sha": "head"}],
+        "pr_title": "t",
+        "pr_statement": "",
+        "base_commit": "b",
+    }
+    args = argparse.Namespace(
+        out=tmp_path,
+        work_dir=tmp_path,
+        skip_enrich=True,
+        prepare_only=False,
+        model=None,
+        budget_usd=1.0,
+        instruction="Include nits.",
+        rejudge=False,
+        judge_model="j",
+    )
+    swrbench.run_instance(inst, args, {})
+    assert calls["instruction"] == "Include nits."
+
+
+def test_reviewbench_findings_take_the_first_file_and_line_range():
+    report = (
+        "## Findings\n\n"
+        "**High · Correctness · `src/pool.ts:42-45`**\n\nconns is read without the mutex.\n\n"
+        "**Medium · Docs · `a.py:3`, `b.py:9`**\n\nStale docstring.\n\n"
+        "**Medium · Design · the overall approach**\n\nNo location.\n"
+    )
+    findings = reviewbench_agent.to_findings(report, "me")
+    assert [(f["file"], f["start_line"], f["end_line"]) for f in findings] == [
+        ("src/pool.ts", 42, 45),
+        ("a.py", 3, 3),
+    ]
+    assert findings[0]["producer"] == "me"
+    assert "without the mutex" in findings[0]["message"]
