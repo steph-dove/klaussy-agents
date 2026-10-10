@@ -222,7 +222,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=cache / "results" / "martian")
     parser.add_argument("--prs", nargs="*", help="Golden PR URLs (default: the 5-PR pilot)")
     parser.add_argument("--all", action="store_true", help="Run all 50 benchmark PRs")
-    parser.add_argument("--model", help="Reviewer model (default: KLAUSSY_BENCH_MODEL or sonnet)")
+    parser.add_argument("--model", help="Reviewer model (default: KLAUSSY_BENCH_MODEL or Opus 5.5)")
     parser.add_argument("--judge-model", default=JUDGE_MODEL)
     parser.add_argument("--budget-usd", type=float, default=10.0, help="Per-PR review cap")
     parser.add_argument("--profile", choices=list(PROFILES), default="core")

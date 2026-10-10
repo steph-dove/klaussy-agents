@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "benchmarks"))
 
+import label_fps  # noqa: E402
 import martian  # noqa: E402
 import runner  # noqa: E402
 import swrbench  # noqa: E402
@@ -374,3 +375,15 @@ def test_parse_stream_skips_events_it_does_not_recognize():
     ]
     trace, result = runner._parse_stream("\n".join(json.dumps(e) for e in events))
     assert trace == [] and result["total_cost_usd"] == 0.5
+
+
+def test_label_fps_rejects_an_unknown_label(monkeypatch):
+    monkeypatch.setattr(
+        runner, "ask_claude_json", lambda s, p, m: {"label": "maybe", "_cost_usd": 0}
+    )
+    with pytest.raises(ValueError):
+        label_fps.label("finding", ["golden"], "diff", "m")
+    monkeypatch.setattr(
+        runner, "ask_claude_json", lambda s, p, m: {"label": "real", "reason": "r", "_cost_usd": 0}
+    )
+    assert label_fps.label("finding", [], "x" * 90_000, "m")["label"] == "real"

@@ -200,7 +200,7 @@ def main() -> None:
     parser.add_argument("--ids", nargs="*", help="instance_ids to run")
     parser.add_argument("--sample", type=int, default=10, help="Balanced change/clean sample")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--model", help="Reviewer model (default: KLAUSSY_BENCH_MODEL or sonnet)")
+    parser.add_argument("--model", help="Reviewer model (default: KLAUSSY_BENCH_MODEL or Opus 5.5)")
     parser.add_argument("--judge-model", default=JUDGE_MODEL)
     parser.add_argument("--budget-usd", type=float, default=10.0, help="Per-PR review cap")
     parser.add_argument(

@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_REVIEW_MODEL = "claude-sonnet-4-6"
+DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
 
 _PR_URL = re.compile(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)")
 _FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
