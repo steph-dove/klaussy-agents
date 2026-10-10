@@ -205,11 +205,12 @@ def _result_error(meta: dict):
 def _parse_stream(stdout: str) -> tuple[list[dict], dict]:
     """Tool calls from a stream-json run, sub-agents' included, plus the final result event.
 
-    Agent calls also keep their full prompt and returned text, which is where lens
-    findings and validation verdicts live. A background agent's text arrives later in
-    a notification naming its agentId, so that is matched back to the call too.
+    Agent calls also get the sub-agent's status and final output. A backgrounded
+    sub-agent reports through `task_started` / `task_notification` system events keyed
+    by the Agent call's tool_use_id; a foreground one through the call's tool_result.
     """
-    trace, result, agents, by_agent_id, costs = [], {}, {}, {}, []
+    trace, result, costs = [], {}, []
+    agents: dict[str, dict] = {}
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -217,48 +218,51 @@ def _parse_stream(stdout: str) -> tuple[list[dict], dict]:
             continue
         if not isinstance(event, dict):
             continue
-        if event.get("type") == "result":
+        kind, subtype = event.get("type"), event.get("subtype")
+        if kind == "result":
             result = event
             costs.append(event.get("total_cost_usd"))
-        late = [aid for aid in by_agent_id if aid in line]
+        elif kind == "system" and subtype in ("task_started", "task_notification"):
+            call = agents.get(event.get("tool_use_id"))
+            if call is None:
+                continue
+            if subtype == "task_started":
+                call["background"] = bool(event.get("is_backgrounded"))
+            else:
+                call["status"] = event.get("status")
+                call["output"] = event.get("summary") or ""
         for block in _content(event):
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":
-                arg = block.get("input") or {}
-                detail = next(
-                    (
-                        arg[k]
-                        for k in ("skill", "file_path", "command", "description")
-                        if arg.get(k)
-                    ),
-                    "",
-                )
-                call = {
-                    "tool": block.get("name", ""),
-                    "detail": str(detail)[:300],
-                    "subagent": bool(event.get("parent_tool_use_id")),
-                }
+                call = _tool_call(block, event)
                 if call["tool"] in ("Agent", "Task"):
-                    call["prompt"] = arg.get("prompt", "")
                     agents[block.get("id")] = call
                 trace.append(call)
             elif block.get("type") == "tool_result" and block.get("tool_use_id") in agents:
-                content = block.get("content")
-                if isinstance(content, list):
-                    content = "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
-                content = content or ""
-                launched = re.search(r"agentId: (\w+)", content)
-                if launched:
-                    by_agent_id[launched.group(1)] = agents[block["tool_use_id"]]
-                    continue
-                agents[block["tool_use_id"]]["output"] = content
-        for aid in late:
-            call = by_agent_id[aid]
-            call["output"] = (call.get("output", "") + "\n" + _event_text(event)).strip()
+                call = agents[block["tool_use_id"]]
+                text = _text(block.get("content"))
+                if not call.get("background") and "agentId:" not in text:
+                    call["status"] = "error" if block.get("is_error") else "completed"
+                    call["output"] = text
     if result:
         result = {**result, "costs": costs}
     return trace, result
+
+
+def _tool_call(block: dict, event: dict) -> dict:
+    arg = block.get("input") if isinstance(block.get("input"), dict) else {}
+    detail = next(
+        (arg[k] for k in ("skill", "file_path", "command", "description") if arg.get(k)), ""
+    )
+    call = {
+        "tool": block.get("name", ""),
+        "detail": str(detail)[:300],
+        "subagent": bool(event.get("parent_tool_use_id")),
+    }
+    if call["tool"] in ("Agent", "Task"):
+        call.update(prompt=arg.get("prompt", ""), status=None, output="")
+    return call
 
 
 def _content(event: dict) -> list:
@@ -268,19 +272,12 @@ def _content(event: dict) -> list:
     return content if isinstance(content, list) else []
 
 
-def _event_text(event: dict) -> str:
-    message = event.get("message")
-    content = message.get("content") if isinstance(message, dict) else message
+def _text(content) -> str:
     if isinstance(content, str):
         return content
-    parts = []
-    for block in content or []:
-        if isinstance(block, dict):
-            inner = block.get("text") or block.get("content")
-            if isinstance(inner, list):
-                inner = "\n".join(c.get("text", "") for c in inner if isinstance(c, dict))
-            parts.append(inner or "")
-    return "\n".join(parts) or json.dumps(event)[:20000]
+    if isinstance(content, list):
+        return "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
+    return ""
 
 
 def review_phases(trace: list[dict]) -> dict:
@@ -297,6 +294,9 @@ def review_phases(trace: list[dict]) -> dict:
         "read_claude_md": read("CLAUDE.md"),
         "parallel_path": read("parallel.md"),
         "subagents": sum(1 for t in trace if t["tool"] in ("Agent", "Task")),
+        "subagents_incomplete": sum(
+            1 for t in trace if t["tool"] in ("Agent", "Task") and t.get("status") != "completed"
+        ),
         "validation_rubric_read": read("lens-validation.md"),
     }
 

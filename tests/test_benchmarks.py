@@ -176,48 +176,80 @@ def test_parse_stream_records_subagent_calls_and_phases():
         "read_claude_md": False,
         "parallel_path": True,
         "subagents": 1,
+        "subagents_incomplete": 0,
         "validation_rubric_read": True,
     }
 
 
-def test_parse_stream_matches_background_agent_output_by_id():
+def _agent_call(tool_id: str, description: str) -> dict:
+    return {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": tool_id,
+                    "name": "Agent",
+                    "input": {"description": description, "prompt": "claims"},
+                }
+            ]
+        },
+    }
+
+
+def _launched(tool_id: str) -> dict:
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": "Async agent launched successfully.\nagentId: abc (internal)",
+                }
+            ]
+        },
+    }
+
+
+def test_parse_stream_reads_background_agents_from_task_events():
     events = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": "t9",
-                        "name": "Agent",
-                        "input": {"description": "Validate F1-F3", "prompt": "claims"},
-                    }
-                ]
-            },
-        },
-        {
-            "type": "user",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": "t9",
-                        "content": "Async agent launched successfully.\nagentId: abc123 (internal)",
-                    }
-                ]
-            },
-        },
+        _agent_call("t1", "Validate F1-F3"),
+        {"type": "system", "subtype": "task_started", "tool_use_id": "t1", "is_backgrounded": True},
+        _launched("t1"),
         {"type": "result", "total_cost_usd": 0.5},
         {
-            "type": "user",
-            "message": {"content": "<task-notification>abc123: F1 · KEEP · x</task-notification>"},
+            "type": "system",
+            "subtype": "task_notification",
+            "tool_use_id": "t1",
+            "status": "completed",
+            "summary": "F1 · KEEP · x",
         },
         {"type": "result", "total_cost_usd": 1.25},
     ]
     trace, result = runner._parse_stream("\n".join(json.dumps(e) for e in events))
-    assert "F1 · KEEP" in trace[0]["output"]
-    assert "launched" not in trace[0]["output"]
+    assert trace[0]["output"] == "F1 · KEEP · x" and trace[0]["status"] == "completed"
     assert result["costs"] == [0.5, 1.25]
+
+
+def test_review_phases_count_agents_that_never_finished():
+    events = [
+        _agent_call("t1", "Correctness lens"),
+        {"type": "system", "subtype": "task_started", "tool_use_id": "t1", "is_backgrounded": True},
+        _launched("t1"),
+        _agent_call("t2", "Validate F1-F4"),
+        {"type": "system", "subtype": "task_started", "tool_use_id": "t2", "is_backgrounded": True},
+        _launched("t2"),
+        {
+            "type": "system",
+            "subtype": "task_notification",
+            "tool_use_id": "t1",
+            "status": "completed",
+        },
+        {"type": "system", "subtype": "task_notification", "tool_use_id": "t2", "status": "killed"},
+    ]
+    trace, _ = runner._parse_stream("\n".join(json.dumps(e) for e in events))
+    assert runner.review_phases(trace)["subagents_incomplete"] == 1
 
 
 def test_review_failed_rejects_errors_and_missing_reports():
