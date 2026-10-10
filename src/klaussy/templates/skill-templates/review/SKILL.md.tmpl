@@ -110,8 +110,8 @@ Rate by the worst realistic outcome when the trigger happens, not by how likely 
 |---|---|---|
 | Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. | An import of a name that doesn't exist; a migration that fails on deploy. |
 | High | Wrong results, data loss, a crash, or a security hole on a realistic path. | A cache key two different inputs can share, so one gets the other's answer; an attribute read on a value that is None for a supported caller, like API-token requests; a check that can be skipped with crafted input. |
-| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, or a guard against regressions that doesn't work. | A test that passes whether or not the code it targets works; a leak that grows per request. |
-| Low | A real flaw with small impact and no wrong result. | A misleading log or error message; cleanup that never fails visibly. |
+| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, a guard against regressions that doesn't work, or text that states the wrong behavior. | A test that passes whether or not the code it targets works; a leak that grows per request; a comment, docstring, error message or translation the diff left saying something the code no longer does. |
+| Low | A real flaw with small impact and no wrong result. | A vague log line; cleanup that never fails visibly. |
 | Warn | Out-of-scope change the author should confirm. | A drive-by refactor in an unrelated module. |
 | Nit | Style, naming, comment hygiene. | A narrating comment; an unexported name that should be private. |
 
@@ -119,9 +119,10 @@ Rate by the worst realistic outcome when the trigger happens, not by how likely 
 
 1. **Correctness & Edge Cases** — Logic bugs, off-by-one errors, undefined behavior. Error handling gaps, partial failures.
    - **Removed-behavior audit:** for every deleted or replaced line in the diff, name the invariant, guard, or behavior it enforced, then confirm the new code re-establishes it (or that dropping it is intentional and safe). Silently removed checks are a top source of regressions.
+   - **Common defect patterns:** an async result never awaited or returned; null-safety that guards one access but not the next; a new definition that silently replaces an existing one; a subclass missing a method its base requires; state or a cache written before the operation it records succeeds; a hardcoded value where the codebase reads that value from a setting.
    - **Every new reference resolves:** each new import, call, attribute, config key or route points at something that exists with that name and signature. Grep for it; don't assume.
    - **Input is compared and matched the same way on both sides:** case, whitespace, separators and encoding are normalized before comparing against user or external input, and regexes built from settings or input escape every metacharacter and are anchored to the whole token.
-   - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language and script for their locale file (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese).
+   - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language and script for their locale file, and comments, docstrings and test names near changed code still match what it does (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese).
 2. **Concurrency & State** — Race conditions, shared mutable state. Thread safety, async misuse, ordering assumptions.
 3. **Design & API Boundaries** — Leaky abstractions, tight coupling. Public interfaces that are hard to evolve.
 4. **Performance & Scalability** — Inefficient loops, N+1 calls, blocking I/O. Work done in hot paths that doesn't need to be.
@@ -153,6 +154,10 @@ Keep the analysis rigorous and the bar high (staff/principal quality); the mode 
 {{HUMANIZE}}
 
 **Brevity must not dilute substance.** Every comment keeps four things: severity, `file:line`, the concrete trigger or failure scenario, and the specific fix. Everything else is cuttable, and most of it should go. Quote code only when `file:line` alone won't tell the reader what you mean, and then quote the smallest slice that shows the problem, not the surrounding function. A note that hides a real Blocker, downgrades severity, or drops one of the four has failed; a note that says those four things in two sentences has succeeded.
+
+### Second sweep:
+
+One read finds a given bug only about half the time. Before validating, go through each changed function again, last file first, against every sub-check under item 1 above, and add what the first read missed.
 
 ### Validate findings:
 

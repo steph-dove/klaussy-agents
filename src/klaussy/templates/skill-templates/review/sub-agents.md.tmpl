@@ -27,8 +27,8 @@ Rate by the worst realistic outcome when the trigger happens, not by how likely 
 |---|---|---|
 | Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. | An import of a name that doesn't exist; a migration that fails on deploy. |
 | High | Wrong results, data loss, a crash, or a security hole on a realistic path. | A cache key two different inputs can share, so one gets the other's answer; an attribute read on a value that is None for a supported caller, like API-token requests; a check that can be skipped with crafted input. |
-| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, or a guard against regressions that doesn't work. | A test that passes whether or not the code it targets works; a leak that grows per request. |
-| Low | A real flaw with small impact and no wrong result. | A misleading log or error message; cleanup that never fails visibly. |
+| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, a guard against regressions that doesn't work, or text that states the wrong behavior. | A test that passes whether or not the code it targets works; a leak that grows per request; a comment, docstring, error message or translation the diff left saying something the code no longer does. |
+| Low | A real flaw with small impact and no wrong result. | A vague log line; cleanup that never fails visibly. |
 | Warn | Out-of-scope change the author should confirm. | A drive-by refactor in an unrelated module. |
 | Nit | Style, naming, comment hygiene. | A narrating comment; an unexported name that should be private. |
 

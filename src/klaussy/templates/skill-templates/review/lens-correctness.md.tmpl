@@ -17,6 +17,7 @@
 
 ### Changed text
 - User-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action.
+- Comments, docstrings and test names near changed code still match it: a docstring that says "returns a list" over a function that now returns a dict, or a test comment that says "allow" over data that denies, is a Medium finding.
 - Translation files hold that locale's language and script: a file for one language doesn't contain another (a German string in the French file), and script variants match the locale (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese). Placeholders and markup match the source string.
 
 ### Concurrency & State
@@ -28,6 +29,14 @@
 
 For each finding, be specific about the failure mode (the exact input or state that triggers the bug).
 
+### Common defect patterns
+- An async call (promise, future, task) whose result is never awaited or returned, so its work or its error can be lost.
+- Null-safety that covers one access but not the next: `a?.b.c()` guards `b`, not `c()`.
+- A new definition that silently replaces an existing one: a duplicate method, a shadowed export, an override with a different signature that existing callers still use.
+- A subclass or implementation that doesn't provide every method or member its base class or interface requires.
+- State, a cache entry or a counter written before the operation it records has succeeded, so a failure leaves it saying the opposite.
+- A hardcoded value (size limit, timeout, URL, ID) where the codebase already reads that value from a setting, so configuration stops applying.
+
 ## Second pass
 
-If your prompt says `This is the second correctness pass.`, another reviewer is doing the normal read and you're there to catch what it misses. Work through the changed files in reverse order, last file first. In each changed function, go through the "Comparing and matching input", "Removed behavior", "References resolve" and "Changed text" checks one by one before the general logic read. Report what you find even if it seems obvious; duplicates are merged later.
+If your prompt says `This is the second correctness pass.`, another reviewer is doing the normal read and you're there to catch what it misses. Work through the changed files in reverse order, last file first. In each changed function, go through the "Comparing and matching input", "Removed behavior", "References resolve", "Changed text" and "Common defect patterns" checks one by one before the general logic read. Report what you find even if it seems obvious; duplicates are merged later.
