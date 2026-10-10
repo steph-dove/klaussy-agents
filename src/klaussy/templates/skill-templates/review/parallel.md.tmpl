@@ -36,7 +36,7 @@ Every finding goes through a validation sub-agent before synthesis, however few 
 2. **Number the findings** `F1`, `F2`, … and reduce each to a claim: `<ID> · <severity> · <file:line> · <one line saying what breaks>`. Leave out the lens's reasoning and suggested fix. The validator has to find the trigger in the code itself rather than check the argument it was handed.
 3. **Split the claims into batches** of at most 6, grouped by file so each validator reads a file once. One claim is still one batch.
 4. **Spawn one validation sub-agent per batch**, all in a single message. Its prompt is the base branch, the batch of claims, and "Read .claude/skills/{{REPO}}-review/lens-validation.md and follow it. Write no files."
-5. **Apply the verdicts.** Each validator returns a verdict for every claim. Drop the DROPs, set the new severity on DOWNGRADEs, and keep the original lens wording for everything that survives. A claim with no verdict goes back to a validator; it doesn't ship unvalidated.
+5. **Apply the verdicts.** Each validator returns a verdict for every claim. Drop the DROPs, set the new severity on DOWNGRADEs, and keep the original lens wording for everything that survives. A claim with no verdict, including from a validator that was interrupted or errored, goes back to a fresh validator; if that one fails too, validate those claims inline with the rubric rather than shipping them unvalidated.
 
 If no lens returned a finding, skip this phase.
 
@@ -54,5 +54,7 @@ Write **REVIEW_OUTPUT.md** with each finding in the comment format from SKILL.md
 **Verdict:** Approve / Request Changes / Block · reviewed at `<short-sha>`
 
 Then one line naming the issues that drive that verdict, and one line on test coverage. Name only findings that are in the review. Nothing else — no restated finding list, no checkbox grid, no footer describing how the review was run.
+
+**The review isn't done until `REVIEW_OUTPUT.md` is written.** While sub-agents are still out, keep working or wait for their results; never end your turn on a status line like "waiting on validation", because a headless run can exit right there with no review written.
 
 Before writing `REVIEW_OUTPUT.md`, re-run the Phase 1 step 0 fetch and comparison. A large review takes long enough for the author to push again. If the branch moved, read the new commits (`git diff <reviewed-sha>..origin/<branch>`), update or drop the findings they fix, and stamp the new SHA.
