@@ -353,6 +353,21 @@ def test_run_review_resumes_a_session_that_ended_without_a_report(tmp_path, monk
     assert review["cost_usd"] == 2.0
 
 
+def test_prepare_repo_rerenders_skills_in_a_reused_checkout(tmp_path, monkeypatch):
+    dest = tmp_path / "shop"
+    (dest / ".claude" / "skills" / "shop-review").mkdir(parents=True)
+    (dest / ".claude" / "skills" / "shop-review" / "SKILL.md").write_text("old")
+    (dest / "REVIEW_OUTPUT.md").write_text("stale")
+    calls = []
+    monkeypatch.setattr(runner, "_run", lambda args, **kw: calls.append(args) or "")
+    pr = runner.PullRequest("url", "o", "shop", 1, "t", "b", "base", "head")
+    assert runner.prepare_repo(pr, tmp_path, "shop") == dest
+    assert calls == [
+        ["klaussy", "skills", "--repo", str(dest), "-b", "main", "--agents", "claude", "--force"]
+    ]
+    assert not (dest / "REVIEW_OUTPUT.md").exists()
+
+
 def test_run_review_does_not_resume_a_failed_run(tmp_path, monkeypatch):
     repo = tmp_path / "shop"
     (repo / ".git").mkdir(parents=True)

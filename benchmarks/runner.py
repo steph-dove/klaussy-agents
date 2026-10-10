@@ -88,11 +88,14 @@ def fetch_pr(url: str) -> PullRequest:
 def prepare_repo(pr: PullRequest, work_dir: Path, name: str, *, enrich: bool = True) -> Path:
     """Materialize `pr` under work_dir/name with klaussy scaffolded; reuse it if present.
 
+    A reused checkout keeps its enriched CLAUDE.md but gets the current skills.
     `name` becomes the skill namespace, so give each PR its own work_dir.
     """
     dest = work_dir / name
     if (dest / ".claude" / "skills" / f"{name}-review" / "SKILL.md").exists():
         (dest / "REVIEW_OUTPUT.md").unlink(missing_ok=True)
+        skills = ["klaussy", "skills", "--repo", str(dest), "-b", "main", "--agents", "claude"]
+        _run([*skills, "--force"], cwd=dest)
         return dest
     if dest.exists():
         shutil.rmtree(dest)
