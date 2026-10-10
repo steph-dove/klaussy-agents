@@ -287,7 +287,11 @@ def review_phases(trace: list[dict]) -> dict:
     """Which parts of the review skill the run actually touched."""
 
     def read(name: str) -> bool:
-        return any(t["tool"] == "Read" and t["detail"].endswith(name) for t in trace)
+        return any(
+            (t["tool"] == "Read" and t["detail"].endswith(name))
+            or (t["tool"] == "Bash" and name in t["detail"])
+            for t in trace
+        )
 
     return {
         "skill_invoked": any(
@@ -301,6 +305,7 @@ def review_phases(trace: list[dict]) -> dict:
             1 for t in trace if t["tool"] in ("Agent", "Task") and t.get("status") != "completed"
         ),
         "validation_rubric_read": read("lens-validation.md"),
+        "hunk_sweep_read": read("lens-correctness.md"),
     }
 
 

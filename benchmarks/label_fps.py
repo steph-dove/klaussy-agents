@@ -61,6 +61,17 @@ def pr_diff(work_dir: Path, slug: str) -> str:
     return out.stdout
 
 
+def swr_false_positives(record: dict) -> tuple[list[str], list[str]] | None:
+    """An SWR-Bench record's expected points and its unmatched predictions, or None."""
+    verdict = record["verdict"]
+    if "error" in verdict:
+        return None
+    gts = verdict["gt_points"] if record["change_introduced"] else []
+    hit_by = {g["hit_by"] for g in gts if g["hit"] == "YES"}
+    fps = [p["description"] for p in verdict["pred_points"] if p["id"] not in hit_by]
+    return [g["description"] for g in gts], fps
+
+
 def label(finding: str, golden: list[str], diff: str, model: str) -> dict:
     truncated = len(diff) > MAX_DIFF_CHARS
     prompt = PROMPT.format(
@@ -88,16 +99,21 @@ def main() -> None:
 
     jobs, skipped = [], []
     for f in sorted(args.results.glob("*.json")):
-        if f.name.startswith("summary"):
+        if f.name.startswith(("summary", "fp-labels")):
             continue
         record = json.loads(f.read_text())
-        ev = (record.get("evaluations") or {}).get(args.variant)
-        if not ev or ev.get("judge_errors"):
+        found = swr_false_positives(record) if "verdict" in record else None
+        if found is None:
+            ev = (record.get("evaluations") or {}).get(args.variant)
+            if ev and not ev.get("judge_errors"):
+                golden = [g["comment"] for g in ev["true_positives"] + ev["false_negatives"]]
+                found = golden, ev["false_positives"]
+        if found is None:
             skipped.append(f.stem)
             continue
-        golden = [g["comment"] for g in ev["true_positives"] + ev["false_negatives"]]
+        golden, fps = found
         diff = pr_diff(args.work_dir, f.stem)
-        jobs += [(f.stem, fp, golden, diff) for fp in ev["false_positives"]]
+        jobs += [(f.stem, fp, golden, diff) for fp in fps]
 
     def one(job):
         slug, fp, golden, diff = job

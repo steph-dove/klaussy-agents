@@ -179,6 +179,7 @@ def test_parse_stream_records_subagent_calls_and_phases():
         "subagents": 1,
         "subagents_incomplete": 0,
         "validation_rubric_read": True,
+        "hunk_sweep_read": False,
     }
 
 
@@ -251,6 +252,16 @@ def test_review_phases_count_agents_that_never_finished():
     ]
     trace, _ = runner._parse_stream("\n".join(json.dumps(e) for e in events))
     assert runner.review_phases(trace)["subagents_incomplete"] == 1
+
+
+def test_review_phases_count_skill_files_read_from_the_shell():
+    trace = [
+        {"tool": "Bash", "detail": "cat ../.claude/skills/x-review/lens-validation.md | head"},
+        {"tool": "Read", "detail": "/r/.claude/skills/x-review/lens-correctness.md"},
+    ]
+    phases = runner.review_phases(trace)
+    assert phases["validation_rubric_read"] and phases["hunk_sweep_read"]
+    assert not phases["parallel_path"]
 
 
 def test_review_failed_rejects_errors_and_missing_reports():
@@ -402,3 +413,40 @@ def test_label_fps_rejects_an_unknown_label(monkeypatch):
         runner, "ask_claude_json", lambda s, p, m: {"label": "real", "reason": "r", "_cost_usd": 0}
     )
     assert label_fps.label("finding", [], "x" * 90_000, "m")["label"] == "real"
+
+
+def test_label_fps_reads_swr_unmatched_predictions():
+    verdict = {
+        "pred_points": [
+            {"id": "P1", "description": "matched"},
+            {"id": "P2", "description": "extra"},
+        ],
+        "gt_points": [{"description": "expected", "hit": "YES", "hit_by": "P1"}],
+    }
+    change = {"verdict": verdict, "change_introduced": True}
+    assert label_fps.swr_false_positives(change) == (["expected"], ["extra"])
+    clean = {"verdict": verdict, "change_introduced": False}
+    assert label_fps.swr_false_positives(clean) == ([], ["matched", "extra"])
+    assert label_fps.swr_false_positives({"verdict": {"error": "x"}}) is None
+
+
+def test_swr_main_keeps_going_when_one_instance_fails(tmp_path, monkeypatch, capsys):
+    rows = [{"instance_id": "a-1"}, {"instance_id": "b-2"}]
+    seen = []
+
+    def run_instance(inst, args, judge):
+        seen.append(inst["instance_id"])
+        if inst["instance_id"] == "a-1":
+            raise RuntimeError("clone failed")
+
+    monkeypatch.setattr(swrbench, "load_dataset", lambda d: rows)
+    monkeypatch.setattr(swrbench, "load_judge", lambda d: {})
+    monkeypatch.setattr(swrbench, "run_instance", run_instance)
+    argv = ["swrbench", "--swr-dir", str(tmp_path), "--out", str(tmp_path / "out")]
+    argv += ["--ids", "a-1", "b-2", "--prepare-only", "--skip-enrich", "--workers", "2"]
+    monkeypatch.setattr(sys, "argv", argv)
+    swrbench.main()
+    assert sorted(seen) == ["a-1", "b-2"]
+    out = capsys.readouterr().out
+    assert "[a-1] failed, not scored: RuntimeError: clone failed" in out
+    assert "Not scored (1): a-1" in out

@@ -191,6 +191,52 @@ def summarize(records: list[dict]) -> dict:
     }
 
 
+def run_instance(inst: dict, args: argparse.Namespace, judge: dict) -> dict | None:
+    """Prepare, review and judge one instance; None when there is nothing to score."""
+    iid = inst["instance_id"]
+    kind = "change" if inst["change_introduced"] else "clean"
+    owner, repo = inst["repo"].split("/")
+    saved = args.out / f"{iid}.json"
+    record = json.loads(saved.read_text()) if saved.exists() else None
+    if record is None:
+        print(f"[{iid}] ({kind}) preparing", flush=True)
+        head = inst["pr_commits"][-1]["sha"]
+        pr = runner.PullRequest(
+            url=f"https://github.com/{inst['repo']}",
+            owner=owner,
+            repo=repo,
+            number=int(iid.rsplit("-", 1)[1]),
+            title=inst["pr_title"],
+            body=inst["pr_statement"] or "",
+            merge_base=runner.merge_base(owner, repo, inst["base_commit"], head),
+            head=head,
+        )
+        path = runner.prepare_repo(
+            pr, args.work_dir.resolve() / iid, repo, enrich=not args.skip_enrich
+        )
+        if args.prepare_only:
+            prompt = judge_prompt(inst, "<review goes here>", judge)
+            print(f"[{iid}] ready at {path}; judge prompt {len(prompt)} chars", flush=True)
+            return None
+        print(f"[{iid}] reviewing in {path}", flush=True)
+        review = runner.run_review(path, model=args.model, budget_usd=args.budget_usd)
+        failed = runner.review_failed(review)
+        if failed:
+            print(f"[{iid}] review failed, not scored or saved: {failed}", flush=True)
+            return None
+        record = {
+            "instance_id": iid,
+            "change_introduced": inst["change_introduced"],
+            "review": review,
+        }
+        saved.write_text(json.dumps(record, indent=2))
+    if "verdict" not in record or args.rejudge:
+        print(f"[{iid}] judging", flush=True)
+        record["verdict"] = judge_review(inst, record["review"]["report"], judge, args.judge_model)
+        saved.write_text(json.dumps(record, indent=2))
+    return {**record, "instance": inst}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="SWR-Bench")
     cache = Path.home() / ".cache" / "klaussy-bench"
@@ -208,6 +254,7 @@ def main() -> None:
         action="store_true",
         help="klaussy init --skip-enrich (cheaper, less repo context)",
     )
+    parser.add_argument("--workers", type=int, default=1, help="Instances run at once")
     parser.add_argument("--rejudge", action="store_true", help="Reuse saved reviews, re-judge")
     parser.add_argument(
         "--prepare-only",
@@ -228,52 +275,19 @@ def main() -> None:
         chosen = sample(rows, args.sample, args.seed)
     args.out.mkdir(parents=True, exist_ok=True)
 
-    records = []
-    for inst in chosen:
+    def one(inst: dict) -> dict | None:
         iid = inst["instance_id"]
-        kind = "change" if inst["change_introduced"] else "clean"
-        owner, repo = inst["repo"].split("/")
-        saved = args.out / f"{iid}.json"
-        record = json.loads(saved.read_text()) if saved.exists() else None
-        if record is None:
-            print(f"[{iid}] ({kind}) preparing", flush=True)
-            head = inst["pr_commits"][-1]["sha"]
-            pr = runner.PullRequest(
-                url=f"https://github.com/{inst['repo']}",
-                owner=owner,
-                repo=repo,
-                number=int(iid.rsplit("-", 1)[1]),
-                title=inst["pr_title"],
-                body=inst["pr_statement"] or "",
-                merge_base=runner.merge_base(owner, repo, inst["base_commit"], head),
-                head=head,
-            )
-            path = runner.prepare_repo(
-                pr, args.work_dir.resolve() / iid, repo, enrich=not args.skip_enrich
-            )
-            if args.prepare_only:
-                prompt = judge_prompt(inst, "<review goes here>", judge)
-                print(f"[{iid}] ready at {path}; judge prompt {len(prompt)} chars", flush=True)
-                continue
-            print(f"[{iid}] reviewing in {path}", flush=True)
-            review = runner.run_review(path, model=args.model, budget_usd=args.budget_usd)
-            failed = runner.review_failed(review)
-            if failed:
-                print(f"[{iid}] review failed, not scored or saved: {failed}", flush=True)
-                continue
-            record = {
-                "instance_id": iid,
-                "change_introduced": inst["change_introduced"],
-                "review": review,
-            }
-            saved.write_text(json.dumps(record, indent=2))
-        if "verdict" not in record or args.rejudge:
-            print(f"[{iid}] judging", flush=True)
-            record["verdict"] = judge_review(
-                inst, record["review"]["report"], judge, args.judge_model
-            )
-            saved.write_text(json.dumps(record, indent=2))
-        records.append({**record, "instance": inst})
+        try:
+            return run_instance(inst, args, judge)
+        except Exception as e:
+            print(f"[{iid}] failed, not scored: {type(e).__name__}: {str(e)[:300]}", flush=True)
+            failures.append(iid)
+            return None
+
+    failures: list[str] = []
+    records = [r for r in runner.parallel_map(one, chosen, workers=args.workers) if r]
+    if failures:
+        print(f"\nNot scored ({len(failures)}): {', '.join(failures)}")
 
     if args.prepare_only:
         return
