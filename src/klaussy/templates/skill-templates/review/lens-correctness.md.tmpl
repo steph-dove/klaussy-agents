@@ -37,6 +37,23 @@ For each finding, be specific about the failure mode (the exact input or state t
 - State, a cache entry or a counter written before the operation it records has succeeded, so a failure leaves it saying the opposite.
 - A hardcoded value (size limit, timeout, URL, ID) where the codebase already reads that value from a setting, so configuration stops applying.
 
+## Hunk sweep
+
+A free read follows data through the system and finds bugs that span files. It misses bugs that sit beside the changed line: each comes from an assumption the code makes about something next to it, and each is quick to confirm once you read that one thing. The sweep checks those assumptions on every hunk.
+
+List the diff's hunks (`file:line-range`) first so none is skipped. Then ask each hunk all five questions, including a hunk you already have a finding on. For each one, read the neighboring code it names rather than reasoning from the hunk alone. The examples show the kind of thing to look for; they aren't the whole list.
+
+1. **What did the old code guarantee without saying so?** Read the removed and replaced lines and name everything they ensured, not just their stated job: a lock that also stopped two callers building the same thing at once, a lifecycle hook that also waited for its call to finish, a check that also rejected a bad value, an ordering a later step relied on. Confirm the new code still holds each one. In locking code, a condition checked before taking the lock is checked again after it.
+2. **What happens off the happy path?** Take the failure, the empty case and the early exit in turn:
+   - a throw, error value or non-success response: follow it to where it's handled and say what the caller gets. Bad input that ends as a server error, an error logged and swallowed so the caller sees success, a failed computation that overwrites a good stored value.
+   - empty, zero, missing or first-time input: an empty list that skips a step the rest depends on, a missing optional field, the first run with nothing cached.
+   - a `return`, `break`, `continue`, `throw` or timeout that leaves work the normal path does undone: something unreleased, unclosed, unterminated or not rolled back.
+3. **Does the other side behave the way the code assumes?** For each library, framework, ORM, platform or service call the hunk adds, check its behavior in this exact situation: what it does with empty or missing arguments, bulk versus single-item behavior, which errors it raises and how the framework turns them into status codes, which field of a response actually signals success, which hooks and auto-updated fields it runs. Writes that bypass the model (migrations, raw queries, fixtures, seeds) skip its normalization, validation and escaping, so check the data they write is what the reading code expects. Read the installed source or types when you aren't sure.
+4. **Does it match its siblings?** Find the code beside it that does the same job (the next metric, the sibling handler, the other caller) and compare each new name, key, tag, label, format, locale, unit and error type: a key spelled differently from the one next to it, a hardcoded format where the neighbors use the user's setting, a generic error where sibling handlers raise typed ones. When the mismatch changes what users, dashboards or callers see, it's Medium, not a Nit.
+5. **Can this test fail?** For each test the diff adds or changes, ask whether it would fail if the code it targets broke: a helper the test patched out earlier and then relies on, a mock standing in for the code under test, an assertion on the mock instead of the result, setup data that never reaches the branch.
+
 ## Second pass
 
-If your prompt says `This is the second correctness pass.`, another reviewer is doing the normal read and you're there to catch what it misses. Work through the changed files in reverse order, last file first. In each changed function, go through the "Comparing and matching input", "Removed behavior", "References resolve", "Changed text" and "Common defect patterns" checks one by one before the general logic read. Report what you find even if it seems obvious; duplicates are merged later.
+If your prompt says `This is the second correctness pass.`, another reviewer is doing the normal read and you're there to catch what it misses. Do the hunk sweep first, working through the changed files in reverse order, last file first. Then go through each changed function against "Comparing and matching input", "Removed behavior", "References resolve", "Changed text" and "Common defect patterns". Report what you find even if it seems obvious; duplicates are merged later.
+
+On the first pass, do the hunk sweep after your normal read.

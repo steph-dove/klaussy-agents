@@ -157,7 +157,7 @@ Keep the analysis rigorous and the bar high (staff/principal quality); the mode 
 
 ### Second sweep:
 
-One read finds a given bug only about half the time. Before validating, go through each changed function again, last file first, against every sub-check under item 1 above, and add what the first read missed.
+One read finds a given bug only about half the time. Before validating, read `.claude/skills/{{REPO}}-review/lens-correctness.md` and do its **Hunk sweep**: list the hunks, then ask every one its five questions, last file first, including hunks you already have a finding on. Then go through each changed function against the sub-checks under item 1 above, and add what the first read missed.
 
 ### Validate findings:
 
