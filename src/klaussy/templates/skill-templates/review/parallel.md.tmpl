@@ -42,7 +42,7 @@ If no lens returned a finding, skip this phase.
 
 ## Phase 4: Synthesis
 
-1. **Drop Low, Warn and Nit** unless the user asked for minor findings. Do this only now, after validation: severities were set honestly upstream, so don't raise one here to keep it.
+1. **Drop Low, Warn and Nit** unless the user asked for minor findings. Do this only now, after validation: severities were set honestly upstream, so don't raise one here to keep it. Dropped means gone: don't list or allude to them in the summary.
 2. **Sort by severity:** Blocker > High > Medium > Low > Warn > Nit.
 3. **Cross-cutting check.** Look for issues spanning two lenses' domains, such as a correctness bug that is also a security hole, and add a combined comment if the lenses missed the intersection. Read only the files those findings point at; the lenses already read the rest.
 4. **Assess overall quality** from the findings as a whole.
@@ -53,6 +53,6 @@ Write **REVIEW_OUTPUT.md** with each finding in the comment format from SKILL.md
 
 **Verdict:** Approve / Request Changes / Block · reviewed at `<short-sha>`
 
-Then one line naming the issues that drive that verdict, and one line on test coverage. Nothing else — no restated finding list, no checkbox grid, no footer describing how the review was run.
+Then one line naming the issues that drive that verdict, and one line on test coverage. Name only findings that are in the review. Nothing else — no restated finding list, no checkbox grid, no footer describing how the review was run.
 
 Before writing `REVIEW_OUTPUT.md`, re-run the Phase 1 step 0 fetch and comparison. A large review takes long enough for the author to push again. If the branch moved, read the new commits (`git diff <reviewed-sha>..origin/<branch>`), update or drop the findings they fix, and stamp the new SHA.

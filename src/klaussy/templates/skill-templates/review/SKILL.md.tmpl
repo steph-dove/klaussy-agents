@@ -91,7 +91,7 @@ The comment is one to three sentences: what to change, then what breaks and when
 - If something relies on an unstated assumption, call it out.
 - If behavior is unclear, treat that as a problem.
 - Prefer concrete fixes over vague advice.
-- **The written review carries Blocker, High and Medium only.** Low, Warn and Nit findings stay out unless the user asked for them ("include nits", "thorough", "everything"); drop them, don't park them in a minor section. Rate every finding honestly while you work and apply this cut last, when you write the output. Never raise a severity to keep a finding.
+- **The written review carries Blocker, High and Medium only.** Low, Warn and Nit findings stay out unless the user asked for them ("include nits", "thorough", "everything"); drop them entirely, with no minor section and no "also below threshold" mention in the summary or anywhere else. Rate every finding honestly while you work and apply this cut last, when you write the output. Never raise a severity to keep a finding.
 - **Precision over recall.** Default to *not* reporting. If no finding is one a competent author would clearly want to fix, return an empty review and say so — an empty review is a valid, good outcome, not a failure. Do not invent findings or pad to look thorough.
 - **Every finding must name a concrete trigger.** State the specific input, state, or execution path that makes it go wrong. If you cannot describe how the problem is reached, you have not proven it — drop it.
 - **It must be about this change.** Code the PR adds, edits or newly exercises; problems that were already there are out of scope. "Consider adding…" isn't a finding unless you can name the failure the missing piece lets through.
@@ -148,7 +148,7 @@ After validation, close with a short summary. No more than this:
 
 **Verdict:** Approve / Request Changes / Block · reviewed at `<short-sha>`
 
-Then one line naming the issues that drive that verdict (skip it entirely if there are none), and one line on test coverage — what's missing, or "covered" if nothing is. Don't restate findings the reader just read, and don't append a footer describing how the review was run.
+Then one line naming the issues that drive that verdict (skip it entirely if there are none), and one line on test coverage — what's missing, or "covered" if nothing is. Name only findings that are in the review; findings you cut stay unmentioned. Don't restate findings the reader just read, and don't append a footer describing how the review was run.
 
 Before writing, re-run the step 0 fetch and comparison. If the branch moved while you reviewed, read the new commits (`git diff <reviewed-sha>..origin/<branch>`), update any finding they fix or change, and stamp the new SHA. Then write this output to `REVIEW_OUTPUT.md`.
 
