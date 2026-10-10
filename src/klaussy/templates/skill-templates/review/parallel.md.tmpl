@@ -26,7 +26,7 @@ Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The 
    The lens files are `lens-correctness.md`, `lens-architecture.md`, `lens-security.md`, `lens-scope.md`, `lens-agentic.md` and `lens-adr.md`. For the design-doc lens, add the doc paths to its prompt. Don't paste the diff, the scaffold or the lens text: each pasted copy is output you pay for once per sub-agent, and the sub-agent reads the files anyway.
 3. **Launch all selected sub-agents in a single message** with the Agent tool (`subagent_type: general-purpose`), so they run in parallel. If they run in the background, wait until every lens has reported before moving on; a lens you didn't hear back from is not an empty lens.
 
-**Model tiering (optional, if your sub-agent tool accepts a per-call model).** Run the mechanical Scope, Conventions & Quality lens on a fast, cheap model (e.g. `haiku`) and keep the reasoning-heavy lenses on the default model. Because the lenses run in parallel, this saves cost rather than wall-clock. No per-call model control? Run them all on the default model.
+Every lens runs on the session's model; don't pass a cheaper model to any of them.
 
 ## Phase 3: Validation
 

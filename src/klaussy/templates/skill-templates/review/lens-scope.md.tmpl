@@ -19,7 +19,7 @@ If no repo-specific checks are listed above, read CLAUDE.md and any matching `.c
 - These are Nit or Low by the severity scale; rate them honestly.
 
 ### Tests
-- Only a specific risky branch the PR adds with no test exercising it, named with the failure a test would have caught. "Add more tests" or "cover the edge cases" is not a finding.
+- Only a test in the diff that can't catch what it claims to: it asserts the wrong thing, passes whether or not the code works, or sets up data that never reaches the code under test. Name the regression it would let through. A missing test is not a finding, however risky the branch.
 - Tests that assert nothing meaningful, or mocks that hide the behavior under test.
 
 ## Additional rules

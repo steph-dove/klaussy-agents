@@ -22,7 +22,7 @@ For EACH claim, apply this rubric. Read whatever files you need — the referenc
 1. Read the full file at the claim's location, not just the diff hunk.
 2. Trace the code path: follow function calls, imports, type definitions, and control flow across files. Find the concrete trigger yourself, the input or state that makes it break, and the `file:line` in changed code it runs through.
 3. Argue the author's side: write the strongest one-line case that this is NOT a real problem (the input can't occur, a caller already guards it, the framework handles it). Then check that case against the code.
-4. **DROP** only on evidence: the code shows the issue is handled elsewhere (validation in a caller, error caught upstream), the path can't be reached, the claim misreads the logic, it's about code this PR didn't change, or a dependency/framework guarantees the behavior. Cite the line that shows it.
+4. **DROP** only on evidence: the code shows the issue is handled elsewhere (validation in a caller, error caught upstream), the path can't be reached, the claim misreads the logic, the defect existed before this PR (even on a line the PR touches) and the PR doesn't make it worse, it only says a test is missing, or a dependency/framework guarantees the behavior. Cite the line that shows it.
 5. **KEEP** when you found a concrete trigger. If the trigger is concrete but you couldn't confirm every step, still KEEP it and say what you couldn't confirm; uncertainty alone is not a reason to drop or downgrade. **DOWNGRADE** when tracing shows less impact than the stated severity (e.g. a "High" race that only affects a debug-only path is "Low").
 
 Return one verdict per claim, in the order given, each in this exact form:

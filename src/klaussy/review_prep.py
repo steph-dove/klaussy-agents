@@ -10,8 +10,8 @@ manifest of what was excluded and why — so nothing is silently hidden from the
 reviewer (silent truncation reads as "covered everything" when it didn't).
 
 This is the cheap, language-agnostic half of "make review faster": fewer tokens
-in. The expensive half (prompt-caching the diff across parallel sub-agents,
-model-tiering the lenses) lives in the skill/orchestration layer, not here.
+in. The expensive half (prompt-caching the diff across parallel sub-agents) lives
+in the skill/orchestration layer, not here.
 """
 
 from __future__ import annotations
