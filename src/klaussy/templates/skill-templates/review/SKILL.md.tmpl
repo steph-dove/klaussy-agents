@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-review
-description: Use when the user wants a thorough PR or branch review. Triages by diff size — small PRs get a single-pass review, large PRs fan out to parallel sub-agents (correctness, architecture, security, scope, and an Agentic & Evals lens that activates on AI/agent code) with a validation phase that drops false positives.
+description: Use when the user wants a thorough PR or branch review. Triages by diff size — small PRs get one review plus a second-sweep sub-agent and validation, large PRs fan out to parallel sub-agents (correctness, architecture, security, scope, and an Agentic & Evals lens that activates on AI/agent code) with a validation phase that drops false positives.
 allowed-tools: Read Grep Glob Bash(git *) Bash(klaussy base *) Bash(klaussy review-prep *) Bash(python3 -m klaussy *) Bash(python -m klaussy *) Write Agent
 ---
 
@@ -63,6 +63,17 @@ Take the path `review-prep` printed. Don't recount or second-guess it; it was co
 ## Small PR Review
 
 You are a senior/principal-level engineer reviewing a pull request. Treat this as a real production PR. Output ONLY PR-style review comments, as if leaving inline comments on GitHub/GitLab/Bitbucket.
+
+Work through these steps in order. Don't write `REVIEW_OUTPUT.md` before step 6, however small the diff or clear the findings look:
+
+1. Read the reviewable files in full (below).
+2. Review them against the rules and "What to look for", rating each finding honestly.
+3. Launch the [Second sweep](#second-sweep) sub-agent and merge its findings with yours.
+4. Launch a [validation](#validate-findings) sub-agent on every finding and apply its verdicts.
+5. Cut to Blocker, High and Medium.
+6. Write the comments in the delivery mode from Tone & standards, humanize them, and write `REVIEW_OUTPUT.md` with the [end-of-review](#end-of-review) summary.
+
+Steps 3 and 4 run in sub-agents because a reviewer checking its own read skims past what it already decided. Only with no sub-agent tool at all do you do them yourself, by opening `lens-correctness.md` and `lens-validation.md`.
 
 **Read the full file (not just the diff hunks) for every *reviewable* changed file** — the files present in the trimmed diff, not the ones in the Excluded manifest. These are independent reads — issue them all in a single batch of parallel tool calls, not sequentially. The excluded files are deliberately out of scope: don't read or comment on them unless a finding in a reviewable file points directly at one.
 
@@ -136,6 +147,26 @@ Rate by the worst realistic outcome when the trigger happens, not by how likely 
 
 {{REPO_SPECIFIC_CHECKS}}
 
+### Second sweep:
+
+One read finds a given bug only about half the time. Launch one sub-agent with the Agent tool (`subagent_type: general-purpose`) and this prompt:
+
+```
+Review this pull request through one lens. Base branch: <base>.
+Read .claude/skills/{{REPO}}-review/sub-agents.md, then
+.claude/skills/{{REPO}}-review/lens-correctness.md, and follow them.
+This is the second correctness pass.
+Return only your findings. Do not write any files.
+```
+
+It runs the **Hunk sweep** from `lens-correctness.md` over every hunk. Wait for it, then merge its findings with yours: where both found the same problem, keep the more detailed one and the higher severity.
+
+### Validate findings:
+
+Number the merged findings `F1`, `F2`, … and reduce each to a claim: `<ID> · <severity> · <file:line> · <one line saying what breaks>`, without your reasoning or fix. Launch one validation sub-agent per batch of at most 6 claims, all in one message, each with the base branch, its claims, and "Read .claude/skills/{{REPO}}-review/lens-validation.md and follow it. Write no files." Drop the DROPs and apply the DOWNGRADEs; keep your own wording for what survives. A claim with no verdict goes to a fresh validator, and if that fails too, apply the rubric to it yourself. Then apply the Medium cut from the review rules.
+
+A shorter, accurate review is far more valuable than a long review with false positives.
+
 ### Tone & standards — pick a delivery mode, keep the substance:
 
 Keep the analysis rigorous and the bar high (staff/principal quality); the mode below changes only *how* findings are delivered.
@@ -154,16 +185,6 @@ Keep the analysis rigorous and the bar high (staff/principal quality); the mode 
 {{HUMANIZE}}
 
 **Brevity must not dilute substance.** Every comment keeps four things: severity, `file:line`, the concrete trigger or failure scenario, and the specific fix. Everything else is cuttable, and most of it should go. Quote code only when `file:line` alone won't tell the reader what you mean, and then quote the smallest slice that shows the problem, not the surrounding function. A note that hides a real Blocker, downgrades severity, or drops one of the four has failed; a note that says those four things in two sentences has succeeded.
-
-### Second sweep:
-
-One read finds a given bug only about half the time. Before validating, read `.claude/skills/{{REPO}}-review/lens-correctness.md` and do its **Hunk sweep**: list the hunks, then ask every one its five questions, last file first, including hunks you already have a finding on. Then go through each changed function against the sub-checks under item 1 above, and add what the first read missed.
-
-### Validate findings:
-
-Before writing the final output, read `.claude/skills/{{REPO}}-review/lens-validation.md` and apply its rubric (steps 1–5) to every finding you produced. Ignore its input and output sections; you keep writing in this skill's format. Then apply the Medium cut from the review rules.
-
-A shorter, accurate review is far more valuable than a long review with false positives.
 
 ### End of review:
 
