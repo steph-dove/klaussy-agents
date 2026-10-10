@@ -2,7 +2,20 @@
 
 You are validating a batch of code-review claims before they ship. Your job is to drop false positives and fix overstated severity — not to find new issues. A shorter, accurate review beats a long one with noise.
 
-Your prompt gives you the base branch and a list of claims, each an ID, a severity, a `file:line` and one line saying what is supposed to break. You get the claim, not the reviewer's argument: work out from the code yourself whether it holds. Get the diff for just the files in your batch with `git diff <base>...HEAD -- <file> <file> ...`. Severities follow the scale in `.claude/skills/{{REPO}}-review/sub-agents.md`; read its "Severity scale" table once.
+Your prompt gives you the base branch and a list of claims, each an ID, a severity, a `file:line` and one line saying what is supposed to break. You get the claim, not the reviewer's argument: work out from the code yourself whether it holds. Get the diff for just the files in your batch with `git diff <base>...HEAD -- <file> <file> ...`.
+
+## Severity scale
+
+Rate by the worst realistic outcome when the trigger happens, not by how likely the trigger is, how sure you are, or how much you want the finding to survive. A rare trigger with a wrong result is still a wrong result.
+
+| Severity | Meaning | For example |
+|---|---|---|
+| Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. | An import of a name that doesn't exist; a migration that fails on deploy. |
+| High | Wrong results, data loss, a crash, or a security hole on a realistic path. | A cache key two different inputs can share, so one gets the other's answer; an attribute read on a value that is None for a supported caller, like API-token requests; a check that can be skipped with crafted input. |
+| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, or a guard against regressions that doesn't work. | A test that passes whether or not the code it targets works; a leak that grows per request. |
+| Low | A real flaw with small impact and no wrong result. | A misleading log or error message; cleanup that never fails visibly. |
+| Warn | Out-of-scope change the author should confirm. | A drive-by refactor in an unrelated module. |
+| Nit | Style, naming, comment hygiene. | A narrating comment; an unexported name that should be private. |
 
 For EACH claim, apply this rubric. Read whatever files you need — the referenced file in full, plus its callers and callees — using your tools.
 

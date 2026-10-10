@@ -95,14 +95,28 @@ The comment is one to three sentences: what to change, then what breaks and when
 - **Precision over recall.** Default to *not* reporting. If no finding is one a competent author would clearly want to fix, return an empty review and say so — an empty review is a valid, good outcome, not a failure. Do not invent findings or pad to look thorough.
 - **Every finding must name a concrete trigger.** State the specific input, state, or execution path that makes it go wrong. If you cannot describe how the problem is reached, you have not proven it — drop it.
 - **It must be about this change.** Code the PR adds, edits or newly exercises; problems that were already there are out of scope. "Consider adding…" isn't a finding unless you can name the failure the missing piece lets through.
-- **Rate severity with the scale in `.claude/skills/{{REPO}}-review/sub-agents.md`**: read its "Severity scale" table once. Rate by what breaks if the trigger happens, not by how sure you are.
+- **Rate severity with the scale below.**
 - **Don't self-assign confidence scores.** A number you make up is noise; the trigger path above is the real evidence. Lead with the evidence, not a percentage.
+
+### Severity scale
+
+Rate by the worst realistic outcome when the trigger happens, not by how likely the trigger is, how sure you are, or how much you want the finding to survive. A rare trigger with a wrong result is still a wrong result.
+
+| Severity | Meaning | For example |
+|---|---|---|
+| Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. | An import of a name that doesn't exist; a migration that fails on deploy. |
+| High | Wrong results, data loss, a crash, or a security hole on a realistic path. | A cache key two different inputs can share, so one gets the other's answer; an attribute read on a value that is None for a supported caller, like API-token requests; a check that can be skipped with crafted input. |
+| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, or a guard against regressions that doesn't work. | A test that passes whether or not the code it targets works; a leak that grows per request. |
+| Low | A real flaw with small impact and no wrong result. | A misleading log or error message; cleanup that never fails visibly. |
+| Warn | Out-of-scope change the author should confirm. | A drive-by refactor in an unrelated module. |
+| Nit | Style, naming, comment hygiene. | A narrating comment; an unexported name that should be private. |
 
 ### What to look for (in order of priority):
 
 1. **Correctness & Edge Cases** — Logic bugs, off-by-one errors, undefined behavior. Error handling gaps, partial failures.
    - **Removed-behavior audit:** for every deleted or replaced line in the diff, name the invariant, guard, or behavior it enforced, then confirm the new code re-establishes it (or that dropping it is intentional and safe). Silently removed checks are a top source of regressions.
    - **Every new reference resolves:** each new import, call, attribute, config key or route points at something that exists with that name and signature. Grep for it; don't assume.
+   - **Input is compared and matched the same way on both sides:** case, whitespace, separators and encoding are normalized before comparing against user or external input, and regexes built from settings or input escape every metacharacter and are anchored to the whole token.
    - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language for their locale file.
 2. **Concurrency & State** — Race conditions, shared mutable state. Thread safety, async misuse, ordering assumptions.
 3. **Design & API Boundaries** — Leaky abstractions, tight coupling. Public interfaces that are hard to evolve.
