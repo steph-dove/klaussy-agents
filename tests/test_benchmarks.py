@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "benchmarks"))
 
 import martian  # noqa: E402
@@ -221,3 +223,77 @@ def test_review_failed_rejects_errors_and_missing_reports():
     assert runner.review_failed({"error": "budget exceeded", "report_written": True})
     assert runner.review_failed({"error": False, "report_written": False})
     assert runner.review_failed({"error": None, "report_written": True}) is None
+
+
+PROMPTS = {"JUDGE_PROMPT": "{golden_comment}|{candidate}"}
+
+
+def test_judge_takes_the_majority_vote(monkeypatch):
+    answers = iter([True, False, True])
+    monkeypatch.setattr(
+        runner,
+        "ask_claude_json",
+        lambda system, prompt, model: {"match": next(answers), "confidence": 0.9, "_cost_usd": 0},
+    )
+    golden = [{"comment": "g", "category": "bug"}]
+    result = martian.judge(golden, ["c"], [[0]], PROMPTS, "m", samples=3)
+    assert result["true_positives"][0]["votes"] == "2/3"
+    assert result["false_positives"] == []
+
+
+def test_judge_does_not_count_a_matched_duplicate_as_false_positive(monkeypatch):
+    monkeypatch.setattr(
+        runner,
+        "ask_claude_json",
+        lambda system, prompt, model: {
+            "match": prompt.endswith("|a"),
+            "confidence": 0.8,
+            "_cost_usd": 0,
+        },
+    )
+    golden = [{"comment": "g", "category": "bug"}]
+    result = martian.judge(golden, ["a", "a again", "b"], [[0, 1], [2]], PROMPTS, "m", samples=1)
+    assert result["false_positives"] == ["b"]
+
+
+def test_judge_leaves_pairs_without_a_majority_unscored(monkeypatch):
+    def flaky(system, prompt, model):
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(runner, "ask_claude_json", flaky)
+    golden = [{"comment": "g", "category": "bug"}]
+    result = martian.judge(golden, ["c"], [[0]], PROMPTS, "m", samples=3)
+    assert result["judge_errors"] == 1
+    assert "rate limited" in result["judge_error_samples"][0]
+
+
+def test_severe_only_keeps_medium_and_above():
+    kept = martian.severe_only(REPORT)
+    assert kept.startswith("High · Correctness · `pkg/a.go:12`")
+    assert "Rename x" not in kept
+
+
+def test_load_constants_reads_literals_without_importing(tmp_path):
+    src = tmp_path / "mod.py"
+    src.write_text('import nonexistent_module\nPROMPT = "x {a}"\nOTHER = 1\n')
+    assert runner.load_constants(src, {"PROMPT"}) == {"PROMPT": "x {a}"}
+    with pytest.raises(SystemExit):
+        runner.load_constants(src, {"MISSING"})
+
+
+def test_extract_rejects_a_response_without_an_issues_list(monkeypatch):
+    monkeypatch.setattr(
+        runner, "ask_claude_json", lambda system, prompt, model: {"oops": 1, "_cost_usd": 0}
+    )
+    with pytest.raises(ValueError):
+        martian.extract("x" * 40, {"EXTRACT_PROMPT": "{comment}"}, "m")
+
+
+def test_dedup_flags_a_fallback_when_groups_miss_a_candidate(monkeypatch):
+    monkeypatch.setattr(
+        runner,
+        "ask_claude_json",
+        lambda system, prompt, model: {"groups": [[0, 1]], "_cost_usd": 0},
+    )
+    groups, _, fell_back = martian.dedup(["a", "b", "c"], {"STRICT_PROMPT": "{candidates}"}, "m")
+    assert fell_back and groups == [[0], [1], [2]]

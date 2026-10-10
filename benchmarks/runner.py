@@ -6,6 +6,7 @@ PR's tree as one commit, so the skill sees exactly the PR diff and nothing else.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -38,6 +39,22 @@ def _run(args: list[str], cwd: Path | None = None, timeout: int = 1800) -> str:
     if proc.returncode != 0:
         raise RuntimeError(f"{' '.join(args[:4])} failed: {proc.stderr[-1500:]}")
     return proc.stdout
+
+
+def load_constants(source: Path, names: set[str]) -> dict:
+    """Read literal constants (prompts, maps) from a benchmark's source without importing it."""
+    tree = ast.parse(source.read_text())
+    found = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in names
+    }
+    missing = names - found.keys()
+    if missing:
+        raise SystemExit(f"{source.name} no longer defines {sorted(missing)}")
+    return found
 
 
 def merge_base(owner: str, repo: str, base: str, head: str) -> str:

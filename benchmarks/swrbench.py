@@ -12,7 +12,6 @@ CLI. Opt-in and costs money:
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import os
 import random
@@ -34,20 +33,10 @@ def load_dataset(swr_dir: Path) -> list[dict]:
 
 
 def load_judge(swr_dir: Path) -> dict:
-    """Pull the prompt constants out of evaluation_struct.py without importing it."""
-    tree = ast.parse((swr_dir / "swrbench" / "evaluation_struct.py").read_text())
-    wanted = {"EVAL_CLEAN_PROMPT", "EVAL_CHANGE_PROMPT", "CHANGE_TYPE_TEXT_MAP"}
-    found = {
-        node.targets[0].id: ast.literal_eval(node.value)
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id in wanted
-    }
-    missing = wanted - found.keys()
-    if missing:
-        sys.exit(f"evaluation_struct.py no longer defines {sorted(missing)}")
-    return found
+    return runner.load_constants(
+        swr_dir / "swrbench" / "evaluation_struct.py",
+        {"EVAL_CLEAN_PROMPT", "EVAL_CHANGE_PROMPT", "CHANGE_TYPE_TEXT_MAP"},
+    )
 
 
 def sample(rows: list[dict], n: int, seed: int) -> list[dict]:

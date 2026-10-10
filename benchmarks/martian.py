@@ -1,8 +1,10 @@
 """Score the review skill on Martian's offline Code Review Bench.
 
-https://github.com/withmartian/code-review-benchmark (MIT). Judging reuses
-Martian's step-3 prompt and pairwise golden x candidate matching, run through the
-`claude` CLI instead of their OpenAI-compatible endpoint. Opt-in and costs money:
+https://github.com/withmartian/code-review-benchmark (MIT). Scoring runs Martian's
+own extraction (step 2), dedup (step 2.5) and pairwise judge (step 3) prompts, read
+from your checkout, through the `claude` CLI instead of their OpenAI-compatible
+endpoint. Each review is scored as written and cut to Medium and above. Opt-in and
+uses model calls:
 
     git clone https://github.com/withmartian/code-review-benchmark <martian-dir>
     KLAUSSY_RUN_BENCH=1 uv run python benchmarks/martian.py --martian-dir <martian-dir>
@@ -48,25 +50,21 @@ PROFILES = {
     },
 }
 
+SEVERE = {"Blocker", "High", "Medium"}
+
+EXTRACT_SYSTEM = "You extract code review issues from comments. Always respond with valid JSON."
+DEDUP_SYSTEM = "You group duplicate code review comments. Always respond with valid JSON only."
 JUDGE_SYSTEM = "You are a precise code review evaluator. Always respond with valid JSON."
 
-# Verbatim from Martian's step3_judge_comments.py so scores stay comparable.
-JUDGE_PROMPT = """You are evaluating AI code review tools.
-Determine if the candidate issue matches the golden (expected) comment.
 
-Golden Comment (the issue we're looking for):
-{golden_comment}
-
-Candidate Issue (from the tool's review):
-{candidate}
-
-Instructions:
-- Determine if the candidate identifies the SAME underlying issue as the golden comment
-- Accept semantic matches - different wording is fine if it's the same problem
-- Focus on whether they point to the same bug, concern, or code issue
-
-Respond with ONLY a JSON object:
-{{"reasoning": "brief explanation", "match": true/false, "confidence": 0.0-1.0}}"""
+def load_prompts(martian_dir: Path) -> dict[str, str]:
+    """Martian's extraction, dedup and judge prompts, read from the checkout."""
+    src = martian_dir / "offline" / "code_review_benchmark"
+    return {
+        **runner.load_constants(src / "step2_extract_comments.py", {"EXTRACT_PROMPT"}),
+        **runner.load_constants(src / "step2_5_dedup_candidates.py", {"STRICT_PROMPT"}),
+        **runner.load_constants(src / "step3_judge_comments.py", {"JUDGE_PROMPT"}),
+    }
 
 
 def load_golden(martian_dir: Path) -> dict[str, dict]:
@@ -77,38 +75,92 @@ def load_golden(martian_dir: Path) -> dict[str, dict]:
     return golden
 
 
-def judge(golden_comments: list[dict], candidates: list[str], model: str) -> dict:
-    """Martian's step-3 matching: best-confidence candidate per golden comment."""
-    pairs = [(g, c) for g in golden_comments for c in candidates]
+def extract(report: str, prompts: dict, model: str) -> tuple[list[str], float]:
+    """Martian step 2: split the whole review text into separate issues."""
+    if len(report.strip()) < 20:
+        return [], 0.0
+    out = runner.ask_claude_json(
+        EXTRACT_SYSTEM, prompts["EXTRACT_PROMPT"].format(comment=report), model
+    )
+    issues = out.get("issues")
+    if not isinstance(issues, list) or not all(isinstance(i, str) for i in issues):
+        raise ValueError(f"extraction returned no issues list: {str(out)[:200]}")
+    return issues, out["_cost_usd"]
 
-    def one(pair):
-        g, c = pair
+
+def dedup(candidates: list[str], prompts: dict, model: str) -> tuple[list[list[int]], float, bool]:
+    """Martian step 2.5: group candidates that are the same issue; True if it fell back."""
+    singletons = [[i] for i in range(len(candidates))]
+    if len(candidates) < 2:
+        return singletons, 0.0, False
+    numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(candidates))
+    out = runner.ask_claude_json(
+        DEDUP_SYSTEM, prompts["STRICT_PROMPT"].format(candidates=numbered), model
+    )
+    groups = out.get("groups") or []
+    if sorted(i for g in groups for i in g) != list(range(len(candidates))):
+        return singletons, out["_cost_usd"], True
+    return groups, out["_cost_usd"], False
+
+
+def judge(
+    golden_comments: list[dict],
+    candidates: list[str],
+    groups: list[list[int]],
+    prompts: dict,
+    model: str,
+    samples: int,
+) -> dict:
+    """Martian step 3; majority voting stands in for temperature 0, which the CLI can't set."""
+    calls = [(g, c) for g in golden_comments for c in candidates for _ in range(samples)]
+
+    def one(call):
+        g, c = call
         try:
             return runner.ask_claude_json(
-                JUDGE_SYSTEM, JUDGE_PROMPT.format(golden_comment=g["comment"], candidate=c), model
+                JUDGE_SYSTEM,
+                prompts["JUDGE_PROMPT"].format(golden_comment=g["comment"], candidate=c),
+                model,
             )
         except Exception as e:
             return {"error": f"{type(e).__name__}: {e}"}
 
-    results = runner.parallel_map(one, pairs)
-    matched_golden: dict[str, dict] = {}
-    matched_candidates: set[str] = set()
+    results = runner.parallel_map(one, calls)
+    votes: dict[tuple[str, str], list[dict]] = {}
     errors: list[str] = []
     cost = 0.0
-    for (g, c), r in zip(pairs, results):
+    for (g, c), r in zip(calls, results):
         cost += r.get("_cost_usd", 0.0)
         if r.get("error"):
             errors.append(r["error"])
-            continue
-        best = matched_golden.get(g["comment"], {}).get("confidence", 0.0)
-        if r.get("match") and r.get("confidence", 0) > best:
-            matched_golden[g["comment"]] = {
-                "candidate": c,
-                "confidence": r["confidence"],
-                "reasoning": r.get("reasoning"),
-            }
-            matched_candidates.add(c)
+        else:
+            votes.setdefault((g["comment"], c), []).append(r)
+
+    siblings = {candidates[i]: {candidates[j] for j in grp} for grp in groups for i in grp}
+    matched_golden: dict[str, dict] = {}
+    matched_candidates: set[str] = set()
+    unjudged = 0
+    for g in golden_comments:
+        for c in candidates:
+            vs = votes.get((g["comment"], c), [])
+            if len(vs) * 2 <= samples:
+                unjudged += 1
+                continue
+            yes = [v for v in vs if v.get("match")]
+            if len(yes) * 2 <= len(vs):
+                continue
+            confidence = sum(v.get("confidence", 0) for v in yes) / len(yes)
+            if confidence > matched_golden.get(g["comment"], {}).get("confidence", 0.0):
+                matched_golden[g["comment"]] = {
+                    "candidate": c,
+                    "confidence": confidence,
+                    "votes": f"{len(yes)}/{len(vs)}",
+                    "reasoning": yes[0].get("reasoning"),
+                }
+                matched_candidates |= siblings.get(c, {c})
     return {
+        "candidates": candidates,
+        "groups": groups,
         "true_positives": [
             {**g, **matched_golden[g["comment"]]}
             for g in golden_comments
@@ -116,10 +168,28 @@ def judge(golden_comments: list[dict], candidates: list[str], model: str) -> dic
         ],
         "false_negatives": [g for g in golden_comments if g["comment"] not in matched_golden],
         "false_positives": [c for c in candidates if c not in matched_candidates],
-        "judge_errors": len(errors),
+        "judge_errors": unjudged,
         "judge_error_samples": sorted(set(errors))[:3],
         "judge_cost_usd": cost,
     }
+
+
+def evaluate(report: str, golden_comments: list[dict], prompts: dict, args) -> dict:
+    try:
+        candidates, cost = extract(report, prompts, args.judge_model)
+        groups, dedup_cost, dedup_fallback = dedup(candidates, prompts, args.judge_model)
+    except Exception as e:
+        return {"judge_errors": 1, "judge_error_samples": [f"{type(e).__name__}: {e}"]}
+    result = judge(golden_comments, candidates, groups, prompts, args.judge_model, args.samples)
+    result["judge_cost_usd"] += cost + dedup_cost
+    result["dedup_fallback"] = dedup_fallback
+    return result
+
+
+def severe_only(report: str) -> str:
+    """The report cut to Blocker/High/Medium findings, as the default review writes it."""
+    kept = [f["text"] for f in runner.parse_findings(report) if f["severity"] in SEVERE]
+    return "\n\n".join(kept)
 
 
 def profile_counts(evaluation: dict, cats: set[str]) -> dict[str, int]:
@@ -163,12 +233,14 @@ def main() -> None:
     )
     parser.add_argument("--instruction", default="", help="Extra user request for the review")
     parser.add_argument("--rejudge", action="store_true", help="Reuse saved reviews, re-judge")
+    parser.add_argument("--samples", type=int, default=3, help="Judge votes per pair")
     args = parser.parse_args()
 
     if os.environ.get("KLAUSSY_RUN_BENCH") != "1":
         sys.exit("Set KLAUSSY_RUN_BENCH=1: this runs paid agent reviews and judge calls.")
 
     golden = load_golden(args.martian_dir)
+    prompts = load_prompts(args.martian_dir)
     urls = list(golden) if args.all else (args.prs or PILOT)
     args.out.mkdir(parents=True, exist_ok=True)
     args.work_dir.mkdir(parents=True, exist_ok=True)
@@ -198,48 +270,65 @@ def main() -> None:
                 continue
             record = {"url": url, "title": entry["pr_title"], "review": review}
             saved.write_text(json.dumps(record, indent=2))
-        if "evaluation" not in record or args.rejudge or record["evaluation"]["judge_errors"]:
-            findings = runner.parse_findings(record["review"]["report"])
-            record["findings"] = findings
-            print(f"[{slug}] judging {len(findings)} findings", flush=True)
-            record["evaluation"] = judge(
-                entry["comments"], [f["text"] for f in findings], args.judge_model
-            )
+        evals = record.get("evaluations", {})
+        report = record["review"]["report"]
+        for variant, text in (("as-written", report), ("medium+", severe_only(report))):
+            done = evals.get(variant)
+            if done and not args.rejudge and not done["judge_errors"]:
+                continue
+            same = variant == "medium+" and evals.get("as-written") and text == report
+            if same:
+                evals[variant] = evals["as-written"]
+                continue
+            print(f"[{slug}] judging {variant}", flush=True)
+            evals[variant] = evaluate(text, entry["comments"], prompts, args)
+        record["evaluations"] = evals
+        record.pop("evaluation", None)
         saved.write_text(json.dumps(record, indent=2))
         per_pr.append(record)
 
+    summary = {}
+    for variant in ("as-written", "medium+"):
+        summary[variant] = report_variant(variant, per_pr, args)
+    (args.out / f"summary-{args.profile}.json").write_text(json.dumps(summary, indent=2))
+
+
+def report_variant(variant: str, per_pr: list[dict], args) -> dict:
     cats = PROFILES[args.profile]
     totals = {"tp": 0, "fp": 0, "fn": 0}
-    print(f"\nPer PR ({args.profile} profile):")
-    excluded = [rec for rec in per_pr if rec["evaluation"]["judge_errors"]]
+    print(f"\n== {variant} == per PR ({args.profile} profile):")
+    excluded = []
     for rec in per_pr:
-        c = profile_counts(rec["evaluation"], cats)
-        if rec not in excluded:
-            for k in totals:
-                totals[k] += c[k]
+        ev = rec["evaluations"][variant]
         r = rec["review"]
+        if ev["judge_errors"]:
+            excluded.append(rec)
+            print(f"  {rec['url']}\n    judge errors={ev['judge_errors']}, not scored")
+            continue
+        c = profile_counts(ev, cats)
+        for k in totals:
+            totals[k] += c[k]
         print(
             f"  {rec['url']}\n    tp={c['tp']} fp={c['fp']} fn={c['fn']}"
-            f"  findings={len(rec['findings'])}  review ${r['cost_usd'] or 0:.2f}"
-            f"  {r['duration_s']:.0f}s  judge ${rec['evaluation']['judge_cost_usd']:.2f}"
-            + ("" if r["report_written"] else "  (no REVIEW_OUTPUT.md)")
-            + (
-                f"  judge errors={rec['evaluation']['judge_errors']}, not scored"
-                if rec["evaluation"]["judge_errors"]
-                else ""
-            )
+            f"  candidates={len(ev['candidates'])}  review ${r['cost_usd'] or 0:.2f}"
+            f"  {r['duration_s']:.0f}s  judge ${ev['judge_cost_usd']:.2f}"
+            + ("  (dedup fell back to singletons)" if ev.get("dedup_fallback") else "")
         )
-        if "phases" in r:
+        if variant == "as-written" and "phases" in r:
             print(f"    phases {r['phases']}")
 
     scored = [rec["url"] for rec in per_pr if rec not in excluded]
     if excluded:
         print(f"\n{len(excluded)} PR(s) left out for judge errors; rerun to re-judge them.")
         for rec in excluded:
-            print(f"  {rec['url']}: {rec['evaluation'].get('judge_error_samples')}")
+            samples = rec["evaluations"][variant].get("judge_error_samples")
+            print(f"  {rec['url']}: {samples}")
     table = baselines(args.martian_dir, scored, args.profile)
     table["klaussy-review"] = {**totals, **runner.prf1(**totals)}
-    print(f"\n{len(scored)} PRs, {args.profile} profile, judge {args.judge_model}:")
+    print(
+        f"\n{len(scored)} PRs, {variant}, {args.profile} profile, judge {args.judge_model} "
+        f"(majority of {args.samples}):"
+    )
     print(f"  {'tool':<22}{'prec':>7}{'recall':>8}{'F1':>7}{'F2':>7}{'TP':>5}{'FP':>5}{'FN':>5}")
     for tool, m in sorted(table.items(), key=lambda kv: -kv[1]["f1"]):
         mark = " <" if tool == "klaussy-review" else ""
@@ -247,8 +336,7 @@ def main() -> None:
             f"  {tool:<22}{m['precision']:>7.0%}{m['recall']:>8.0%}{m['f1']:>7.0%}"
             f"{m['f2']:>7.0%}{m['tp']:>5}{m['fp']:>5}{m['fn']:>5}{mark}"
         )
-    summary = {"tools": table, "excluded_for_judge_errors": [rec["url"] for rec in excluded]}
-    (args.out / f"summary-{args.profile}.json").write_text(json.dumps(summary, indent=2))
+    return {"tools": table, "excluded_for_judge_errors": [rec["url"] for rec in excluded]}
 
 
 if __name__ == "__main__":
