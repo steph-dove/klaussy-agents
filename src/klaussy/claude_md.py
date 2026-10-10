@@ -31,12 +31,15 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
         capture_output=True,
     )
     if upgrade_result.returncode != 0:
-        # Fall back to pipx/uvx if pip fails
-        for runner in ["uvx", "pipx"]:
-            fallback = subprocess.run(
-                [runner, "install", "klaussy-repo-conventions", "--force"],
-                capture_output=True,
-            )
+        # Fall back to uv/pipx if pip fails
+        for installer in (["uv", "tool", "install"], ["pipx", "install"]):
+            try:
+                fallback = subprocess.run(
+                    [*installer, "klaussy-repo-conventions", "--force"],
+                    capture_output=True,
+                )
+            except FileNotFoundError:
+                continue
             if fallback.returncode == 0:
                 break
         else:

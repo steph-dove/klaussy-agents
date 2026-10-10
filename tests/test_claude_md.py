@@ -34,3 +34,20 @@ def test_init_fails_when_conventions_is_neither_installable_nor_installed(tmp_pa
     with pytest.raises(SystemExit):
         claude_md.run_init(repo=tmp_path, skip_enrich=True)
     assert all(c[0] != "conventions" for c in calls)
+
+
+def test_init_falls_back_to_uv_tool_install_then_pipx(tmp_path, monkeypatch):
+    calls = []
+    run = _fake_run(calls)
+
+    def no_uv(cmd, **kwargs):
+        if cmd[0] == "uv":
+            calls.append(cmd)
+            raise FileNotFoundError(cmd[0])
+        return run(cmd, **kwargs)
+
+    monkeypatch.setattr(claude_md.subprocess, "run", no_uv)
+    monkeypatch.setattr(claude_md.shutil, "which", lambda name: f"/bin/{name}")
+    claude_md.run_init(repo=tmp_path, skip_enrich=True)
+    assert calls[1][:3] == ["uv", "tool", "install"]
+    assert calls[2][:2] == ["pipx", "install"]
