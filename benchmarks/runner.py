@@ -215,11 +215,13 @@ def _parse_stream(stdout: str) -> tuple[list[dict], dict]:
             event = json.loads(line)
         except ValueError:
             continue
+        if not isinstance(event, dict):
+            continue
         if event.get("type") == "result":
             result = event
             costs.append(event.get("total_cost_usd"))
         late = [aid for aid in by_agent_id if aid in line]
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _content(event):
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":
@@ -259,8 +261,16 @@ def _parse_stream(stdout: str) -> tuple[list[dict], dict]:
     return trace, result
 
 
+def _content(event: dict) -> list:
+    """An event's content blocks; some CLI events carry a plain-string message instead."""
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
 def _event_text(event: dict) -> str:
-    content = (event.get("message") or {}).get("content")
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else message
     if isinstance(content, str):
         return content
     parts = []

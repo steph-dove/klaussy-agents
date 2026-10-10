@@ -331,3 +331,14 @@ def test_run_review_does_not_resume_a_failed_run(tmp_path, monkeypatch):
     )
     review = runner.run_review(repo)
     assert review["resumes"] == 0 and review["error"] == "error_max_budget_usd"
+
+
+def test_parse_stream_skips_events_it_does_not_recognize():
+    events = [
+        {"type": "system", "message": "compacting context"},
+        {"type": "assistant", "message": {"content": "plain text"}},
+        [1, 2],
+        {"type": "result", "total_cost_usd": 0.5},
+    ]
+    trace, result = runner._parse_stream("\n".join(json.dumps(e) for e in events))
+    assert trace == [] and result["total_cost_usd"] == 0.5
