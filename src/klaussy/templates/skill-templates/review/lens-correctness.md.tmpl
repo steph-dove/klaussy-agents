@@ -17,7 +17,7 @@
 
 ### Changed text
 - User-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action.
-- Translation files hold that locale's language (no Italian in `messages_lt`, no Traditional Chinese in `zh_CN`), and placeholders and markup match the source string.
+- Translation files hold that locale's language and script: no Italian in `messages_lt`, no Traditional Chinese characters or terms in `zh_CN` (Simplified), no Latin script in `sr` (Cyrillic), no European Portuguese wording in `pt_BR`. Placeholders and markup match the source string.
 
 ### Concurrency & State
 - Race conditions, shared mutable state.
@@ -27,3 +27,7 @@
 - Assumptions about execution order in async code.
 
 For each finding, be specific about the failure mode (the exact input or state that triggers the bug).
+
+## Second pass
+
+If your prompt says `This is the second correctness pass.`, another reviewer is doing the normal read and you're there to catch what it misses. Work through the changed files in reverse order, last file first. In each changed function, go through the "Comparing and matching input", "Removed behavior", "References resolve" and "Changed text" checks one by one before the general logic read. Report what you find even if it seems obvious; duplicates are merged later.

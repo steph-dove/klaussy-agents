@@ -6,7 +6,7 @@ Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The 
 
 ## Fan out to lens sub-agents
 
-1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness, Architecture, Security and Scope always run. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
+1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness (twice: a normal pass and a second pass), Architecture, Security and Scope always run. The second correctness pass finds bugs the first misses on a given run; deduplication in Phase 3 merges what both find. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
    - files under `**/skills/**`, `**/agents/**`, `**/.claude/**`
    - MCP server files: `**/mcp_*.{py,ts,js}`, `**/mcp-server*.*`, `**/.mcp.json`
    - eval suites: `**/evals/**`, `**/eval_*.{py,ts,js}`, `*.eval.{py,ts,js}`

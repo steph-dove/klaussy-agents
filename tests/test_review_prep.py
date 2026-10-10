@@ -198,10 +198,11 @@ def _parallel(*files: str) -> ReviewPayload:
 
 def test_parallel_path_lists_the_base_lenses():
     pl = _parallel(_file("src/app.py", ["x = 1"]))
-    assert pl.lenses == ["correctness", "architecture", "security", "scope"]
+    assert pl.lenses == ["correctness", "correctness-2", "architecture", "security", "scope"]
     md = render_markdown(pl, summary_only=True)
-    assert "**Launch these 4 lens sub-agents in one message**" in md
+    assert "**Launch these 5 lens sub-agents in one message**" in md
     assert "- security → `lens-security.md`" in md
+    assert "This is the second correctness pass." in md
     assert render_dict(pl)["lenses"] == pl.lenses
 
 

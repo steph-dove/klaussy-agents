@@ -67,7 +67,8 @@ GENERATED_SUFFIXES = (".pb.go", "_pb2.py", "_pb2_grpc.py", ".g.dart", ".freezed.
 # At or above this many reviewable lines the review fans out to lens sub-agents.
 PARALLEL_THRESHOLD = 150
 
-BASE_LENSES = ("correctness", "architecture", "security", "scope")
+# Correctness runs twice: one look finds a given bug only about half the time.
+BASE_LENSES = ("correctness", "correctness-2", "architecture", "security", "scope")
 
 _AGENTIC_PATH = re.compile(
     r"(^|/)(skills|agents|\.claude|evals)/"
@@ -304,6 +305,12 @@ def render_markdown(payload: ReviewPayload, *, summary_only: bool = False) -> st
             "Don't review the diff yourself:"
         )
         for lens in payload.lenses:
+            if lens == "correctness-2":
+                lines.append(
+                    "- correctness, second pass → `lens-correctness.md` "
+                    "(add `This is the second correctness pass.` to its prompt)"
+                )
+                continue
             extra = f" (design docs: {', '.join(docs)})" if lens == "adr" else ""
             lines.append(f"- {lens} → `lens-{lens}.md`{extra}")
     elif docs:

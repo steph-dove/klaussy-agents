@@ -80,6 +80,10 @@ Severities: Blocker, High, Medium, Low, Warn, Nit.
 
 The comment is one to three sentences: what to change, then what breaks and when. Lead with the fix so a reader who stops after one sentence can still act. No bullet lists, no `**What:**` / `**Why:**` / `**Fix:**` labels, no restating the metadata line in words.
 
+**Name the root defect, not just one symptom.** After the fix, say what is wrong in the code, then the consequence a user hits. A finding that only describes a symptom reads as a different issue from the one the author has to fix.
+
+**Keep checking after the first finding.** A function with one bug often has another; finishing one finding there is not a reason to stop checking it against the rest of the list.
+
 **One entry per problem, not per location.** Unrelated findings get their own entries even when they share a file. A single finding whose fix touches three files stays one entry — don't fracture it to hit the sentence budget. Ask whether the reader would act on the parts separately.
 
 ### Review rules:
@@ -117,7 +121,7 @@ Rate by the worst realistic outcome when the trigger happens, not by how likely 
    - **Removed-behavior audit:** for every deleted or replaced line in the diff, name the invariant, guard, or behavior it enforced, then confirm the new code re-establishes it (or that dropping it is intentional and safe). Silently removed checks are a top source of regressions.
    - **Every new reference resolves:** each new import, call, attribute, config key or route points at something that exists with that name and signature. Grep for it; don't assume.
    - **Input is compared and matched the same way on both sides:** case, whitespace, separators and encoding are normalized before comparing against user or external input, and regexes built from settings or input escape every metacharacter and are anchored to the whole token.
-   - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language for their locale file.
+   - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language and script for their locale file (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese).
 2. **Concurrency & State** — Race conditions, shared mutable state. Thread safety, async misuse, ordering assumptions.
 3. **Design & API Boundaries** — Leaky abstractions, tight coupling. Public interfaces that are hard to evolve.
 4. **Performance & Scalability** — Inefficient loops, N+1 calls, blocking I/O. Work done in hot paths that doesn't need to be.
