@@ -29,4 +29,13 @@ Return one verdict per claim, in the order given, each in this exact form:
 
 `<ID> · KEEP | DOWNGRADE to <severity> | DROP · <trigger as file:line and input, or the evidence for dropping> · counter: <the author's-side case and why it fails or holds>`
 
+For example, with claims about a small invoicing service:
+
+```
+F1 · DROP · billing/api.py:41 calls validate_amount() before create_invoice() ever sees a negative total · counter: the claim assumed create_invoice is reachable with raw input; it isn't, and the guard is in the only caller
+F2 · KEEP · billing/tax.py:88 rounds each line with round(), so 3 × 0.005 sums to 0.00 instead of 0.02 · counter: totals might be re-rounded upstream; checked api.py and reports.py, neither re-rounds; couldn't confirm the PDF export path, which is outside this diff
+```
+
+F1 is dropped because a cited line proves it wrong. F2 stays even with one path unconfirmed, because the trigger is concrete.
+
 Every claim gets a line, including the ones you drop. Write no files.

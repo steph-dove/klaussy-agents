@@ -17,7 +17,7 @@
 
 ### Changed text
 - User-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action.
-- Translation files hold that locale's language and script: no Italian in `messages_lt`, no Traditional Chinese characters or terms in `zh_CN` (Simplified), no Latin script in `sr` (Cyrillic), no European Portuguese wording in `pt_BR`. Placeholders and markup match the source string.
+- Translation files hold that locale's language and script: a file for one language doesn't contain another (a German string in the French file), and script variants match the locale (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese). Placeholders and markup match the source string.
 
 ### Concurrency & State
 - Race conditions, shared mutable state.
