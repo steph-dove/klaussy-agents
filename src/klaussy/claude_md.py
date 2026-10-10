@@ -1,5 +1,6 @@
 """Wraps klaussy-repo-conventions to generate and enrich CLAUDE.md."""
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,11 +40,17 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
             if fallback.returncode == 0:
                 break
         else:
-            console.print(
-                "[red]✗ Could not install klaussy-repo-conventions. "
-                "Install it manually: pip install klaussy-repo-conventions[/red]"
-            )
-            raise SystemExit(1)
+            if shutil.which("conventions"):
+                console.print(
+                    "[yellow]⚠ Could not upgrade klaussy-repo-conventions (offline?); "
+                    "using the installed version.[/yellow]"
+                )
+            else:
+                console.print(
+                    "[red]✗ Could not install klaussy-repo-conventions. "
+                    "Install it manually: pip install klaussy-repo-conventions[/red]"
+                )
+                raise SystemExit(1)
 
     # Build command
     cmd: list[str] = ["conventions", "discover", "--repo", str(repo), "--claude"]

@@ -14,9 +14,9 @@ RUN python3 -m venv /opt/klaussy \
     && /opt/klaussy/bin/pip install --no-cache-dir /build/klaussy klaussy-repo-conventions \
     && rm -rf /build
 
-# Runs have no package index, so klaussy init's conventions upgrade must resolve
-# from what is installed. Claude Code refuses bypassPermissions as root outside
-# a sandbox; the container is the sandbox.
+# Runs have no package index; skip klaussy init's conventions upgrade attempt.
+# Claude Code refuses bypassPermissions as root outside a sandbox; the
+# container is the sandbox.
 ENV PATH=/opt/klaussy/bin:$PATH PIP_NO_INDEX=1 IS_SANDBOX=1
 
 WORKDIR /agent
