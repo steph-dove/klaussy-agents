@@ -122,55 +122,84 @@ def _scaffold(repo: Path, *, enrich: bool) -> None:
         f.write("/REVIEW_OUTPUT.md\n")
 
 
+RESUME_PROMPT = (
+    "The review isn't finished: REVIEW_OUTPUT.md doesn't exist. Continue from where you "
+    "stopped. Re-launch any validator that didn't report (or validate those claims inline), "
+    "then write REVIEW_OUTPUT.md."
+)
+
+
 def run_review(
-    repo: Path, *, model: str | None = None, budget_usd: float = 10.0, instruction: str = ""
+    repo: Path,
+    *,
+    model: str | None = None,
+    budget_usd: float = 10.0,
+    instruction: str = "",
+    max_resumes: int = 1,
 ) -> dict:
+    """Run the review headless, resuming the session if it ends without writing a report."""
     prompt = (
         f"Use the {repo.name}-review skill to review this branch (`pr`) against `main`. "
         f"{instruction} "
         "There is no remote and no one to answer questions: make reasonable calls yourself "
         "and finish by writing REVIEW_OUTPUT.md."
     )
-    proc = subprocess.run(
-        [
-            "claude",
-            "-p",
-            prompt,
-            "--permission-mode",
-            "bypassPermissions",
-            "--model",
-            model or os.environ.get("KLAUSSY_BENCH_MODEL", DEFAULT_REVIEW_MODEL),
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--max-budget-usd",
-            str(budget_usd),
-            "--strict-mcp-config",
-            "--no-session-persistence",
-        ],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        timeout=3600,
-    )
-    (repo / ".git" / "bench-stream.jsonl").write_text(proc.stdout)
-    trace, meta = _parse_stream(proc.stdout)
-    if not meta:
-        meta = {"error": proc.stderr[-1500:] or proc.stdout[-1500:]}
     report = repo / "REVIEW_OUTPUT.md"
+    stream, trace, cost, resumes, session, meta = "", [], 0.0, 0, None, {}
+    while True:
+        args = ["-p", RESUME_PROMPT, "--resume", session] if session else ["-p", prompt]
+        proc = subprocess.run(
+            [
+                "claude",
+                *args,
+                "--permission-mode",
+                "bypassPermissions",
+                "--model",
+                model or os.environ.get("KLAUSSY_BENCH_MODEL", DEFAULT_REVIEW_MODEL),
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--max-budget-usd",
+                str(budget_usd),
+                "--strict-mcp-config",
+            ],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=3600,
+        )
+        stream += proc.stdout
+        part, meta = _parse_stream(proc.stdout)
+        trace += part
+        if not meta:
+            meta = {"error": proc.stderr[-1500:] or proc.stdout[-1500:]}
+        cost += meta.get("total_cost_usd") or 0.0
+        failed = _result_error(meta)
+        session = meta.get("session_id")
+        if report.exists() or failed or not session or resumes >= max_resumes:
+            break
+        resumes += 1
+    (repo / ".git" / "bench-stream.jsonl").write_text(stream)
     return {
         "report": report.read_text() if report.exists() else meta.get("result", ""),
         "report_written": report.exists(),
-        "cost_usd": meta.get("total_cost_usd"),
+        "resumes": resumes,
+        "cost_usd": cost,
         "cost_usd_per_result": meta.get("costs", []),
         "duration_s": (meta.get("duration_ms") or 0) / 1000,
         "num_turns": meta.get("num_turns"),
-        "error": meta.get("error")
-        or (meta.get("subtype") not in (None, "success") and meta["subtype"])
-        or (meta.get("is_error") and (meta.get("result") or "is_error")),
+        "error": failed,
         "phases": review_phases(trace),
         "trace": trace,
     }
+
+
+def _result_error(meta: dict):
+    return (
+        meta.get("error")
+        or (meta.get("subtype") not in (None, "success") and meta["subtype"])
+        or (meta.get("is_error") and (meta.get("result") or "is_error"))
+    )
 
 
 def _parse_stream(stdout: str) -> tuple[list[dict], dict]:

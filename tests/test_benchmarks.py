@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -297,3 +298,36 @@ def test_dedup_flags_a_fallback_when_groups_miss_a_candidate(monkeypatch):
     )
     groups, _, fell_back = martian.dedup(["a", "b", "c"], {"STRICT_PROMPT": "{candidates}"}, "m")
     assert fell_back and groups == [[0], [1], [2]]
+
+
+def test_run_review_resumes_a_session_that_ended_without_a_report(tmp_path, monkeypatch):
+    repo = tmp_path / "shop"
+    (repo / ".git").mkdir(parents=True)
+    calls = []
+
+    def fake_claude(cmd, **kwargs):
+        calls.append(cmd)
+        if "--resume" in cmd:
+            (repo / "REVIEW_OUTPUT.md").write_text("**High · Correctness · `a.py:1`**\n\nFix.\n")
+        result = {"type": "result", "subtype": "success", "session_id": "s1"}
+        result["total_cost_usd"] = 1.0
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(result), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_claude)
+    review = runner.run_review(repo)
+    assert review["report_written"] and review["resumes"] == 1
+    assert calls[1][calls[1].index("--resume") + 1] == "s1"
+    assert review["cost_usd"] == 2.0
+
+
+def test_run_review_does_not_resume_a_failed_run(tmp_path, monkeypatch):
+    repo = tmp_path / "shop"
+    (repo / ".git").mkdir(parents=True)
+    result = {"type": "result", "subtype": "error_max_budget_usd", "session_id": "s1"}
+    monkeypatch.setattr(
+        runner.subprocess,
+        "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, json.dumps(result), ""),
+    )
+    review = runner.run_review(repo)
+    assert review["resumes"] == 0 and review["error"] == "error_max_budget_usd"
