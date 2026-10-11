@@ -134,7 +134,9 @@ def test_build_review_redacts_secrets_from_body_and_comments():
     review = build_review(report, DIFF, secrets=["hunter2hunter2"])
     posted = review["body"] + "".join(c["body"] for c in review["comments"])
     assert leaked not in posted and "hunter2hunter2" not in posted
-    assert "[redacted]" in posted
+    # Finding 1 has both secrets in its explanation; finding 3 has the key in its lead and
+    # its explanation.
+    assert posted.count("[redacted]") == 4
 
 
 def test_review_post_cli_redacts_credentials_from_the_environment(tmp_path, monkeypatch):
@@ -289,3 +291,42 @@ def test_findings_outside_the_diff_keep_their_location_but_not_severity():
     body = build_review(REPORT, DIFF)["body"]
     assert "`README.md:40`\n\nThe README still says" in body
     assert "**Medium · Docs" not in body
+
+
+def test_a_suggestion_is_posted_exactly_as_written():
+    report = (
+        "**Medium · Style · `app.py:3`**\n\nThe loop never backs off.\n\n"
+        "Suggested change:\n"
+        "~~~python\nif retries:\n    wait = prior_to \u2014 1\n\n\n    go()\n~~~\n"
+    )
+    comment = parse_findings(report)[0].comment
+    assert "~~~python\nif retries:\n    wait = prior_to \u2014 1\n\n\n    go()\n~~~" in comment
+
+
+def test_a_tilde_fence_in_the_explanation_is_left_alone():
+    report = (
+        "**Medium · Style · `app.py:3`**\n\nThe loop runs prior to setup.\n\n"
+        "~~~python\n    x = a \u2014 b\n~~~\n\nSuggested change:\n```python\nsetup()\n```\n"
+    )
+    details = parse_findings(report)[0].comment.split("<details>", 1)[1]
+    assert "~~~python\n    x = a \u2014 b\n~~~" in details
+    assert "runs before setup" in details
+
+
+def test_a_filler_opener_does_not_leave_the_comment_without_a_lead():
+    report = "**Low · Style · `app.py:3`**\n\nGood catch. The retry loop never backs off.\n"
+    assert parse_findings(report)[0].comment.startswith("The retry loop never backs off.")
+
+
+def test_a_bold_suggested_change_label_is_recognized():
+    report = (
+        "**Medium · Bug · `app.py:3`**\n\nThe default is wrong.\n\n"
+        "**Suggested change:**\n```python\nretries = 3\n```\n"
+    )
+    lead = parse_findings(report)[0].comment.split("<details>")[0]
+    assert "Suggested change" not in lead and "retries = 3" in lead
+
+
+def test_a_sentence_ending_on_a_lowercase_letter_still_ends():
+    report = "**Low · Bug · `app.py:3`**\n\nThe loop sets i. Then it reads j too early.\n"
+    assert parse_findings(report)[0].comment.startswith("The loop sets i.\n\n<details>")

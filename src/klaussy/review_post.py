@@ -37,11 +37,14 @@ _BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _VERDICT = re.compile(r"^\*\*Verdict:", re.MULTILINE)
 _APPROVED = re.compile(r"^\*\*Verdict:[\s*_]*Approve\b", re.MULTILINE)
-_SUGGESTED = re.compile(r"(?:^|\n)[ \t]*Suggested change:[ \t]*\n*", re.IGNORECASE)
+_SUGGESTED = re.compile(
+    r"(?:^|\n)[ \t]*[*_]{0,2}Suggested change:[*_]{0,2}[ \t]*\n*", re.IGNORECASE
+)
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'`(\[])")
 # Periods that don't end a sentence; a comment must never stop at "Use e.g."
-_ABBREV_END = re.compile(r"(?:\b(?:e\.g|i\.e|vs|etc|cf)|(?:^|\s)[A-Za-z])\.$", re.IGNORECASE)
-_CODE_FENCE_BLOCK = re.compile(r"```[\s\S]*?```")
+# A lone capital is an initial; a lone lowercase letter ("sets i.") ends a sentence.
+_ABBREV_END = re.compile(r"(?:\b(?:[eE]\.g|[iI]\.e|vs|etc|cf)|(?:^|\s)[A-Z])\.$")
+_CODE_FENCE_BLOCK = re.compile(r"```[\s\S]*?```|~~~[\s\S]*?~~~")
 
 
 @dataclass(frozen=True)
@@ -63,11 +66,12 @@ class Finding:
         label = _SUGGESTED.search(self.body)
         prose = (self.body[: label.start()] if label else self.body).strip()
         suggestion = self.body[label.end() :].strip() if label else ""
-        lead = "\n\n".join(p for p in (_first_sentence(prose), suggestion) if p)
-        explanation = re.sub(r"\n{3,}", "\n\n", prose)
-        inside = "\n\n".join(p for p in (humanize(explanation), f"<sub>{WATERMARK}</sub>") if p)
+        explanation = _humanize_prose(prose)
+        # Humanize before picking the first sentence, so a filler opener can't leave it empty.
+        lead = "\n\n".join(p for p in (_first_sentence(explanation), suggestion) if p)
+        inside = "\n\n".join(p for p in (explanation, f"<sub>{WATERMARK}</sub>") if p)
         details = f"<details>\n<summary>Explanation</summary>\n\n{inside}\n\n</details>"
-        return f"{humanize(lead)}\n\n{details}" if lead else details
+        return f"{lead}\n\n{details}" if lead else details
 
     def place(self) -> tuple[str, int, int] | None:
         """The `file:line[-line]` in the location; the body's only when the location names no
@@ -85,6 +89,23 @@ class Finding:
             return None
         start = int(m.group(2))
         return m.group(1).removeprefix("./"), start, max(start, int(m.group(3) or start))
+
+
+def _humanize_prose(text: str) -> str:
+    """Humanize the prose between code fences and leave every fenced block exactly as written;
+    humanize() itself only knows backtick fences."""
+    chunks: list[tuple[bool, list[str]]] = []
+    fenced = False
+    for line in text.split("\n"):
+        opens = bool(_FENCE.match(line))
+        in_code = fenced or opens
+        if not chunks or chunks[-1][0] != in_code:
+            chunks.append((in_code, []))
+        chunks[-1][1].append(line)
+        if opens:
+            fenced = not fenced
+    parts = ["\n".join(lines) if code else humanize("\n".join(lines)) for code, lines in chunks]
+    return "\n\n".join(p.strip("\n") for p in parts if p and p.strip())
 
 
 def _squash(text: str) -> str:
