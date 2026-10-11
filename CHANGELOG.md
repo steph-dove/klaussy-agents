@@ -22,6 +22,8 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   path's validation missing) is Medium, not Low.
 - **Validators drop true Low findings the author wouldn't act on**, and no longer pass "a test
   is missing" claims or defects that predate the PR.
+- **Requires `klaussy-repo-conventions` 1.9.2 or later**, the first release under FSL-1.1-MIT,
+  so klaussy no longer resolves to an MIT-licensed conventions release.
 
 ### Added
 
