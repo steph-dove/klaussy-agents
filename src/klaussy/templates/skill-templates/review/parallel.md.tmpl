@@ -4,6 +4,8 @@ Loaded by `{{REPO}}-review` when triage finds 150 or more reviewable lines. The 
 
 **On this path you don't review the code yourself.** Launching the lens sub-agents and the validation sub-agents is required, however small or familiar the diff looks; reading the files and writing findings yourself instead is the failure this file exists to prevent. Your work is picking lenses, validating through sub-agents, and synthesizing. The only exception is an environment with no sub-agent tool, which the note at the top of the skill covers.
 
+The order is fixed: lens sub-agents, then validation sub-agents on their findings, then `REVIEW_OUTPUT.md`. Don't write the review before the validators have reported, however many findings there are.
+
 ## Fan out to lens sub-agents
 
 1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness (twice: a normal pass and a second pass), Architecture, Security and Scope always run. The second correctness pass starts with a hunk-by-hunk sweep and finds bugs the first misses on a given run; deduplication in Phase 3 merges what both find. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
@@ -42,7 +44,9 @@ If no lens returned a finding, skip this phase.
 
 ## Phase 4: Synthesis
 
-1. **Drop Low, Warn and Nit** unless the user asked for minor findings. Do this only now, after validation: severities were set honestly upstream, so don't raise one here to keep it. Dropped means gone: don't list or allude to them in the summary.
+Start this phase only when every claim has a validator's verdict. Lens findings that skipped Phase 3 are unchecked claims, not a review; if you find yourself here without verdicts, go back and launch the validators.
+
+1. **Drop Warn and Nit** unless the user asked for minor findings. Do this only now, after validation: severities were set honestly upstream, so don't raise one here to keep it. Dropped means gone: don't list or allude to them in the summary.
 2. **Sort by severity:** Blocker > High > Medium > Low > Warn > Nit.
 3. **Cross-cutting check.** Look for issues spanning two lenses' domains, such as a correctness bug that is also a security hole, and add a combined comment if the lenses missed the intersection. Read only the files those findings point at; the lenses already read the rest.
 4. **Assess overall quality** from the findings as a whole.
