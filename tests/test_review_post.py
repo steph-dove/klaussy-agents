@@ -145,3 +145,47 @@ def test_review_post_cli_redacts_credentials_from_the_environment(tmp_path, monk
     result = CliRunner().invoke(app, [*args, "--diff", str(tmp_path / "pr.diff")])
     assert result.exit_code == 0, result.output
     assert leaked not in result.output
+
+
+def test_a_heading_or_rule_inside_a_code_fence_stays_in_the_finding():
+    report = (
+        "**High · Correctness · `app.py:3`**\n\nThe default is wrong.\n\n"
+        "```yaml\n# keep this comment\n---\nretries: 3\n```\n\n"
+        "**Verdict:** Request Changes\n"
+    )
+    body = parse_findings(report)[0].body
+    assert body.endswith("retries: 3\n```")
+    assert "# keep this comment" in body and "Verdict" not in body
+
+
+def test_request_changes_falls_back_to_comment_when_there_are_no_findings():
+    clean = "**Verdict:** Approve · reviewed at `abc1234`\n"
+    assert build_review(clean, DIFF, event="REQUEST_CHANGES")["event"] == "COMMENT"
+    assert build_review(REPORT, DIFF, event="REQUEST_CHANGES")["event"] == "REQUEST_CHANGES"
+
+
+def test_commentable_lines_only_reads_headers_outside_hunks():
+    diff = (
+        "diff --git a/notes.md b/notes.md\n"
+        "--- a/notes.md\n"
+        "+++ b/notes.md\n"
+        "@@ -1,1 +1,3 @@\n"
+        " title\n"
+        "+-- not a header\n"
+        "+++ also not a header\n"
+        'diff --git "a/caf\\303\\251.py" "b/caf\\303\\251.py"\n'
+        '--- "a/caf\\303\\251.py"\n'
+        '+++ "b/caf\\303\\251.py"\n'
+        "@@ -0,0 +1 @@\n"
+        "+x = 1\n"
+        "diff --git a/my file.py b/my file.py\n"
+        "--- a/my file.py\t\n"
+        "+++ b/my file.py\t\n"
+        "@@ -0,0 +1 @@\n"
+        "+y = 2\n"
+    )
+    assert commentable_lines(diff) == {
+        "notes.md": {1, 2, 3},
+        "café.py": {1},
+        "my file.py": {1},
+    }

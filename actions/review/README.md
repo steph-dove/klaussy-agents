@@ -57,6 +57,8 @@ To review with GitHub Copilot instead, create a fine-grained personal access tok
 | `max-budget-usd` | `10` | Spending cap for one review (Claude). |
 | `max-ai-credits` | | AI credit cap for one review (Copilot). Empty means no cap. |
 | `github-token` | `github.token` | Token used to post the review. |
+| `claude-code-version` | `2.1.296` | Claude Code CLI version to install. |
+| `copilot-version` | `1.0.95` | GitHub Copilot CLI version to install. |
 
 A review typically costs $1 to $4 in API usage on Opus, and about a third of that on `claude-sonnet-5-5`.
 
@@ -69,8 +71,8 @@ A review typically costs $1 to $4 in API usage on Opus, and about a third of tha
 
 ## Security
 
-- **Fork pull requests are skipped.** With the `pull_request` trigger, GitHub gives fork workflows no secrets, so the review finds no credential and exits with a notice. Don't switch to `pull_request_target` to get around this: that runs with your secrets on code anyone can submit.
-- **The reviewer is read-only.** The agent runs with an allowlist: read-only `git` commands, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory.
+- **Fork and Dependabot pull requests are skipped.** With the `pull_request` trigger, GitHub gives fork and Dependabot workflows no Actions secrets, so the review finds no credential and exits with a notice. Don't switch to `pull_request_target` to get around this: that runs with your secrets on code anyone can submit.
+- **The reviewer is read-only.** The agent runs with an allowlist: read-only `git` commands, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory. `git` refuses options that write files, run commands or read outside the repo (`--output`, `-c`, `--no-index`, `--ext-diff` and similar), and the pull request's diff is taken before the reviewer runs, so nothing it does can change what gets posted against.
 - **The reviewer never holds a token that can write.** The GitHub token is unset in the review step; only the final step, which posts the review, has it. Copilot's own token is stripped from the environment of the commands it runs.
 - **A pull request can't configure its own review.** Its `.claude/` skills, agents, settings and hooks, `.github/skills`, `.github/agents`, `.github/hooks` and `.mcp.json` are removed, and `CLAUDE.md`, `.claude/rules`, `AGENTS.md` and Copilot's instructions are taken from the base branch.
 - **Credentials are scrubbed from what gets posted.** Known token shapes, and the values of the Action's credential inputs, are replaced with `[redacted]` in the review and the job summary.

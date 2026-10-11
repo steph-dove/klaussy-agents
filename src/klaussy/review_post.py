@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -21,8 +22,9 @@ FOOTER = "Reviewed by [klaussy](https://klaussy.com)."
 
 _FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
 _LOCATION = re.compile(r"([\w./-]+\.\w+|[\w./-]*/[\w.-]+):(\d+)(?:\s*[-–]\s*(\d+))?")
-_DIFF_FILE = re.compile(r"^\+\+\+ (?:b/)?(.+)$")
-_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+_HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+_BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
+_FENCE = re.compile(r"^\s*(```|~~~)")
 _VERDICT = re.compile(r"^\*\*Verdict:", re.MULTILINE)
 
 
@@ -58,8 +60,7 @@ def parse_findings(report: str) -> list[Finding]:
     findings = []
     for i, m in enumerate(marks):
         end = marks[i + 1].start() if i + 1 < len(marks) else len(report)
-        body = report[m.end() : end]
-        body = re.split(r"^\*\*Verdict:|^#{1,3} |^---\s*$", body, maxsplit=1, flags=re.M)[0]
+        body = _finding_body(report[m.end() : end])
         parts = [p.strip(" `") for p in m.group("meta").split("·")]
         findings.append(
             Finding(
@@ -72,26 +73,51 @@ def parse_findings(report: str) -> list[Finding]:
     return findings
 
 
+def _finding_body(text: str) -> str:
+    """Text up to the next section break; a `#` or `---` inside a code fence isn't one."""
+    kept, fenced = [], False
+    for line in text.splitlines(keepends=True):
+        if _FENCE.match(line):
+            fenced = not fenced
+        elif not fenced and _BODY_END.match(line):
+            break
+        kept.append(line)
+    return "".join(kept)
+
+
+def _diff_path(header: str) -> str | None:
+    """The path in a `+++ ` header, without git's trailing tab or C-style quoting."""
+    name = header[4:].split("\t", 1)[0]
+    if len(name) > 1 and name.startswith('"') and name.endswith('"'):
+        name = codecs.escape_decode(name[1:-1].encode())[0].decode("utf-8", "replace")
+    return None if name == "/dev/null" else name.removeprefix("b/")
+
+
 def commentable_lines(diff: str) -> dict[str, set[int]]:
     """Head-side line numbers a review comment can attach to, per file in a unified diff."""
     lines: dict[str, set[int]] = {}
-    path, line = None, 0
+    path, line, old_left, new_left = None, 0, 0, 0
     for row in diff.splitlines():
-        if row.startswith("+++ "):
-            m = _DIFF_FILE.match(row)
-            path = None if not m or m.group(1) == "/dev/null" else m.group(1)
+        if old_left > 0 or new_left > 0:
+            if row.startswith("\\"):
+                continue
+            if row.startswith("-"):
+                old_left -= 1
+                continue
+            if path is not None:
+                lines.setdefault(path, set()).add(line)
+            line += 1
+            new_left -= 1
+            if not row.startswith("+"):
+                old_left -= 1
             continue
         hunk = _HUNK.match(row)
         if hunk:
-            line = int(hunk.group(1))
-            continue
-        if path is None or row.startswith(("---", "diff ", "index ", "\\")):
-            continue
-        if row.startswith("-"):
-            continue
-        if row.startswith(("+", " ")):
-            lines.setdefault(path, set()).add(line)
-            line += 1
+            old_left = int(hunk.group(1) or 1)
+            line = int(hunk.group(2))
+            new_left = int(hunk.group(3) or 1)
+        elif row.startswith("+++ "):
+            path = _diff_path(row)
     return lines
 
 
@@ -113,9 +139,12 @@ def build_review(
 ) -> dict:
     """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
     report = redact(report, secrets)
+    findings = parse_findings(report)
+    if event == "REQUEST_CHANGES" and not findings:
+        event = "COMMENT"
     commentable = commentable_lines(diff) if inline else {}
     comments, unplaced = [], []
-    for f in parse_findings(report):
+    for f in findings:
         where = f.place()
         lines = commentable.get(where[0], set()) if where else set()
         if not where or where[2] not in lines:

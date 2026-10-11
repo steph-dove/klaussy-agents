@@ -69,6 +69,7 @@ runs:
         PR: ${{ github.event.pull_request.number }}
         HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         BASE_REPO: ${{ github.repository }}
+        ACTOR: ${{ github.actor }}
       run: |
         if [ -z "$PR" ]; then
           echo "::error::klaussy review runs on pull_request events."
@@ -80,8 +81,8 @@ runs:
           *) echo "::error::agent must be claude or copilot, not '$AGENT'."; exit 1 ;;
         esac
         if [ "$has_key" != "true" ]; then
-          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
-            echo "::notice::Fork pull requests get no secrets, so the review is skipped."
+          if [ "$HEAD_REPO" != "$BASE_REPO" ] || [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::notice::Fork and Dependabot pull requests get no Actions secrets, so the review is skipped."
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -135,17 +136,21 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
       run: |
+        # Taken before the reviewer runs, so posting never runs git on a checkout it could touch.
+        git diff --no-ext-diff --no-textconv "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
         # The pull request must not configure its own review, so its agent config goes and the
-        # conventions come from the base branch.
+        # conventions come from the base branch, at any depth.
         rm -rf REVIEW_OUTPUT.md .claude/skills .claude/agents .claude/commands .claude/hooks \
           .claude/settings.json .claude/settings.local.json .mcp.json \
           .github/skills .github/agents .github/hooks .copilot
-        for path in CLAUDE.md .claude/rules AGENTS.md .github/copilot-instructions.md .github/instructions; do
-          rm -rf "$path"
-          if git cat-file -e "origin/${BASE_REF}:${path}" 2>/dev/null; then
-            git checkout -q "origin/${BASE_REF}" -- "$path"
-          fi
-        done
+        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md)$|^\.claude/rules/|^\.github/copilot-instructions\.md$|^\.github/instructions/'
+        { git ls-files; git ls-tree -r --name-only "origin/${BASE_REF}"; } | { grep -E "$conventions" || true; } | sort -u |
+          while IFS= read -r path; do
+            rm -f "$path"
+            if git cat-file -e "origin/${BASE_REF}:${path}" 2>/dev/null; then
+              git checkout -q "origin/${BASE_REF}" -- "$path"
+            fi
+          done
         if [ ! -f CLAUDE.md ]; then
           flags="--skip-enrich"
           [ "$AGENT" = claude ] && [ "$ENRICH" = "true" ] && flags=""
@@ -172,10 +177,24 @@ runs:
       run: |
         # The reviewer never gets a token that can write to the repo.
         unset GH_TOKEN GITHUB_TOKEN
-        repo_name="$(basename "$GITHUB_REPOSITORY")"
+        # git options that write files, run commands or read outside the repo are refused, so an
+        # allowed `git log` can't plant a diff driver; global and system config are ignored.
+        guard="$RUNNER_TEMP/klaussy-git-guard"
+        mkdir -p "$guard"
+        printf '%s\n' '#!/usr/bin/env bash' \
+          'for arg in "$@"; do' \
+          '  case "$arg" in' \
+          '    -c|-c*|--output|--output=*|--config-env*|--exec-path*|--git-dir*|--work-tree*|--ext-diff|--textconv|--no-index)' \
+          '      echo "git $arg is not allowed during a klaussy review" >&2; exit 1 ;;' \
+          '  esac' \
+          'done' \
+          "exec $(command -v git) --no-replace-objects \"\$@\"" > "$guard/git"
+        chmod +x "$guard/git"
+        export PATH="$guard:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+        skill="$(python3 -c 'import sys; from klaussy.skills import sanitize_skill_namespace as s; print(s(sys.argv[1]))' "$(basename "$GITHUB_REPOSITORY")")-review"
         nits=""
         [ "$INCLUDE_NITS" = "true" ] && nits="Include nits: report Warn and Nit findings too. "
-        prompt="Use the ${repo_name}-review skill to review this branch (HEAD) against \`origin/${BASE_REF}\`. ${nits}There is no one to answer questions: make reasonable calls yourself and finish by writing REVIEW_OUTPUT.md."
+        prompt="Use the ${skill} skill to review this branch (HEAD) against \`origin/${BASE_REF}\`. ${nits}There is no one to answer questions: make reasonable calls yourself and finish by writing REVIEW_OUTPUT.md."
         resume_prompt="REVIEW_OUTPUT.md doesn't exist yet. Finish the review and write it."
         git_commands=(diff log show status merge-base rev-parse ls-files branch symbolic-ref blame)
 
@@ -195,11 +214,6 @@ runs:
           if [ ! -f REVIEW_OUTPUT.md ]; then
             status=0
             copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
-          fi
-          if [ "$status" != 0 ]; then
-            echo "::error::Copilot exited with status $status, so the review may be incomplete."
-            tail -c 4000 "$RUNNER_TEMP/klaussy-run.json"
-            exit 1
           fi
         else
           unset COPILOT_GITHUB_TOKEN
@@ -222,13 +236,21 @@ runs:
               --strict-mcp-config \
               --output-format json > "$RUNNER_TEMP/klaussy-run.json"
           }
-          run_claude "$prompt"
+          status=0
+          run_claude "$prompt" || status=$?
           if [ ! -f REVIEW_OUTPUT.md ]; then
-            session="$(jq -r '.session_id // empty' "$RUNNER_TEMP/klaussy-run.json")"
+            session="$(jq -r '.session_id // empty' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || true)"
             if [ -n "$session" ]; then
-              run_claude "$resume_prompt" --resume "$session"
+              status=0
+              run_claude "$resume_prompt" --resume "$session" || status=$?
             fi
           fi
+        fi
+
+        if [ "$status" != 0 ]; then
+          echo "::error::$AGENT exited with status $status, so the review may be incomplete."
+          tail -c 4000 "$RUNNER_TEMP/klaussy-run.json"
+          exit 1
         fi
 
         if [ ! -f REVIEW_OUTPUT.md ]; then
@@ -255,7 +277,6 @@ runs:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
       run: |
-        git diff "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
         klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" > "$RUNNER_TEMP/review.json"
         if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then
           echo "::warning::Inline comments were rejected; posting the review as one comment instead."
