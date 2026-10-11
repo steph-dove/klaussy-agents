@@ -26,6 +26,7 @@ from klaussy.pr_template import scaffold_pr_template
 from klaussy.repo import git_root, resolve_repo
 from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
+from klaussy.review_run import ReviewRunError, prepare_checkout, run_headless_review
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
 from klaussy.split_prep import prepare_split
@@ -545,6 +546,66 @@ def review_prep(
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
         sys.stdout.write(render_markdown(payload, summary_only=summary))
+
+
+@app.command()
+def review(
+    headless: bool = typer.Option(False, "--headless", help="Run the review unattended."),
+    repo: Path = typer.Option(Path("."), "--repo", "-r", help="The pull request checkout."),
+    agent: str = typer.Option("claude", "--agent", help="claude, copilot or codex."),
+    base: str = typer.Option(
+        ..., "--base", help="Ref the PR is compared against, e.g. origin/main."
+    ),
+    out: Path = typer.Option(..., "--out", help="Where to write the result JSON."),
+    diff_out: Path = typer.Option(..., "--diff-out", help="Where to write the PR diff."),
+    work_dir: Path = typer.Option(
+        ..., "--work-dir", help="Scratch directory outside the checkout."
+    ),
+    repo_name: str | None = typer.Option(
+        None, "--repo-name", help="Repo name the skill is named after."
+    ),
+    budget_usd: float = typer.Option(20.0, "--budget-usd", help="Spending cap (Claude)."),
+    max_ai_credits: str | None = typer.Option(
+        None, "--max-ai-credits", help="Credit cap (Copilot)."
+    ),
+    model: str | None = typer.Option(None, "--model", help="Model for the agent."),
+    timeout: float = typer.Option(3600, "--timeout", help="Seconds before the review is stopped."),
+    include_nits: bool = typer.Option(False, "--include-nits", help="Also report Warn and Nit."),
+    enrich: bool = typer.Option(False, "--enrich", help="Let init enrich a generated CLAUDE.md."),
+) -> None:
+    """Review a pull request checkout headless and write REVIEW_OUTPUT.md plus a result JSON.
+
+    Exits 0 only when the review finished; the JSON says why it didn't otherwise.
+    """
+    if not headless:
+        console.print("Run the review skill from your agent, or pass --headless.")
+        raise typer.Exit(2)
+    if agent not in ("claude", "copilot", "codex"):
+        raise typer.BadParameter("must be claude, copilot or codex", param_hint="--agent")
+    repo = repo.resolve()
+    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        prepare_checkout(repo, base=base, agent=agent, diff_out=diff_out, enrich=enrich)
+        result = run_headless_review(
+            repo,
+            agent=agent,
+            base=base,
+            repo_name=repo_name or repo.name,
+            work_dir=work_dir,
+            budget_usd=budget_usd,
+            timeout_s=timeout,
+            model=model,
+            max_ai_credits=max_ai_credits,
+            include_nits=include_nits,
+        )
+    except ReviewRunError as exc:
+        out.write_text(json.dumps({"status": "error", "agent": agent, "error": str(exc)}, indent=2))
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
+    out.write_text(result.to_json())
+    if result.status != "ok":
+        console.print(f"[red]✗ review {result.status}: {result.error}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command(name="review-post")

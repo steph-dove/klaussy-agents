@@ -7,7 +7,7 @@ branding:
 
 inputs:
   agent:
-    description: Coding agent that runs the review, claude or copilot.
+    description: Coding agent that runs the review, claude, copilot or codex.
     required: false
     default: claude
   anthropic-api-key:
@@ -19,8 +19,11 @@ inputs:
   copilot-github-token:
     description: Fine-grained GitHub token with the Copilot Requests permission, for agent copilot.
     required: false
+  openai-api-key:
+    description: OpenAI API key, for agent codex.
+    required: false
   model:
-    description: Model the review runs on. Defaults to claude-opus-5-5 for claude and to Copilot's own default for copilot.
+    description: Model the review runs on. Defaults to claude-opus-5-5 for claude, and to the CLI's own default for copilot and codex.
     required: false
     default: ""
   include-nits:
@@ -38,7 +41,7 @@ inputs:
   max-budget-usd:
     description: Spending cap for one review, for agent claude.
     required: false
-    default: "10"
+    default: "20"
   max-ai-credits:
     description: AI credit cap for one review, for agent copilot. Empty means no cap.
     required: false
@@ -55,6 +58,10 @@ inputs:
     description: GitHub Copilot CLI version to install.
     required: false
     default: 1.0.95
+  codex-version:
+    description: Codex CLI version to install.
+    required: false
+    default: 0.147.0
 
 runs:
   using: composite
@@ -67,6 +74,7 @@ runs:
         EVENT: ${{ inputs.event }}
         HAS_CLAUDE_KEY: ${{ inputs.anthropic-api-key != '' || inputs.claude-code-oauth-token != '' }}
         HAS_COPILOT_KEY: ${{ inputs.copilot-github-token != '' }}
+        HAS_CODEX_KEY: ${{ inputs.openai-api-key != '' }}
         PR: ${{ github.event.pull_request.number }}
         HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         BASE_REPO: ${{ github.repository }}
@@ -83,7 +91,8 @@ runs:
         case "$AGENT" in
           claude) has_key="$HAS_CLAUDE_KEY"; needed="anthropic-api-key or claude-code-oauth-token" ;;
           copilot) has_key="$HAS_COPILOT_KEY"; needed="copilot-github-token" ;;
-          *) echo "::error::agent must be claude or copilot, not '$AGENT'."; exit 1 ;;
+          codex) has_key="$HAS_CODEX_KEY"; needed="openai-api-key" ;;
+          *) echo "::error::agent must be claude, copilot or codex, not '$AGENT'."; exit 1 ;;
         esac
         if [ "$has_key" != "true" ]; then
           if [ "$HEAD_REPO" != "$BASE_REPO" ] || [ "$ACTOR" = "dependabot[bot]" ]; then
@@ -118,6 +127,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
         COPILOT_VERSION: ${{ inputs.copilot-version }}
+        CODEX_VERSION: ${{ inputs.codex-version }}
         PYTHONSAFEPATH: "1"
       run: |
         # Run from outside the checkout: python -m and npm both read config and modules from the
@@ -131,54 +141,11 @@ runs:
         fi
         if [ "$AGENT" = copilot ]; then
           npm install --global --no-audit --no-fund "@github/copilot@$COPILOT_VERSION"
+        elif [ "$AGENT" = codex ]; then
+          npm install --global --no-audit --no-fund "@openai/codex@$CODEX_VERSION"
         else
           npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
         fi
-
-    - name: Set up the review skill
-      if: steps.gate.outputs.run == 'true'
-      shell: bash
-      env:
-        AGENT: ${{ inputs.agent }}
-        BASE_REF: ${{ github.event.pull_request.base.ref }}
-        ENRICH: ${{ inputs.enrich }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
-        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
-        # The working directory is the PR checkout; keep it off sys.path for `python -c`/`-m`.
-        PYTHONSAFEPATH: "1"
-      run: |
-        # Taken before the reviewer runs, so posting never runs git on a checkout it could touch.
-        git diff --no-ext-diff --no-textconv "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
-        # The pull request must not configure its own review, so its agent config goes and the
-        # conventions come from the base branch, at any depth.
-        for dir in .claude .claude/rules .github .github/instructions; do
-          if [ -L "$dir" ]; then rm -f "$dir"; fi
-        done
-        find . -mindepth 2 -name .claude -not -path './.git/*' -prune -exec rm -rf {} +
-        rm -rf REVIEW_OUTPUT.md .claude/skills .claude/agents .claude/commands .claude/hooks \
-          .claude/settings.json .claude/settings.local.json .mcp.json \
-          .github/skills .github/agents .github/hooks .copilot
-        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md)$|^\.claude/rules(/|$)|^\.github/copilot-instructions\.md$|^\.github/instructions(/|$)'
-        { git ls-files -z; git ls-tree -r -z --name-only "origin/${BASE_REF}"; } |
-          { grep -zE "$conventions" || true; } | sort -zu |
-          while IFS= read -r -d '' path; do
-            rm -f "$path"
-            if git cat-file -e "origin/${BASE_REF}:${path}" 2>/dev/null; then
-              git checkout -q "origin/${BASE_REF}" -- "$path"
-            fi
-          done
-        if [ ! -f CLAUDE.md ]; then
-          flags="--skip-enrich"
-          [ "$AGENT" = claude ] && [ "$ENRICH" = "true" ] && flags=""
-          klaussy init --repo . -b "$BASE_REF" --agents "$AGENT" --force $flags
-        fi
-        # init can regenerate conventions the base branch already has; the base's win, and the
-        # review skill is built from them afterwards.
-        git ls-tree -r -z --name-only "origin/${BASE_REF}" | { grep -zE "$conventions" || true; } |
-          while IFS= read -r -d '' path; do git checkout -q "origin/${BASE_REF}" -- "$path"; done
-        klaussy skills --repo . -b "$BASE_REF" --agents "$AGENT" --force
-        # init writes a broad allow-list and hooks that would widen the reviewer's tools.
-        rm -rf .claude/settings.json .claude/settings.local.json .claude/hooks .github/hooks
 
     - name: Review
       if: steps.gate.outputs.run == 'true'
@@ -190,148 +157,31 @@ runs:
         BUDGET: ${{ inputs.max-budget-usd }}
         MAX_AI_CREDITS: ${{ inputs.max-ai-credits }}
         INCLUDE_NITS: ${{ inputs.include-nits }}
+        ENRICH: ${{ inputs.enrich }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+        CODEX_API_KEY: ${{ inputs.openai-api-key }}
+        # The working directory is the PR checkout; keep it off sys.path.
         PYTHONSAFEPATH: "1"
       run: |
-        # The reviewer never gets a token that can write to the repo.
+        # The reviewer never gets a token that can write to the repo. `klaussy review` scrubs the
+        # checkout, guards git and klaussy, and runs the agent; see src/klaussy/review_run.py.
         unset GH_TOKEN GITHUB_TOKEN
-        # git options that write files, run commands or read outside the repo are refused, so an
-        # allowed `git log` can't plant a diff driver; global and system config are ignored.
-        guard="$RUNNER_TEMP/klaussy-git-guard"
-        mkdir -p "$guard"
-        cat > "$guard/git" <<'GUARD'
-        #!/usr/bin/env bash
-        # git takes any unambiguous prefix of a long option, so a prefix of a blocked one is refused too.
-        blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
-        branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description"
-        refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }
-        sub=""
-        for arg in "$@"; do
-          [ "$arg" = "--" ] && break
-          name="${arg%%=*}"
-          case "$name" in
-            --?*)
-              list="$blocked"
-              [ "$sub" = branch ] && list="$list $branch_blocked"
-              for b in $list; do
-                case "$b" in "${name#--}"*) refuse "$arg" ;; esac
-              done ;;
-            -c*|-C*) refuse "$arg" ;;
-            -*S*) [ "$sub" = blame ] && refuse "$arg" ;;
-            -*[dDmMfu]*) [ "$sub" = branch ] && refuse "$arg" ;;
-          esac
-          [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
-        done
-        exec REAL_GIT --no-replace-objects "$@"
-        GUARD
-        # Copilot can only allow `klaussy` as a whole, so the subcommands are limited here.
-        cat > "$guard/klaussy" <<'GUARD'
-        #!/usr/bin/env bash
-        case "${1:-}" in
-          base|review-prep) exec REAL_KLAUSSY "$@" ;;
-        esac
-        echo "klaussy ${1:-} is not allowed during a klaussy review" >&2
-        exit 1
-        GUARD
-        sed -i.bak -e "s|REAL_GIT|$(command -v git)|" -e "s|REAL_KLAUSSY|$(command -v klaussy)|" "$guard/git" "$guard/klaussy"
-        rm -f "$guard"/*.bak
-        chmod +x "$guard/git" "$guard/klaussy"
-        export PATH="$guard:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-        skill="$(python3 -c 'import sys; from klaussy.skills import sanitize_skill_namespace as s; print(s(sys.argv[1]))' "$(basename "$GITHUB_REPOSITORY")")-review"
-        nits=""
-        [ "$INCLUDE_NITS" = "true" ] && nits="Include nits: report Warn and Nit findings too. "
-        prompt="Use the ${skill} skill to review this branch (HEAD) against \`origin/${BASE_REF}\`. ${nits}There is no one to answer questions: make reasonable calls yourself and finish by writing REVIEW_OUTPUT.md."
-        resume_prompt="REVIEW_OUTPUT.md doesn't exist yet. Finish the review and write it."
-        git_commands=(diff log show status merge-base rev-parse ls-files branch blame)
-
-        if [ "$AGENT" = copilot ]; then
-          unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
-          allowed=("write(REVIEW_OUTPUT.md)" "shell(klaussy)" "shell(ls)")
-          for c in "${git_commands[@]}"; do allowed+=("shell(git $c)"); done
-          flags=(--deny-tool=url --disable-builtin-mcps --no-ask-user --disallow-temp-dir
-            --secret-env-vars=COPILOT_GITHUB_TOKEN --add-dir "$PWD" --no-auto-update
-            --output-format json --usage-output-file "$RUNNER_TEMP/klaussy-usage.json")
-          for tool in "${allowed[@]}"; do flags+=("--allow-tool=$tool"); done
-          [ -n "$MODEL" ] && flags+=(--model "$MODEL")
-          [ -n "$MAX_AI_CREDITS" ] && flags+=(--max-ai-credits "$MAX_AI_CREDITS")
-          session="$(python3 -c 'import uuid; print(uuid.uuid4())')"
-          status=0
-          copilot -p "$prompt" --session-id "$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
-          if [ ! -f REVIEW_OUTPUT.md ] && [ "$status" = 0 ]; then
-            if [ -n "$MAX_AI_CREDITS" ]; then
-              echo "::error::max-ai-credits is set and Copilot can't report what's left of it, so the review isn't resumed."
-            else
-              flags=("${flags[@]/klaussy-usage.json/klaussy-usage-resume.json}")
-              copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
-            fi
-          fi
-        else
-          unset COPILOT_GITHUB_TOKEN
-          allowed=(
-            Read Grep Glob Agent Skill TodoWrite
-            "Write(REVIEW_OUTPUT.md)" "Edit(REVIEW_OUTPUT.md)"
-            "Bash(klaussy base:*)" "Bash(klaussy review-prep:*)"
-            "Bash(python3 -m klaussy base:*)" "Bash(python3 -m klaussy review-prep:*)"
-            "Bash(python -m klaussy base:*)" "Bash(python -m klaussy review-prep:*)"
-            "Bash(ls:*)"
-          )
-          for c in "${git_commands[@]}"; do allowed+=("Bash(git $c:*)"); done
-          run_claude() {
-            claude -p "$2" "${@:3}" \
-              --model "${MODEL:-claude-opus-5-5}" \
-              --max-budget-usd "$1" \
-              --allowedTools "${allowed[@]}" \
-              --disallowedTools WebFetch WebSearch ScheduleWakeup "Read(//proc/**)" \
-              --settings '{"disableAllHooks": true}' \
-              --strict-mcp-config \
-              --output-format json > "$RUNNER_TEMP/klaussy-run.json"
-          }
-          status=0
-          run_claude "$BUDGET" "$prompt" || status=$?
-          spent="$(jq -er '.total_cost_usd' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || echo unknown)"
-          if [ ! -f REVIEW_OUTPUT.md ] && [ "$status" = 0 ]; then
-            session="$(jq -r '.session_id // empty' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || true)"
-            if [ "$spent" = unknown ]; then
-              echo "::error::The first run's cost couldn't be read, so it isn't resumed past an unknown spend."
-            else
-              left="$(python3 -c 'import sys; print(round(float(sys.argv[1]) - float(sys.argv[2]), 2))' "$BUDGET" "$spent")"
-              if [ -z "$session" ]; then
-                echo "::error::The first run left no session to resume."
-              elif python3 -c 'import sys; sys.exit(float(sys.argv[1]) < 0.5)' "$left"; then
-                run_claude "$left" "$resume_prompt" --resume "$session" || status=$?
-                more="$(jq -er '.total_cost_usd' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || echo unknown)"
-                if [ "$more" = unknown ]; then
-                  spent="$spent + unknown"
-                else
-                  spent="$(python3 -c 'import sys; print(float(sys.argv[1]) + float(sys.argv[2]))' "$spent" "$more")"
-                fi
-              else
-                echo "::error::Budget used up (\$$spent of \$$BUDGET spent), so the review isn't resumed."
-              fi
-            fi
-          fi
-        fi
-
+        args=(--headless --repo . --agent "$AGENT" --base "origin/${BASE_REF}"
+          --repo-name "$(basename "$GITHUB_REPOSITORY")" --budget-usd "$BUDGET"
+          --out "$RUNNER_TEMP/klaussy-result.json" --diff-out "$RUNNER_TEMP/pr.diff"
+          --work-dir "$RUNNER_TEMP/klaussy")
+        if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
+        if [ -n "$MAX_AI_CREDITS" ]; then args+=(--max-ai-credits "$MAX_AI_CREDITS"); fi
+        if [ "$INCLUDE_NITS" = "true" ]; then args+=(--include-nits); fi
+        if [ "$ENRICH" = "true" ]; then args+=(--enrich); fi
+        status=0
+        klaussy review "${args[@]}" || status=$?
+        if [ -f "$RUNNER_TEMP/klaussy-result.json" ]; then cat "$RUNNER_TEMP/klaussy-result.json"; fi
         if [ "$status" != 0 ]; then
-          echo "::error::$AGENT exited with status $status, so the review may be incomplete."
-          tail -c 4000 "$RUNNER_TEMP/klaussy-run.json"
+          echo "::error::The review didn't finish; the result above says why."
           exit 1
-        fi
-
-        if [ ! -f REVIEW_OUTPUT.md ]; then
-          echo "::error::The review ended without writing REVIEW_OUTPUT.md."
-          tail -c 4000 "$RUNNER_TEMP/klaussy-run.json"
-          exit 1
-        fi
-        if [ "$AGENT" = claude ]; then
-          echo "Review cost: \$$spent"
-        else
-          for usage in "$RUNNER_TEMP"/klaussy-usage*.json; do
-            if [ -f "$usage" ]; then echo "Review usage ($(basename "$usage")):"; cat "$usage"; fi
-          done
         fi
 
     - name: Post the review
@@ -348,6 +198,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
+        CODEX_API_KEY: ${{ inputs.openai-api-key }}
       run: |
         klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
         if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then

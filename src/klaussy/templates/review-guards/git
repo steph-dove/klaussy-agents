@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# git takes any unambiguous prefix of a long option, so a prefix of a blocked one is refused too.
+blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
+branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description"
+refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }
+sub=""
+for arg in "$@"; do
+  [ "$arg" = "--" ] && break
+  name="${arg%%=*}"
+  case "$name" in
+    --?*)
+      list="$blocked"
+      [ "$sub" = branch ] && list="$list $branch_blocked"
+      for b in $list; do
+        case "$b" in "${name#--}"*) refuse "$arg" ;; esac
+      done ;;
+    -c*|-C*) refuse "$arg" ;;
+    -*S*) [ "$sub" = blame ] && refuse "$arg" ;;
+    -*[dDmMfu]*) [ "$sub" = branch ] && refuse "$arg" ;;
+  esac
+  [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
+done
+exec REAL_GIT --no-replace-objects "$@"

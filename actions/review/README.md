@@ -34,7 +34,7 @@ jobs:
 
 On a Claude Pro or Max plan, use `claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` instead, with a token from `claude setup-token`.
 
-**Copilot support is in preview:** it hasn't passed a live run yet. To review with GitHub Copilot instead, create a fine-grained personal access token with only the **Copilot Requests** permission, from an account with a Copilot license, and store it as a secret:
+To review with GitHub Copilot instead, create a fine-grained personal access token with only the **Copilot Requests** permission, from an account with a Copilot license, and store it as a secret:
 
 ```yaml
       - uses: steph-dove/klaussy-agents/actions/review@main
@@ -43,37 +43,47 @@ On a Claude Pro or Max plan, use `claude-code-oauth-token: ${{ secrets.CLAUDE_CO
           copilot-github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 ```
 
+**Codex support is in preview:** it hasn't passed a live run yet. To review with Codex, store an OpenAI API key as a secret:
+
+```yaml
+      - uses: steph-dove/klaussy-agents/actions/review@main
+        with:
+          agent: codex
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
 ## Inputs
 
 | Input | Default | |
 |---|---|---|
-| `agent` | `claude` | `claude` or `copilot`. |
+| `agent` | `claude` | `claude`, `copilot` or `codex`. |
 | `anthropic-api-key` | | Anthropic API key. With `agent: claude`, this or `claude-code-oauth-token` is required. |
 | `claude-code-oauth-token` | | Claude Code OAuth token, instead of an API key. |
 | `copilot-github-token` | | Fine-grained token with the Copilot Requests permission. Required with `agent: copilot`. |
-| `model` | | Model the review runs on. Defaults to `claude-opus-5-5` for Claude and to Copilot's default for Copilot. |
+| `openai-api-key` | | OpenAI API key. Required with `agent: codex`. |
+| `model` | | Model the review runs on. Defaults to `claude-opus-5-5` for Claude, and to the CLI's own default for Copilot and Codex. |
 | `include-nits` | `false` | Also report Warn and Nit findings. Blocker through Low are always reported. |
 | `event` | `COMMENT` | `COMMENT`, `REQUEST_CHANGES` to block merging on findings, or `APPROVE`. |
 | `enrich` | `false` | When the base branch has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). This runs Claude over the pull request's code a second time, without the review's restrictions. |
-| `max-budget-usd` | `10` | Spending cap for one review (Claude). |
+| `max-budget-usd` | `20` | Spending cap for one review (Claude). An Opus review averages about $5 and can reach $15. |
 | `max-ai-credits` | | AI credit cap for one review (Copilot). Empty means no cap. |
 | `github-token` | `github.token` | Token used to post the review. |
 | `claude-code-version` | `2.1.296` | Claude Code CLI version to install. |
 | `copilot-version` | `1.0.95` | GitHub Copilot CLI version to install. |
+| `codex-version` | `0.147.0` | Codex CLI version to install. |
 
 A review typically costs $1 to $4 in API usage on Opus, and about a third of that on `claude-sonnet-5-5`.
 
 ## How it works
 
 1. Checks out the pull request head with full history.
-2. If the repo has no `CLAUDE.md`, runs `klaussy init` to generate one from the codebase; either way it renders the review skill with this version of klaussy.
-3. Runs the review skill headless in Claude Code or Copilot CLI.
-4. Posts the findings: each one on the diff line it's about, anything outside the diff in the review body, with the verdict and test coverage on top. A finding reads as one line saying what's wrong and the suggested change, with the full explanation in a collapsed **Explanation** section.
+2. Runs `klaussy review --headless`, the same runner the hosted klaussy review App uses. It removes the pull request's own agent config, takes conventions from the base branch, generates a `CLAUDE.md` if the repo has none, renders the review skill for the chosen agent, and runs it headless in Claude Code, Copilot CLI or Codex.
+3. Posts the findings: each one on the diff line it's about, anything outside the diff in the review body, with the verdict and test coverage on top. A finding reads as one line saying what's wrong and the suggested change, with the full explanation in a collapsed **Explanation** section.
 
 ## Security
 
 - **Fork and Dependabot pull requests are skipped.** With the `pull_request` trigger, GitHub gives fork and Dependabot workflows no Actions secrets, so the review finds no credential and exits with a notice. Don't switch to `pull_request_target` to get around this: that runs with your secrets on code anyone can submit.
-- **The reviewer is read-only.** The agent runs with an allowlist: the `git` commands it needs to read the pull request, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory. `git` refuses options that write files, run commands or read outside the repo (`--output`, `-c`, `-C`, `--contents`, `--no-index`, `--ext-diff` and similar), and the pull request's diff is taken before the reviewer runs, so nothing it does can change what gets posted against.
+- **The reviewer is read-only.** The agent runs with an allowlist: the `git` commands it needs to read the pull request, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory; Codex runs in its read-only sandbox, and the commands it runs see none of the job's credentials. `git` refuses options that write files, run commands or read outside the repo (`--output`, `-c`, `-C`, `--contents`, `--no-index`, `--ext-diff` and similar), and the pull request's diff is taken before the reviewer runs, so nothing it does can change what gets posted against.
 - **The reviewer never holds a token that can write.** The GitHub token is unset in the review step; only the final step, which posts the review, has it. Copilot's own token is stripped from the environment of the commands it runs.
-- **A pull request can't configure its own review.** Its `.claude/` skills, agents, settings and hooks, `.github/skills`, `.github/agents`, `.github/hooks` and `.mcp.json` are removed, and `CLAUDE.md`, `.claude/rules`, `AGENTS.md`, `GEMINI.md` and Copilot's instructions, at any depth, are taken from the base branch.
+- **A pull request can't configure its own review.** Its `.claude/` skills, agents, settings and hooks, `.github/skills`, `.github/agents`, `.github/hooks`, `.agents/`, `.codex/` and `.mcp.json` are removed, and `CLAUDE.md`, `.claude/rules`, `AGENTS.md`, `GEMINI.md` and Copilot's instructions, at any depth, are taken from the base branch.
 - **Credentials are scrubbed from what gets posted.** Known token shapes, and the values of the Action's credential inputs, are replaced with `[redacted]` in the review and the job summary.

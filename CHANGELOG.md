@@ -9,6 +9,12 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ### Added
 
+- **`klaussy review --headless`** runs the review skill unattended on a pull request checkout
+  with Claude Code, Copilot CLI or Codex (`--agent`), and writes `REVIEW_OUTPUT.md` plus a result
+  JSON with the status, cost or usage, and the reason a review didn't finish. It does the
+  checkout scrub, the `git` and `klaussy` command guards and the resume-within-budget that the
+  review Action used to do in bash, so the Action and the hosted review App share one runner.
+- **The review Action supports Codex** (`agent: codex`, `openai-api-key`), in preview.
 - **A GitHub Action that reviews pull requests** (`actions/review`). It runs the review skill
   headless in Claude Code or GitHub Copilot CLI (`agent: copilot`) and posts the result as a
   pull request review, with each finding on the diff line it's about. The reviewer gets

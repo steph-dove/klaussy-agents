@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Copilot can only allow `klaussy` as a whole, so the subcommands are limited here.
+case "${1:-}" in
+  base|review-prep) exec REAL_KLAUSSY "$@" ;;
+esac
+echo "klaussy ${1:-} is not allowed during a klaussy review" >&2
+exit 1
