@@ -23,7 +23,8 @@ For EACH claim, apply this rubric. Read whatever files you need — the referenc
 2. Trace the code path: follow function calls, imports, type definitions, and control flow across files. Find the concrete trigger yourself, the input or state that makes it break, and the `file:line` in changed code it runs through.
 3. Argue the author's side: write the strongest one-line case that this is NOT a real problem (the input can't occur, a caller already guards it, the framework handles it). Then check that case against the code.
 4. **DROP** only on evidence: the code shows the issue is handled elsewhere (validation in a caller, error caught upstream), the path can't be reached, the claim misreads the logic, the defect existed before this PR (even on a line the PR touches) and the PR doesn't make it worse, it only says a test is missing, or a dependency/framework guarantees the behavior. Cite the line that shows it.
-5. **KEEP** when you found a concrete trigger. If the trigger is concrete but you couldn't confirm every step, still KEEP it and say what you couldn't confirm; uncertainty alone is not a reason to drop or downgrade. **DOWNGRADE** when tracing shows less impact than the stated severity (e.g. a "High" race that only affects a debug-only path is "Low"). Before taking a finding to Low, check the Medium row: when the data comes out right but logs, alerts, error codes or operator guidance come out wrong, or a sibling path's validation is missing, it stays Medium.
+5. **For a claim that is true at Low, ask whether the author would make the change.** Being true isn't enough at Low, where nothing comes out wrong. KEEP it when the change buys something concrete: it removes a likely future bug, real waste on a hot path, or a trap for the next reader that the code doesn't explain. DROP it when the benefit is taste, or the fix costs more than the problem; say which in the evidence.
+6. **KEEP** when you found a concrete trigger. If the trigger is concrete but you couldn't confirm every step, still KEEP it and say what you couldn't confirm; uncertainty alone is not a reason to drop or downgrade. **DOWNGRADE** when tracing shows less impact than the stated severity (e.g. a "High" race that only affects a debug-only path is "Low"). Before taking a finding to Low, check the Medium row: when the data comes out right but logs, alerts, error codes or operator guidance come out wrong, or a sibling path's validation is missing, it stays Medium.
 
 Return one verdict per claim, in the order given, each in this exact form:
 
@@ -34,8 +35,9 @@ For example, with claims about a small invoicing service:
 ```
 F1 · DROP · billing/api.py:41 calls validate_amount() before create_invoice() ever sees a negative total · counter: the claim assumed create_invoice is reachable with raw input; it isn't, and the guard is in the only caller
 F2 · KEEP · billing/tax.py:88 rounds each line with round(), so 3 × 0.005 sums to 0.00 instead of 0.02 · counter: totals might be re-rounded upstream; checked api.py and reports.py, neither re-rounds; couldn't confirm the PDF export path, which is outside this diff
+F3 · DROP · billing/pdf.py:12 builds the header with + instead of an f-string; true, but every result is the same and the module uses both styles, so the change is taste · counter: consistency would help readers; it doesn't, since the file has no single style to match
 ```
 
-F1 is dropped because a cited line proves it wrong. F2 stays even with one path unconfirmed, because the trigger is concrete.
+F1 is dropped because a cited line proves it wrong. F2 stays even with one path unconfirmed, because the trigger is concrete. F3 is true and still dropped: at Low, a change the author wouldn't make isn't worth their attention.
 
 Every claim gets a line, including the ones you drop. Write no files.
