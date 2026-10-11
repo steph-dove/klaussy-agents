@@ -5,6 +5,46 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Changed
+
+- **The review reports Low findings by default.** Blocker, High, Medium and Low ship; Warn and
+  Nit stay out unless the user asks ("include nits", "thorough", "everything"). On
+  ReviewBench's test set, cutting Lows cost 13 points of high/medium recall for 8 points of
+  precision, while Nits and Warns rarely matched an expected finding.
+- **Small-PR reviews run a second sweep and validation in sub-agents**, the way large ones
+  already did. Reviewers checking their own read skipped both steps and wrote the report early.
+  A small review now costs about twice what it did, still well under a large one.
+- **One severity scale, rated by worst outcome**, shared by the skill, its sub-agents and the
+  validators. A wrong signal to the people running the code (a 500 where a 400 belongs, an
+  expected condition logged as an error, operator guidance in the wrong branch, a sibling
+  path's validation missing) is Medium, not Low.
+- **Validators drop true Low findings the author wouldn't act on**, and no longer pass "a test
+  is missing" claims or defects that predate the PR.
+
+### Added
+
+- **A hunk sweep in the correctness lens.** Every changed hunk is asked what the old code
+  guaranteed without saying so, what happens off the happy path, whether the library or
+  framework behaves the way the code assumes, whether it matches its siblings, and whether its
+  tests can fail. The correctness lens also runs twice on large PRs.
+- **`review-prep` names the lens sub-agents to launch**, so a large review starts the right set
+  instead of choosing its own.
+- **Benchmark harnesses** under `benchmarks/` for the Martian code review benchmark,
+  SWR-Bench and ReviewBench. Opt-in with `KLAUSSY_RUN_BENCH=1`; they make paid model calls.
+
+### Fixed
+
+- **A large review could write its report without validating anything.** Synthesis now waits
+  for a verdict on every finding, and a review whose validator is interrupted re-validates
+  instead of shipping unchecked claims.
+- **`klaussy init` failed offline even with `klaussy-repo-conventions` installed.** When the
+  upgrade can't reach an index it warns and uses the installed version.
+- **`klaussy init`'s fallback installers never worked.** It ran `uvx install`, which runs a
+  tool rather than installing one, and crashed when uv or pipx was absent. It now uses
+  `uv tool install`, then `pipx install`, and skips a tool that isn't there.
+
 ## [0.33.0] - 2026-09-23
 
 ### Added
