@@ -405,6 +405,8 @@ def test_the_nested_claude_sweep_does_not_follow_symlinks_out_of_the_checkout(tm
     ("args", "code"),
     [
         (["branch", "evil", "HEAD"], 1),
+        (["branch", "--list", "--no-list", "evil"], 1),
+        (["branch", "--list", "--no-l", "evil"], 1),
         (["branch", "--", "evil"], 1),
         (["branch", "--list", "ma*"], 0),
         (["branch", "--contains", "HEAD"], 0),
@@ -517,3 +519,53 @@ def test_guard_targets_with_spaces_are_quoted(tmp_path, monkeypatch):
     assert (
         "exec '/opt/my tools/git' --no-replace-objects" in (tmp_path / "guard" / "git").read_text()
     )
+
+
+def test_openai_is_never_resumed_because_nothing_caps_its_spend(tmp_path, monkeypatch):
+    work = _fake(tmp_path, monkeypatch, "copilot", 'echo "$@" >> "$CALLS"\n')
+    result = run_headless_review(
+        work, agent="openai", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert len(_calls(tmp_path)) == 1 and "no spending cap" in result.error
+
+
+def test_each_agent_run_leaves_a_transcript(tmp_path, monkeypatch):
+    work = _fake(tmp_path, monkeypatch, "claude", "echo out-text\necho err-text >&2\nexit 1\n")
+    run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert (tmp_path / "w" / "agent-run-1.out").read_text().strip() == "out-text"
+    assert (tmp_path / "w" / "agent-run-1.err").read_text().strip() == "err-text"
+
+
+def test_undecodable_agent_output_does_not_lose_a_finished_review(tmp_path, monkeypatch):
+    script = "printf 'caf\\351\\n'\necho '**Verdict:** Approve' > REVIEW_OUTPUT.md\n"
+    work = _fake(tmp_path, monkeypatch, "copilot", script)
+    result = run_headless_review(
+        work, agent="copilot", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "ok"
+
+
+def test_init_gets_no_other_agents_credentials(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-x")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "github_pat_x")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    monkeypatch.setattr(review_run, "_klaussy", lambda *a, repo, env: seen.update(env))
+    repo = _repo(tmp_path, {"app.py": "x = 1\n"})
+    prepare_checkout(repo, base="origin/main", agent="claude", diff_out=tmp_path / "pr.diff")
+    assert seen["ANTHROPIC_API_KEY"] == "sk-ant-x"
+    assert "OPENAI_API_KEY" not in seen and "COPILOT_GITHUB_TOKEN" not in seen
+
+
+def test_a_conventions_file_behind_a_symlinked_dir_is_left_alone(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "CLAUDE.md").write_text("keep me\n")
+    repo = _repo(tmp_path, {"CLAUDE.md": "# Base\n"})
+    (repo / "docs").symlink_to(outside)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "pr")
+    prepare_checkout(repo, base="origin/main", agent="claude", diff_out=tmp_path / "pr.diff")
+    assert (outside / "CLAUDE.md").read_text() == "keep me\n"

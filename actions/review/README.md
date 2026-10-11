@@ -43,7 +43,7 @@ To review with GitHub Copilot instead, create a fine-grained personal access tok
           copilot-github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 ```
 
-**OpenAI models are in preview:** they haven't passed a live run yet. `agent: openai` runs Copilot CLI with your OpenAI key as its model provider, so it gets the same restrictions as `agent: copilot` and needs no Copilot license. Store an OpenAI API key as a secret:
+**OpenAI models are in preview, and not ready for general use.** `agent: openai` runs Copilot CLI with your OpenAI key as its model provider, so it gets the same restrictions as `agent: copilot` and needs no Copilot license. Its first live run used about 12 million input tokens without finishing, and nothing caps what it spends except `review-timeout`, so use a key with a spend limit. Store the key as a secret:
 
 ```yaml
       - uses: steph-dove/klaussy-agents/actions/review@main
@@ -67,6 +67,7 @@ To review with GitHub Copilot instead, create a fine-grained personal access tok
 | `enrich` | `false` | When the base branch has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). This runs Claude over the pull request's code a second time, without the review's restrictions. |
 | `max-budget-usd` | `20` | Spending cap for one review (Claude). An Opus review averages about $5 and can reach $15. |
 | `max-ai-credits` | | AI credit cap for one review (Copilot). Empty means no cap. |
+| `review-timeout` | `1500` | Seconds the agent may run. Keep it under the job's `timeout-minutes`. For `agent: openai` it's the only spending limit. |
 | `github-token` | `github.token` | Token used to post the review. |
 | `claude-code-version` | `2.1.296` | Claude Code CLI version to install. |
 | `copilot-version` | `1.0.95` | GitHub Copilot CLI version to install. |

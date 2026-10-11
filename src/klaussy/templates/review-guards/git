@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # git takes any unambiguous prefix of a long option, so a prefix of a blocked one is refused too.
 blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
-branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description"
+# no-list: `--list --no-list NAME` turns listing back off, and NAME then creates a ref.
+branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description no-list"
 # `git branch NAME` creates a ref, so branch only takes a name after a flag that reads.
 branch_reads="--list -l --contains --no-contains --merged --no-merged --points-at --format --sort"
 refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }

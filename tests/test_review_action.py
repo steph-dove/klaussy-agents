@@ -132,6 +132,7 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
         "MAX_AI_CREDITS": "",
         "INCLUDE_NITS": "true",
         "ENRICH": "false",
+        "REVIEW_TIMEOUT": "1500",
         "GITHUB_REPOSITORY": "me/My_App",
         "RUNNER_TEMP": str(tmp_path),
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
@@ -148,6 +149,7 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
     assert "review --headless" in args and "--agent openai" in args
     assert "--base origin/main" in args and "--repo-name My_App" in args
     assert "--include-nits" in args and "--enrich" not in args
+    assert "--timeout 1500" in args
     assert '"status": "x"' in result.stdout
 
 
@@ -172,3 +174,12 @@ def test_the_cli_writes_a_result_even_when_the_out_dir_is_missing(tmp_path):
     )
     assert result.exit_code == 1
     assert '"status": "error"' in out.read_text()
+
+
+def test_the_review_timeout_fits_inside_the_job_timeout():
+    default = int(_action()["inputs"]["review-timeout"]["default"])
+    workflow = yaml.safe_load(
+        (ACTION.parents[2] / ".github/workflows/klaussy-review.yml").read_text()
+    )
+    for name, job in workflow["jobs"].items():
+        assert default < job["timeout-minutes"] * 60, name

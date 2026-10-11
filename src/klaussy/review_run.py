@@ -144,7 +144,10 @@ def _restore_conventions(repo: Path, base: str, *, drop_unknown: bool) -> None:
     if drop_unknown:
         head = _nul_paths(_git(repo, "ls-files", "-z").stdout)
         paths |= {p for p in head if CONVENTIONS.search(p)}
+    root = repo.resolve()
     for path in sorted(paths):
+        if not (repo / path).resolve().is_relative_to(root):
+            continue  # reached through a symlinked directory; nothing outside the checkout
         if drop_unknown:
             _remove(repo / path)
         if _base_has(repo, base, path):
@@ -183,8 +186,9 @@ def prepare_checkout(
         _remove(repo / path)
     _restore_conventions(repo, base, drop_unknown=True)
 
-    # `init --enrich` runs a model over the PR's files, so it gets no token that can write.
-    env = {k: v for k, v in os.environ.items() if k not in WRITE_TOKENS} | {"PYTHONSAFEPATH": "1"}
+    # `init --enrich` runs a model over the PR's files, so it gets no token that can write and
+    # no other agent's credential.
+    env = _without_foreign_credentials(agent) | {"PYTHONSAFEPATH": "1"}
     branch = base.removeprefix("origin/")
     backend = SKILL_BACKEND[agent]
     if not (repo / "CLAUDE.md").is_file():
@@ -246,10 +250,14 @@ def install_guards(guard_dir: Path) -> dict[str, str]:
     }
 
 
+def _without_foreign_credentials(agent: str) -> dict[str, str]:
+    others = {name for key, names in CREDENTIALS.items() if key != agent for name in names}
+    return {k: v for k, v in os.environ.items() if k not in WRITE_TOKENS and k not in others}
+
+
 def agent_env(agent: str, guard_env: dict[str, str]) -> dict[str, str]:
     """The environment the agent runs in: no token that writes, no other agent's credential."""
-    others = {name for key, names in CREDENTIALS.items() if key != agent for name in names}
-    env = {k: v for k, v in os.environ.items() if k not in WRITE_TOKENS and k not in others}
+    env = _without_foreign_credentials(agent)
     env.update(guard_env)
     if agent == "claude":
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
@@ -266,10 +274,6 @@ def review_prompt(repo_name: str, base: str, *, include_nits: bool, agent: str) 
         f"There is no one to answer questions: make reasonable calls yourself. "
         f"Finish by writing {REPORT}."
     )
-
-
-def _text(stream: str | bytes | None) -> str:
-    return stream.decode(errors="replace") if isinstance(stream, bytes) else stream or ""
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -295,7 +299,8 @@ def _run(
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             start_new_session=True,
         )
     except OSError as exc:
@@ -515,6 +520,8 @@ def run_headless_review(
             argv, repo=repo, env=env, timeout=deadline - time.monotonic()
         )
         log = f"{out}\n{err}".strip()
+        (work_dir / f"agent-run-{runs + 1}.out").write_text(out)
+        (work_dir / f"agent-run-{runs + 1}.err").write_text(err)
         last = runner.result(code, out, timed_out, work_dir, runs, session)
         # Only the agent's own error text, never its event stream, which carries tool output.
         auth_text = f"{err}\n{last.error_text}"
@@ -537,6 +544,8 @@ def run_headless_review(
             skipped = f"not resumed: ${spent:.2f} of ${budget_usd} already spent"
         elif agent == "copilot" and max_ai_credits:
             skipped = "not resumed: Copilot can't report what's left of max-ai-credits"
+        elif agent == "openai":
+            skipped = "not resumed: an OpenAI run has no spending cap to resume within"
         elif not session:
             skipped = "not resumed: the first run left no session"
         elif deadline - time.monotonic() < MIN_RESUME_SECONDS:

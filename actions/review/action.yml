@@ -46,6 +46,10 @@ inputs:
     description: AI credit cap for one review, for agent copilot. Empty means no cap.
     required: false
     default: ""
+  review-timeout:
+    description: Seconds the agent may run. Keep it under the job's timeout-minutes so a slow review still reports why it stopped.
+    required: false
+    default: "1500"
   github-token:
     description: Token used to post the review.
     required: false
@@ -151,6 +155,7 @@ runs:
         MAX_AI_CREDITS: ${{ inputs.max-ai-credits }}
         INCLUDE_NITS: ${{ inputs.include-nits }}
         ENRICH: ${{ inputs.enrich }}
+        REVIEW_TIMEOUT: ${{ inputs.review-timeout }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
@@ -164,7 +169,7 @@ runs:
         args=(--headless --repo . --agent "$AGENT" --base "origin/${BASE_REF}"
           --repo-name "$(basename "$GITHUB_REPOSITORY")" --budget-usd "$BUDGET"
           --out "$RUNNER_TEMP/klaussy-result.json" --diff-out "$RUNNER_TEMP/pr.diff"
-          --work-dir "$RUNNER_TEMP/klaussy")
+          --work-dir "$RUNNER_TEMP/klaussy" --timeout "$REVIEW_TIMEOUT")
         if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
         if [ -n "$MAX_AI_CREDITS" ]; then args+=(--max-ai-credits "$MAX_AI_CREDITS"); fi
         if [ "$INCLUDE_NITS" = "true" ]; then args+=(--include-nits); fi
@@ -173,6 +178,9 @@ runs:
         klaussy review "${args[@]}" || status=$?
         if [ -f "$RUNNER_TEMP/klaussy-result.json" ]; then cat "$RUNNER_TEMP/klaussy-result.json"; fi
         if [ "$status" != 0 ]; then
+          for err in "$RUNNER_TEMP"/klaussy/agent-run-*.err; do
+            if [ -s "$err" ]; then echo "--- $(basename "$err")"; tail -n 40 "$err"; fi
+          done
           echo "::error::The review didn't finish; the result above says why."
           exit 1
         fi
