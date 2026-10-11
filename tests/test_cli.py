@@ -1768,7 +1768,7 @@ class TestCommentHygiene:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
-        lens = (repo / ".claude" / "skills" / f"{ns}-review" / "lens-security.md").read_text()
+        lens = (repo / ".claude" / "skills" / f"{ns}-review" / "lens-scope.md").read_text()
         assert "Comment hygiene" in review
         assert "condense to a one-line WHY" in review
         assert "comment hygiene" in lens.lower()

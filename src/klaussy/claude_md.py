@@ -1,5 +1,6 @@
 """Wraps klaussy-repo-conventions to generate and enrich CLAUDE.md."""
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -30,20 +31,29 @@ def run_init(*, repo: Path, force: bool = False, skip_enrich: bool = False) -> P
         capture_output=True,
     )
     if upgrade_result.returncode != 0:
-        # Fall back to pipx/uvx if pip fails
-        for runner in ["uvx", "pipx"]:
-            fallback = subprocess.run(
-                [runner, "install", "klaussy-repo-conventions", "--force"],
-                capture_output=True,
-            )
+        # Fall back to uv/pipx if pip fails
+        for installer in (["uv", "tool", "install"], ["pipx", "install"]):
+            try:
+                fallback = subprocess.run(
+                    [*installer, "klaussy-repo-conventions", "--force"],
+                    capture_output=True,
+                )
+            except FileNotFoundError:
+                continue
             if fallback.returncode == 0:
                 break
         else:
-            console.print(
-                "[red]✗ Could not install klaussy-repo-conventions. "
-                "Install it manually: pip install klaussy-repo-conventions[/red]"
-            )
-            raise SystemExit(1)
+            if shutil.which("conventions"):
+                console.print(
+                    "[yellow]⚠ Could not upgrade klaussy-repo-conventions (offline?); "
+                    "using the installed version.[/yellow]"
+                )
+            else:
+                console.print(
+                    "[red]✗ Could not install klaussy-repo-conventions. "
+                    "Install it manually: pip install klaussy-repo-conventions[/red]"
+                )
+                raise SystemExit(1)
 
     # Build command
     cmd: list[str] = ["conventions", "discover", "--repo", str(repo), "--claude"]

@@ -518,6 +518,14 @@ def review_prep(
     as_json: bool = typer.Option(
         False, "--json", help="Emit structured JSON instead of the markdown payload."
     ),
+    summary: bool = typer.Option(
+        False, "--summary", help="Print the review path and file manifest, not the diff."
+    ),
+    path: str | None = typer.Option(
+        None,
+        "--path",
+        help="Force the review path: small or parallel. Sized from the diff if omitted.",
+    ),
 ) -> None:
     """Trim a branch diff to the reviewable files before the review skill reads it.
 
@@ -526,13 +534,15 @@ def review_prep(
     excluded (so nothing is hidden from the reviewer). Designed to be the diff
     source the review skill consumes — fewer tokens in, faster review.
     """
-    payload = prepare_review(repo=_resolve_repo(repo), base_branch=base)
+    if path not in (None, "small", "parallel"):
+        raise typer.BadParameter("--path must be small or parallel", param_hint="--path")
+    payload = prepare_review(repo=_resolve_repo(repo), base_branch=base, path=path)
     if as_json:
         import json
 
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
-        sys.stdout.write(render_markdown(payload))
+        sys.stdout.write(render_markdown(payload, summary_only=summary))
 
 
 @app.command()
