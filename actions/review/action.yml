@@ -169,7 +169,8 @@ runs:
         args=(--headless --repo . --agent "$AGENT" --base "origin/${BASE_REF}"
           --repo-name "$(basename "$GITHUB_REPOSITORY")" --budget-usd "$BUDGET"
           --out "$RUNNER_TEMP/klaussy-result.json" --diff-out "$RUNNER_TEMP/pr.diff"
-          --work-dir "$RUNNER_TEMP/klaussy" --timeout "$REVIEW_TIMEOUT")
+          --work-dir "$RUNNER_TEMP/klaussy" --timeout "$REVIEW_TIMEOUT"
+          --report-out "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md")
         if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
         if [ -n "$MAX_AI_CREDITS" ]; then args+=(--max-ai-credits "$MAX_AI_CREDITS"); fi
         if [ "$INCLUDE_NITS" = "true" ]; then args+=(--include-nits); fi
@@ -201,11 +202,11 @@ runs:
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
       run: |
-        klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
+        klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
         if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then
           echo "::warning::Posting the review failed; retrying without inline comments."
-          klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" --no-inline > "$RUNNER_TEMP/review.json"
+          klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" --no-inline > "$RUNNER_TEMP/review.json"
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null
         fi
-        klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --no-inline \
+        klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --no-inline \
           | jq -r .body >> "$GITHUB_STEP_SUMMARY"

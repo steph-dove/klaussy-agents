@@ -12,7 +12,8 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 - **`klaussy review --headless`** runs the review skill unattended on a pull request checkout
   with Claude Code, Copilot CLI, or OpenAI models through Copilot CLI (`--agent`), and writes
   `REVIEW_OUTPUT.md` plus a result JSON with the status, cost or usage, and the reason a
-  review didn't finish. It does the
+  review didn't finish. It works in a throwaway worktree of HEAD, so the caller's checkout and
+  uncommitted work are never touched. It does the
   checkout scrub, the `git` and `klaussy` command guards and the resume-within-budget that the
   review Action used to do in bash, so the Action and the hosted review App share one runner.
 - **The review Action reviews with OpenAI models** (`agent: openai`, `openai-api-key`), in

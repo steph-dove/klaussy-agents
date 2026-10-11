@@ -17,6 +17,8 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -146,10 +148,13 @@ def _restore_conventions(repo: Path, base: str, *, drop_unknown: bool) -> None:
         paths |= {p for p in head if CONVENTIONS.search(p)}
     root = repo.resolve()
     for path in sorted(paths):
-        if not (repo / path).resolve().is_relative_to(root):
-            continue  # reached through a symlinked directory; nothing outside the checkout
-        if drop_unknown:
-            _remove(repo / path)
+        target = repo / path
+        if not target.parent.resolve().is_relative_to(root):
+            continue  # under a symlinked directory: nothing outside the checkout is touched
+        # A symlinked conventions file goes even on the second pass, so it can't point the
+        # reviewer at a file the PR picked.
+        if drop_unknown or target.is_symlink():
+            _remove(target)
         if _base_has(repo, base, path):
             _git(repo, "checkout", "-q", base, "--", path)
 
@@ -160,6 +165,21 @@ def _klaussy(*args: str, repo: Path, env: dict[str, str]) -> None:
     )
     if proc.returncode != 0:
         raise ReviewRunError(f"klaussy {args[0]}: {proc.stderr or proc.stdout}")
+
+
+@contextmanager
+def scratch_worktree(repo: Path, work_dir: Path) -> Iterator[Path]:
+    """A throwaway worktree of `repo`'s HEAD, so the scrub never touches the caller's files."""
+    path = work_dir / "checkout"
+    if path.exists():
+        _git(repo, "worktree", "remove", "--force", str(path), check=False)
+        _remove(path)
+    _git(repo, "worktree", "add", "--detach", "--force", str(path), "HEAD")
+    try:
+        yield path
+    finally:
+        _git(repo, "worktree", "remove", "--force", str(path), check=False)
+        _git(repo, "worktree", "prune", check=False)
 
 
 def prepare_checkout(

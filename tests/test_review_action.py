@@ -183,3 +183,60 @@ def test_the_review_timeout_fits_inside_the_job_timeout():
     )
     for name, job in workflow["jobs"].items():
         assert default < job["timeout-minutes"] * 60, name
+
+
+def test_a_headless_review_never_touches_the_callers_checkout(tmp_path, monkeypatch):
+    repo = tmp_path / "app"
+    repo.mkdir()
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.email", "t@e.com"],
+        ["config", "user.name", "t"],
+    ):
+        subprocess.run(["git", "-C", str(repo), *args], check=True)
+    (repo / "CLAUDE.md").write_text("# Base\n")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "base"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True
+    )
+    (repo / ".claude" / "skills" / "mine").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "mine" / "SKILL.md").write_text("my own skill\n")
+    (repo / "notes.md").write_text("uncommitted work\n")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "claude").write_text(
+        "#!/bin/sh\n"
+        'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+        'echo \'{"session_id": "s", "total_cost_usd": 1}\'\n'
+    )
+    (bin_dir / "claude").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "review",
+            "--headless",
+            "--repo",
+            str(repo),
+            "--base",
+            "origin/main",
+            "--out",
+            str(tmp_path / "result.json"),
+            "--diff-out",
+            str(tmp_path / "pr.diff"),
+            "--work-dir",
+            str(tmp_path / "w"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "w" / "REVIEW_OUTPUT.md").read_text() == "**Verdict:** Approve\n"
+    assert (repo / ".claude/skills/mine/SKILL.md").read_text() == "my own skill\n"
+    assert (repo / "notes.md").read_text() == "uncommitted work\n"
+    assert not (repo / "REVIEW_OUTPUT.md").exists()
+    worktrees = subprocess.run(
+        ["git", "-C", str(repo), "worktree", "list"], capture_output=True, text=True
+    ).stdout
+    assert len(worktrees.strip().splitlines()) == 1

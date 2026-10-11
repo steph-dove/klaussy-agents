@@ -3,23 +3,30 @@
 blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
 # no-list: `--list --no-list NAME` turns listing back off, and NAME then creates a ref.
 branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description no-list"
-# `git branch NAME` creates a ref, so branch only takes a name after a flag that reads.
-branch_reads="--list -l --contains --no-contains --merged --no-merged --points-at --format --sort"
+# `git branch NAME` creates a ref, so branch takes a bare name only in list mode or as the
+# value of a flag that reads. A flag's value (`--format -l`) never switches list mode on.
+branch_values=" --format --sort --contains --no-contains --merged --no-merged --points-at "
 refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }
 sub=""
-prev=""
 listing=""
+value_next=""
 for arg in "$@"; do
   if [ "$arg" = "--" ]; then
     # Anything after `--` is a name, and `git branch -- NAME` creates that ref.
     [ "$sub" = branch ] && refuse "branch --"
     break
   fi
-  case " --list -l " in *" $arg "*) [ "$sub" = branch ] && listing=1 ;; esac
-  if [ "$sub" = branch ] && [ "${arg#-}" = "$arg" ] && [ -z "$listing" ]; then
-    case " $branch_reads " in *" $prev "*) ;; *) refuse "branch $arg" ;; esac
+  if [ "$sub" = branch ]; then
+    if [ -n "$value_next" ]; then
+      value_next=""
+    else
+      case "$arg" in
+        --list|-l) listing=1 ;;
+        -*) case "$branch_values" in *" $arg "*) value_next=1 ;; esac ;;
+        *) [ -z "$listing" ] && refuse "branch $arg" ;;
+      esac
+    fi
   fi
-  prev="$arg"
   name="${arg%%=*}"
   case "$name" in
     --text|--ignore-rev) ;;  # real options that happen to be prefixes of blocked ones

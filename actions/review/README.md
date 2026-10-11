@@ -77,7 +77,7 @@ On Opus a review averages about $5 in API usage and can reach $15, which is why 
 ## How it works
 
 1. Checks out the pull request head with full history.
-2. Runs `klaussy review --headless`, the same runner the hosted klaussy review App uses. It removes the pull request's own agent config, takes conventions from the base branch, generates a `CLAUDE.md` if the repo has none, renders the review skill for the chosen agent, and runs it headless in Claude Code or Copilot CLI.
+2. Runs `klaussy review --headless`, the same runner the hosted klaussy review App uses. In a throwaway worktree of the pull request head, it removes the pull request's own agent config, takes conventions from the base branch, generates a `CLAUDE.md` if the repo has none, renders the review skill for the chosen agent, and runs it headless in Claude Code or Copilot CLI.
 3. Posts the findings: each one on the diff line it's about, anything outside the diff in the review body, with the verdict and test coverage on top. A finding reads as one line saying what's wrong and the suggested change, with the full explanation in a collapsed **Explanation** section.
 
 ## Security
