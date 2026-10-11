@@ -1,0 +1,177 @@
+name: klaussy review
+description: Multi-agent code review on every pull request, on your repo's own conventions, with no AI slop.
+author: Dovatech LLC
+branding:
+  icon: check-circle
+  color: purple
+
+inputs:
+  anthropic-api-key:
+    description: Anthropic API key. Provide this or claude-code-oauth-token.
+    required: false
+  claude-code-oauth-token:
+    description: Claude Code OAuth token from `claude setup-token`, instead of an API key.
+    required: false
+  model:
+    description: Model the review runs on.
+    required: false
+    default: claude-opus-5-5
+  include-nits:
+    description: Also report Warn and Nit findings.
+    required: false
+    default: "false"
+  event:
+    description: Review event to post, COMMENT or REQUEST_CHANGES.
+    required: false
+    default: COMMENT
+  enrich:
+    description: When the repo has no CLAUDE.md, let `klaussy init` enrich the generated one with Claude.
+    required: false
+    default: "true"
+  max-budget-usd:
+    description: Spending cap for one review.
+    required: false
+    default: "10"
+  github-token:
+    description: Token used to post the review.
+    required: false
+    default: ${{ github.token }}
+  claude-code-version:
+    description: Claude Code CLI version to install.
+    required: false
+    default: 2.1.296
+
+runs:
+  using: composite
+  steps:
+    - name: Check the event and credentials
+      id: gate
+      shell: bash
+      env:
+        HAS_KEY: ${{ inputs.anthropic-api-key != '' || inputs.claude-code-oauth-token != '' }}
+        PR: ${{ github.event.pull_request.number }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        BASE_REPO: ${{ github.repository }}
+      run: |
+        if [ -z "$PR" ]; then
+          echo "::error::klaussy review runs on pull_request events."
+          exit 1
+        fi
+        if [ "$HAS_KEY" != "true" ]; then
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::notice::Fork pull requests get no secrets, so the review is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::error::No Anthropic credential. Set anthropic-api-key or claude-code-oauth-token."
+          exit 1
+        fi
+        echo "run=true" >> "$GITHUB_OUTPUT"
+
+    - name: Check out the pull request head
+      if: steps.gate.outputs.run == 'true'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Install klaussy and Claude Code
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
+      run: |
+        python3 -m pip install --quiet --upgrade pip
+        if [ -f "$ACTION_PATH/../../pyproject.toml" ]; then
+          python3 -m pip install --quiet "$ACTION_PATH/../.."
+        else
+          python3 -m pip install --quiet klaussy-agents
+        fi
+        npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+
+    - name: Set up the review skill
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        ENRICH: ${{ inputs.enrich }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+      run: |
+        rm -f .claude/settings.json .claude/settings.local.json
+        if [ ! -f CLAUDE.md ]; then
+          flags=""
+          [ "$ENRICH" = "true" ] || flags="--skip-enrich"
+          klaussy init --repo . -b "$BASE_REF" --agents claude --force $flags
+        fi
+        klaussy skills --repo . -b "$BASE_REF" --agents claude --force
+
+    - name: Review
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        MODEL: ${{ inputs.model }}
+        BUDGET: ${{ inputs.max-budget-usd }}
+        INCLUDE_NITS: ${{ inputs.include-nits }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+      run: |
+        repo_name="$(basename "$GITHUB_REPOSITORY")"
+        nits=""
+        [ "$INCLUDE_NITS" = "true" ] && nits="Include nits: report Warn and Nit findings too. "
+        prompt="Use the ${repo_name}-review skill to review this branch (HEAD) against \`origin/${BASE_REF}\`. ${nits}There is no one to answer questions: make reasonable calls yourself and finish by writing REVIEW_OUTPUT.md."
+        allowed=(
+          Read Grep Glob Agent Skill TodoWrite
+          "Write(REVIEW_OUTPUT.md)" "Edit(REVIEW_OUTPUT.md)"
+          "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git status:*)"
+          "Bash(git merge-base:*)" "Bash(git rev-parse:*)" "Bash(git ls-files:*)"
+          "Bash(git branch:*)" "Bash(git symbolic-ref:*)" "Bash(git blame:*)"
+          "Bash(klaussy:*)" "Bash(python3 -m klaussy:*)"
+          "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(wc:*)"
+          "Bash(grep:*)" "Bash(rg:*)" "Bash(sed -n:*)"
+        )
+        run_claude() {
+          claude -p "$1" "${@:2}" \
+            --model "$MODEL" \
+            --max-budget-usd "$BUDGET" \
+            --allowedTools "${allowed[@]}" \
+            --disallowedTools WebFetch WebSearch ScheduleWakeup \
+            --settings '{"disableAllHooks": true}' \
+            --strict-mcp-config \
+            --output-format json > "$RUNNER_TEMP/klaussy-run.json"
+        }
+        run_claude "$prompt"
+        if [ ! -f REVIEW_OUTPUT.md ]; then
+          session="$(jq -r '.session_id // empty' "$RUNNER_TEMP/klaussy-run.json")"
+          if [ -n "$session" ]; then
+            run_claude "REVIEW_OUTPUT.md doesn't exist yet. Finish the review and write it." --resume "$session"
+          fi
+        fi
+        if [ ! -f REVIEW_OUTPUT.md ]; then
+          echo "::error::The review ended without writing REVIEW_OUTPUT.md."
+          jq -r '.result // empty' "$RUNNER_TEMP/klaussy-run.json" | tail -n 20
+          exit 1
+        fi
+        jq -r '"Review cost: $\(.total_cost_usd // 0)"' "$RUNNER_TEMP/klaussy-run.json"
+
+    - name: Post the review
+      if: steps.gate.outputs.run == 'true'
+      shell: bash
+      env:
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        PR: ${{ github.event.pull_request.number }}
+        EVENT: ${{ inputs.event }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        git diff "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
+        klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" > "$RUNNER_TEMP/review.json"
+        if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then
+          echo "::warning::Inline comments were rejected; posting the review as one comment instead."
+          klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --no-inline > "$RUNNER_TEMP/review.json"
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null
+        fi
+        cat REVIEW_OUTPUT.md >> "$GITHUB_STEP_SUMMARY"

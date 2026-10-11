@@ -16,10 +16,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from klaussy import review_post
+
 DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
 
 _PR_URL = re.compile(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)")
-_FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
 
 
 @dataclass
@@ -323,23 +324,11 @@ def review_failed(review: dict) -> str | None:
 
 
 def parse_findings(report: str) -> list[dict]:
-    """Split a REVIEW_OUTPUT.md into findings using the skill's `**Sev · Cat · loc**` lines."""
-    marks = list(_FINDING.finditer(report))
-    findings = []
-    for i, m in enumerate(marks):
-        end = marks[i + 1].start() if i + 1 < len(marks) else len(report)
-        body = report[m.end() : end]
-        body = re.split(r"^\*\*Verdict:|^#{1,3} ", body, maxsplit=1, flags=re.MULTILINE)[0]
-        parts = [p.strip(" `") for p in m.group("meta").split("·")]
-        findings.append(
-            {
-                "severity": parts[0],
-                "category": parts[1] if len(parts) > 2 else "",
-                "location": parts[-1],
-                "text": f"{m.group('meta').strip()}\n{body.strip()}",
-            }
-        )
-    return findings
+    """A REVIEW_OUTPUT.md's findings as dicts with severity, category, location and text."""
+    return [
+        {"severity": f.severity, "category": f.category, "location": f.location, "text": f.text}
+        for f in review_post.parse_findings(report)
+    ]
 
 
 def ask_claude_json(system: str, prompt: str, model: str) -> dict:

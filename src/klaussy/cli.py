@@ -23,6 +23,7 @@ from klaussy.humanize import humanize as humanize_text
 from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.pr_template import scaffold_pr_template
 from klaussy.repo import git_root, resolve_repo
+from klaussy.review_post import build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
@@ -543,6 +544,34 @@ def review_prep(
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
         sys.stdout.write(render_markdown(payload, summary_only=summary))
+
+
+@app.command(name="review-post")
+def review_post(
+    report: Path = typer.Option(
+        Path("REVIEW_OUTPUT.md"), "--report", help="The review skill's output."
+    ),
+    diff: Path = typer.Option(..., "--diff", help="The pull request's unified diff."),
+    event: str = typer.Option("COMMENT", "--event", help="COMMENT, REQUEST_CHANGES or APPROVE."),
+    inline: bool = typer.Option(
+        True, "--inline/--no-inline", help="Attach findings to diff lines where possible."
+    ),
+) -> None:
+    """Print a GitHub pull request review payload built from a review report.
+
+    Pipe it to `gh api repos/<owner>/<repo>/pulls/<n>/reviews --input -`.
+    """
+    if event not in ("COMMENT", "REQUEST_CHANGES", "APPROVE"):
+        raise typer.BadParameter(
+            "must be COMMENT, REQUEST_CHANGES or APPROVE", param_hint="--event"
+        )
+    payload = build_review(
+        report.read_text(encoding="utf-8"),
+        diff.read_text(encoding="utf-8"),
+        event=event,
+        inline=inline,
+    )
+    sys.stdout.write(json.dumps(payload, indent=2) + "\n")
 
 
 @app.command()
