@@ -6,6 +6,7 @@ from klaussy.cli import app
 from klaussy.review_post import (
     FOOTER,
     MARKER,
+    WATERMARK,
     build_review,
     commentable_lines,
     parse_findings,
@@ -87,7 +88,7 @@ def test_build_review_puts_diff_findings_inline_and_the_rest_in_the_body():
             "side": "RIGHT",
             "start_line": 11,
             "start_side": "RIGHT",
-            "body": parse_findings(REPORT)[0].inline_text,
+            "body": parse_findings(REPORT)[0].comment,
         }
     ]
     body = review["body"]
@@ -133,7 +134,9 @@ def test_build_review_redacts_secrets_from_body_and_comments():
     review = build_review(report, DIFF, secrets=["hunter2hunter2"])
     posted = review["body"] + "".join(c["body"] for c in review["comments"])
     assert leaked not in posted and "hunter2hunter2" not in posted
-    assert posted.count("[redacted]") == 3
+    # Finding 1 has both secrets in its explanation; finding 3 has the key in its lead and
+    # its explanation.
+    assert posted.count("[redacted]") == 4
 
 
 def test_review_post_cli_redacts_credentials_from_the_environment(tmp_path, monkeypatch):
@@ -238,3 +241,92 @@ def test_approve_is_only_posted_when_the_reviewer_approved():
     assert build_review(REPORT, DIFF, event="APPROVE")["event"] == "COMMENT"
     clean = "**Verdict:** Approve · reviewed at `abc1234`\n"
     assert build_review(clean, DIFF, event="APPROVE")["event"] == "APPROVE"
+
+
+FIX_FINDING = """**High · Correctness · `src/pool.py:11`**
+
+The lock is released before the write, e.g. on the put path. Another thread can then
+append in between. That corrupts the pool under load.
+
+Suggested change:
+```python
+with self.lock:
+    self.conns.append(conn)
+```
+"""
+
+
+def test_a_comment_reads_like_klaussy_desktop_posts_it():
+    comment = parse_findings(FIX_FINDING)[0].comment
+    lead, details = comment.split("\n\n<details>", 1)
+    assert lead.startswith(
+        "The lock is released before the write, e.g. on the put path.\n\n```python"
+    )
+    assert "High" not in lead and "Correctness" not in lead
+    assert details.startswith("\n<summary>Explanation</summary>")
+    assert "That corrupts the pool under load." in details
+    assert details.rstrip().endswith(f"<sub>{WATERMARK}</sub>\n\n</details>")
+
+
+def test_every_comment_carries_the_watermark_in_its_explanation():
+    short = "**Low · Docs · `README.md:4`**\n\nThe README still says the pool is unbounded.\n"
+    comment = parse_findings(short)[0].comment
+    assert comment.startswith("The README still says the pool is unbounded.\n\n<details>")
+    assert f"<sub>{WATERMARK}</sub>" in comment
+
+
+def test_comments_are_humanized_but_code_is_left_alone():
+    report = (
+        "**Medium · Style · `app.py:3`**\n\n"
+        "Great catch: the retry loop runs forever \u2014 it never backs off.\n\n"
+        "Suggested change:\n```python\nx = a \u2014 b\n```\n"
+    )
+    comment = parse_findings(report)[0].comment
+    lead = comment.split("<details>")[0]
+    assert "Great catch" not in lead and "\u2014 it never" not in lead
+    assert "x = a \u2014 b" in comment
+
+
+def test_findings_outside_the_diff_keep_their_location_but_not_severity():
+    body = build_review(REPORT, DIFF)["body"]
+    assert "`README.md:40`\n\nThe README still says" in body
+    assert "**Medium · Docs" not in body
+
+
+def test_a_suggestion_is_posted_exactly_as_written():
+    report = (
+        "**Medium · Style · `app.py:3`**\n\nThe loop never backs off.\n\n"
+        "Suggested change:\n"
+        "~~~python\nif retries:\n    wait = prior_to \u2014 1\n\n\n    go()\n~~~\n"
+    )
+    comment = parse_findings(report)[0].comment
+    assert "~~~python\nif retries:\n    wait = prior_to \u2014 1\n\n\n    go()\n~~~" in comment
+
+
+def test_a_tilde_fence_in_the_explanation_is_left_alone():
+    report = (
+        "**Medium · Style · `app.py:3`**\n\nThe loop runs prior to setup.\n\n"
+        "~~~python\n    x = a \u2014 b\n~~~\n\nSuggested change:\n```python\nsetup()\n```\n"
+    )
+    details = parse_findings(report)[0].comment.split("<details>", 1)[1]
+    assert "~~~python\n    x = a \u2014 b\n~~~" in details
+    assert "runs before setup" in details
+
+
+def test_a_filler_opener_does_not_leave_the_comment_without_a_lead():
+    report = "**Low · Style · `app.py:3`**\n\nGood catch. The retry loop never backs off.\n"
+    assert parse_findings(report)[0].comment.startswith("The retry loop never backs off.")
+
+
+def test_a_bold_suggested_change_label_is_recognized():
+    report = (
+        "**Medium · Bug · `app.py:3`**\n\nThe default is wrong.\n\n"
+        "**Suggested change:**\n```python\nretries = 3\n```\n"
+    )
+    lead = parse_findings(report)[0].comment.split("<details>")[0]
+    assert "Suggested change" not in lead and "retries = 3" in lead
+
+
+def test_a_sentence_ending_on_a_lowercase_letter_still_ends():
+    report = "**Low · Bug · `app.py:3`**\n\nThe loop sets i. Then it reads j too early.\n"
+    assert parse_findings(report)[0].comment.startswith("The loop sets i.\n\n<details>")

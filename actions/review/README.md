@@ -68,7 +68,7 @@ A review typically costs $1 to $4 in API usage on Opus, and about a third of tha
 1. Checks out the pull request head with full history.
 2. If the repo has no `CLAUDE.md`, runs `klaussy init` to generate one from the codebase; either way it renders the review skill with this version of klaussy.
 3. Runs the review skill headless in Claude Code or Copilot CLI.
-4. Posts the findings: each one on the diff line it's about, anything outside the diff in the review body, with the verdict and test coverage on top.
+4. Posts the findings: each one on the diff line it's about, anything outside the diff in the review body, with the verdict and test coverage on top. A finding reads as one line saying what's wrong and the suggested change, with the full explanation in a collapsed **Explanation** section.
 
 ## Security
 
