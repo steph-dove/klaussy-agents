@@ -118,7 +118,11 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
         COPILOT_VERSION: ${{ inputs.copilot-version }}
+        PYTHONSAFEPATH: "1"
       run: |
+        # Run from outside the checkout: python -m and npm both read config and modules from the
+        # working directory, which here is the pull request's code.
+        cd "$RUNNER_TEMP"
         python3 -m pip install --quiet --upgrade pip
         if [ -f "$ACTION_PATH/../../pyproject.toml" ]; then
           python3 -m pip install --quiet "$ACTION_PATH/../.."
@@ -140,15 +144,21 @@ runs:
         ENRICH: ${{ inputs.enrich }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+        # The working directory is the PR checkout; keep it off sys.path for `python -c`/`-m`.
+        PYTHONSAFEPATH: "1"
       run: |
         # Taken before the reviewer runs, so posting never runs git on a checkout it could touch.
         git diff --no-ext-diff --no-textconv "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/pr.diff"
         # The pull request must not configure its own review, so its agent config goes and the
         # conventions come from the base branch, at any depth.
+        for dir in .claude .claude/rules .github .github/instructions; do
+          if [ -L "$dir" ]; then rm -f "$dir"; fi
+        done
+        find . -mindepth 2 -name .claude -not -path './.git/*' -prune -exec rm -rf {} +
         rm -rf REVIEW_OUTPUT.md .claude/skills .claude/agents .claude/commands .claude/hooks \
           .claude/settings.json .claude/settings.local.json .mcp.json \
           .github/skills .github/agents .github/hooks .copilot
-        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md)$|^\.claude/rules/|^\.github/copilot-instructions\.md$|^\.github/instructions/'
+        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md)$|^\.claude/rules(/|$)|^\.github/copilot-instructions\.md$|^\.github/instructions(/|$)'
         { git ls-files -z; git ls-tree -r -z --name-only "origin/${BASE_REF}"; } |
           { grep -zE "$conventions" || true; } | sort -zu |
           while IFS= read -r -d '' path; do
@@ -162,10 +172,11 @@ runs:
           [ "$AGENT" = claude ] && [ "$ENRICH" = "true" ] && flags=""
           klaussy init --repo . -b "$BASE_REF" --agents "$AGENT" --force $flags
         fi
-        klaussy skills --repo . -b "$BASE_REF" --agents "$AGENT" --force
-        # init can regenerate instruction files the base branch already has; the base's win.
+        # init can regenerate conventions the base branch already has; the base's win, and the
+        # review skill is built from them afterwards.
         git ls-tree -r -z --name-only "origin/${BASE_REF}" | { grep -zE "$conventions" || true; } |
           while IFS= read -r -d '' path; do git checkout -q "origin/${BASE_REF}" -- "$path"; done
+        klaussy skills --repo . -b "$BASE_REF" --agents "$AGENT" --force
         # init writes a broad allow-list and hooks that would widen the reviewer's tools.
         rm -rf .claude/settings.json .claude/settings.local.json .claude/hooks .github/hooks
 
@@ -183,6 +194,7 @@ runs:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+        PYTHONSAFEPATH: "1"
       run: |
         # The reviewer never gets a token that can write to the repo.
         unset GH_TOKEN GITHUB_TOKEN
@@ -208,8 +220,8 @@ runs:
                 case "$b" in "${name#--}"*) refuse "$arg" ;; esac
               done ;;
             -c*|-C*) refuse "$arg" ;;
-            -S*) [ "$sub" = blame ] && refuse "$arg" ;;
-            -d*|-D*|-m*|-M*|-f*|-u*) [ "$sub" = branch ] && refuse "$arg" ;;
+            -*S*) [ "$sub" = blame ] && refuse "$arg" ;;
+            -*[dDmMfu]*) [ "$sub" = branch ] && refuse "$arg" ;;
           esac
           [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
         done
@@ -249,7 +261,12 @@ runs:
           status=0
           copilot -p "$prompt" --session-id "$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
           if [ ! -f REVIEW_OUTPUT.md ] && [ "$status" = 0 ]; then
-            copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
+            if [ -n "$MAX_AI_CREDITS" ]; then
+              echo "::error::max-ai-credits is set and Copilot can't report what's left of it, so the review isn't resumed."
+            else
+              flags=("${flags[@]/klaussy-usage.json/klaussy-usage-resume.json}")
+              copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
+            fi
           fi
         else
           unset COPILOT_GITHUB_TOKEN
@@ -311,8 +328,10 @@ runs:
         fi
         if [ "$AGENT" = claude ]; then
           echo "Review cost: \$$spent"
-        elif [ -f "$RUNNER_TEMP/klaussy-usage.json" ]; then
-          echo "Review usage:" && cat "$RUNNER_TEMP/klaussy-usage.json"
+        else
+          for usage in "$RUNNER_TEMP"/klaussy-usage*.json; do
+            if [ -f "$usage" ]; then echo "Review usage ($(basename "$usage")):"; cat "$usage"; fi
+          done
         fi
 
     - name: Post the review
@@ -324,6 +343,7 @@ runs:
         EVENT: ${{ inputs.event }}
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         GH_TOKEN: ${{ inputs.github-token }}
+        PYTHONSAFEPATH: "1"
         # review-post strips these values from anything it posts.
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}

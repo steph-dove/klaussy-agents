@@ -220,3 +220,21 @@ def test_review_post_cli_survives_a_non_utf8_diff(tmp_path):
     args = ["review-post", "--report", str(tmp_path / "REVIEW_OUTPUT.md")]
     result = CliRunner().invoke(app, [*args, "--diff", str(tmp_path / "pr.diff")])
     assert result.exit_code == 0, result.output
+
+
+def test_host_ports_and_times_are_not_locations():
+    report = "**Medium · Config · the service config**\n\nIt listens on localhost:8080 at 10:30.\n"
+    assert parse_findings(report)[0].place() is None
+
+
+def test_a_location_naming_a_file_only_borrows_a_line_for_that_file():
+    other = "**Medium · Bug · `src/a.py`**\n\nSame as src/b.py:12.\n"
+    same = "**Medium · Bug · `src/a.py`**\n\nSee src/a.py:7 and src/b.py:12.\n"
+    assert parse_findings(other)[0].place() is None
+    assert parse_findings(same)[0].place() == ("src/a.py", 7, 7)
+
+
+def test_approve_is_only_posted_when_the_reviewer_approved():
+    assert build_review(REPORT, DIFF, event="APPROVE")["event"] == "COMMENT"
+    clean = "**Verdict:** Approve · reviewed at `abc1234`\n"
+    assert build_review(clean, DIFF, event="APPROVE")["event"] == "APPROVE"

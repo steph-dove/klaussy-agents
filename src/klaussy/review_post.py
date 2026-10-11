@@ -21,7 +21,15 @@ CREDENTIAL_ENV = (
 FOOTER = "Reviewed by [klaussy](https://klaussy.com)."
 
 _FINDING = re.compile(r"^\*\*(?!Verdict)(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
-_LOCATION = re.compile(r"([\w.-][\w./-]*):(\d+)(?:\s*[-–]\s*(\d+))?")
+# A path needs an extension or a slash, or is a known extensionless file, so `localhost:8080`
+# and `10:30` aren't read as locations.
+_BARE_NAMES = "Makefile|Dockerfile|Rakefile|Gemfile|Procfile|Justfile|Vagrantfile"
+_PATH = (
+    r"(?:[\w./-]+\.\w+|[\w./-]*/[\w.-]+"
+    rf"|(?:[\w./-]*/)?(?:{_BARE_NAMES}|\.\w[\w.-]*))"
+)
+_LOCATION = re.compile(rf"({_PATH}):(\d+)(?:\s*[-–]\s*(\d+))?")
+_BARE_PATH = re.compile(_PATH)
 _HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
 _FENCE = re.compile(r"^\s*(```|~~~)")
@@ -47,8 +55,17 @@ class Finding:
         return f"**{meta}**\n\n{self.body}"
 
     def place(self) -> tuple[str, int, int] | None:
-        """The first `file:line[-line]` in the location, else in the body."""
-        m = _LOCATION.search(self.location) or _LOCATION.search(self.body)
+        """The `file:line[-line]` in the location; the body's only when the location names no
+        file, or names the same file."""
+        m = _LOCATION.search(self.location)
+        if not m:
+            named = _BARE_PATH.search(self.location)
+            for candidate in _LOCATION.finditer(self.body):
+                if not named or candidate.group(1).removeprefix("./") == named.group(
+                    0
+                ).removeprefix("./"):
+                    m = candidate
+                    break
         if not m:
             return None
         start = int(m.group(2))
@@ -142,7 +159,11 @@ def build_review(
     """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
     report = redact(report, secrets)
     findings = parse_findings(report)
-    if event == "REQUEST_CHANGES" and not findings and _APPROVED.search(report):
+    approved = bool(_APPROVED.search(report))
+    # The event follows the reviewer: no blocking a clean approval, no approving what it blocked.
+    if (event == "REQUEST_CHANGES" and not findings and approved) or (
+        event == "APPROVE" and not approved
+    ):
         event = "COMMENT"
     commentable = commentable_lines(diff) if inline else {}
     comments, unplaced = [], []
