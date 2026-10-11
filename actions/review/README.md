@@ -33,7 +33,7 @@ jobs:
 
 On a Claude Pro or Max plan, use `claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` instead, with a token from `claude setup-token`.
 
-To review with GitHub Copilot instead, create a fine-grained personal access token with only the **Copilot Requests** permission, from an account with a Copilot license, and store it as a secret:
+**Copilot support is in preview:** it hasn't passed a live run yet. To review with GitHub Copilot instead, create a fine-grained personal access token with only the **Copilot Requests** permission, from an account with a Copilot license, and store it as a secret:
 
 ```yaml
       - uses: steph-dove/klaussy-agents/actions/review@main
