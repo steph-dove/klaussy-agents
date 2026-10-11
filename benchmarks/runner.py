@@ -167,6 +167,7 @@ def run_review(
                 "--disallowedTools",
                 "WebFetch",
                 "WebSearch",
+                "ScheduleWakeup",
                 "--strict-mcp-config",
             ],
             cwd=repo,
@@ -373,7 +374,7 @@ def ask_claude_json(system: str, prompt: str, model: str) -> dict:
         )
     text = meta.get("result", "").strip()
     if text.startswith("```"):
-        text = text.split("```")[1].removeprefix("json").strip()
+        text = text.removeprefix("```").removeprefix("json").rsplit("```", 1)[0].strip()
     out = json.loads(text)
     out["_cost_usd"] = meta.get("total_cost_usd") or 0.0
     return out

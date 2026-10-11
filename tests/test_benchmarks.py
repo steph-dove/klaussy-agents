@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "benchmarks"))
 
 import label_fps  # noqa: E402
 import martian  # noqa: E402
+import reviewbench  # noqa: E402
 import reviewbench_agent  # noqa: E402
 import runner  # noqa: E402
 import swrbench  # noqa: E402
@@ -504,3 +505,57 @@ def test_reviewbench_findings_take_the_first_file_and_line_range():
     ]
     assert findings[0]["producer"] == "me"
     assert "without the mutex" in findings[0]["message"]
+
+
+def test_ask_claude_json_keeps_code_fences_inside_the_json(monkeypatch):
+    reply = '```json\n{"note": "the report quotes ```python\\nx = 1\\n```"}\n```'
+    meta = json.dumps({"result": reply, "total_cost_usd": 0.01})
+    monkeypatch.setattr(
+        runner.subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, meta, "")
+    )
+    assert runner.ask_claude_json("s", "p", "m")["note"].startswith("the report quotes ```python")
+
+
+def test_ask_claude_json_reads_a_one_line_fence(monkeypatch):
+    meta = json.dumps({"result": '```json {"a": 1}```', "total_cost_usd": 0})
+    monkeypatch.setattr(
+        runner.subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, meta, "")
+    )
+    assert runner.ask_claude_json("s", "p", "m")["a"] == 1
+
+
+def test_reviewbench_run_task_writes_a_contract_findings_file(tmp_path, monkeypatch):
+    task = {
+        "nwo": "brianc/node-postgres",
+        "pr_number": 3650,
+        "base": "c" * 40,
+        "head": "b922f0dd" + "0" * 32,
+        "title": "t",
+        "body": None,
+    }
+    report = "**High · Correctness · `lib/client.js:10-12`**\n\nLeaks the connection.\n"
+    monkeypatch.setattr(runner, "merge_base", lambda *a: "base")
+    monkeypatch.setattr(runner, "prepare_repo", lambda *a, **kw: tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "run_review",
+        lambda *a, **kw: {
+            "report": report,
+            "report_written": True,
+            "cost_usd": 1.0,
+            "duration_s": 5,
+            "phases": {},
+        },
+    )
+    for sub in ("findings", "reviews"):
+        (tmp_path / sub).mkdir()
+    args = argparse.Namespace(
+        out=tmp_path, work_dir=tmp_path, model=None, budget_usd=1.0, instruction=""
+    )
+    reviewbench.run_task(task, args)
+    record = json.loads(
+        (tmp_path / "findings" / "brianc_node-postgres_3650-b922f0dd.json").read_text()
+    )
+    assert record["pr"]["head"] == task["head"] and record["pr"]["pr_number"] == 3650
+    assert record["findings"][0]["file"] == "lib/client.js"
+    assert record["findings"][0]["end_line"] == 12
