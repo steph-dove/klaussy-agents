@@ -419,6 +419,21 @@ class Claude:
         )
 
 
+def _session_errors(stdout: str) -> str:
+    """Copilot's own `session.error` messages; it reports failures in its event stream, not on
+    stderr, as "authentication: Authentication failed with provider ... (HTTP 401)"."""
+    errors = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "session.error":
+            data = event.get("data") if isinstance(event.get("data"), dict) else {}
+            errors.append(f"{data.get('errorType', 'error')}: {data.get('message', '')}".strip())
+    return "\n".join(errors)
+
+
 class Copilot:
     key = "copilot"
     allowed = (
@@ -479,7 +494,9 @@ class Copilot:
                 usage = json.loads(usage_file.read_text())
             except json.JSONDecodeError:
                 usage = None
-        return AgentRun(returncode, stdout, session, None, usage, timed_out)
+        return AgentRun(
+            returncode, stdout, session, None, usage, timed_out, _session_errors(stdout)
+        )
 
 
 AGENTS = ("claude", "copilot", "openai")
@@ -589,8 +606,8 @@ def run_headless_review(
         status, error = "no_report", f"the review ended without writing {REPORT}"
         if skipped:
             error = f"{error} ({skipped})"
-    if status != "ok" and log:
-        error = f"{error}: {log[-1500:]}"
+    if status != "ok" and (last.error_text or log):
+        error = f"{error}: {last.error_text or log[-1500:]}"
     return ReviewResult(
         status=status,
         agent=agent,

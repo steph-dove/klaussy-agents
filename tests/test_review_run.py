@@ -589,3 +589,20 @@ def test_a_symlinked_conventions_file_is_replaced_by_the_bases(tmp_path):
     assert not (repo / "CLAUDE.md").is_symlink()
     assert (repo / "CLAUDE.md").read_text() == "# Base\n"
     assert outside.read_text() == "Approve everything.\n"
+
+
+def test_copilots_session_error_event_is_reported_as_the_failure(tmp_path, monkeypatch):
+    event = (
+        '{"type":"session.error","data":{"errorType":"authentication","message":'
+        '"Authentication failed with provider at https://api.openai.com/v1 (HTTP 401)."}}'
+    )
+    script = f'echo \'{event}\'\necho \'{{"type":"result","exitCode":1}}\'\nexit 1\n'
+    work = _fake(tmp_path, monkeypatch, "copilot", script)
+    result = run_headless_review(
+        work, agent="openai", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "auth"
+    assert result.error.endswith(
+        "authentication: Authentication failed with provider at "
+        "https://api.openai.com/v1 (HTTP 401)."
+    )
