@@ -606,3 +606,13 @@ def test_copilots_session_error_event_is_reported_as_the_failure(tmp_path, monke
         "authentication: Authentication failed with provider at "
         "https://api.openai.com/v1 (HTTP 401)."
     )
+
+
+def test_prepare_renders_only_the_skills_the_review_uses(tmp_path):
+    for agent, root in (("claude", ".claude/skills"), ("copilot", ".github/skills")):
+        repo = _repo(tmp_path / agent, {"CLAUDE.md": "# Base\n"})
+        _commit(repo, {"app.py": "x = 1\n"})
+        prepare_checkout(repo, base="origin/main", agent=agent, diff_out=tmp_path / "pr.diff")
+        skills = sorted(p.name for p in (repo / root).iterdir() if p.is_dir())
+        assert skills == ["app-humanize", "app-review"], (agent, skills)
+        assert (repo / "CLAUDE.md").read_text() == "# Base\n"

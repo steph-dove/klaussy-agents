@@ -52,6 +52,10 @@ PR_AGENT_CONFIG = (
     ".agents",
     ".codex",
 )
+# The review, and humanize, which it uses to write its comments.
+REVIEW_SKILLS = ("review", "humanize")
+# Where `klaussy init` writes skills for the agents the runner scaffolds.
+SKILL_ROOTS = (".claude/skills", ".github/skills")
 # `klaussy init` writes a broad allow-list and hooks that would widen the reviewer's tools.
 SCAFFOLD_WIDENERS = (
     ".claude/settings.json",
@@ -229,6 +233,9 @@ def prepare_checkout(
     # init can regenerate conventions the base already has; the base's win, and the review
     # skill is built from them afterwards.
     _restore_conventions(repo, base, drop_unknown=False)
+    # Only what the review uses: every other skill is context the agent re-sends on each call.
+    for skills_root in SKILL_ROOTS:
+        _remove(repo / skills_root)
     _klaussy(
         "skills",
         "--repo",
@@ -237,6 +244,8 @@ def prepare_checkout(
         branch,
         "--agents",
         backend,
+        "--only",
+        ",".join(REVIEW_SKILLS),
         "--force",
         repo=repo,
         env=env,

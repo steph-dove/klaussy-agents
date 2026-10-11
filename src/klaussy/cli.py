@@ -31,7 +31,7 @@ from klaussy.review_run import AGENTS as REVIEW_AGENTS
 from klaussy.review_run import REPORT as REVIEW_REPORT
 from klaussy.review_run import prepare_checkout, run_headless_review, scratch_worktree
 from klaussy.secret_scan import scan_paths as scan_secrets
-from klaussy.skills import HUMANIZE_BLOCK
+from klaussy.skills import HUMANIZE_BLOCK, SKILL_NAMES
 from klaussy.split_prep import prepare_split
 from klaussy.split_prep import render_dict as render_split_dict
 from klaussy.split_prep import render_markdown as render_split_markdown
@@ -228,11 +228,21 @@ def skills(
     all_agents: bool = typer.Option(
         False, "--all", help="Scaffold skills for every supported agent."
     ),
+    only: str | None = typer.Option(
+        None, "--only", help="Comma-separated skills to write (e.g. review). Defaults to all."
+    ),
     here: bool = _HERE_OPT,
 ) -> None:
     """Scaffold each bundled skill into every selected agent's skills directory."""
     repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
+    chosen = [name.strip() for name in only.split(",") if name.strip()] if only else None
+    unknown = [name for name in chosen or () if name not in SKILL_NAMES]
+    if unknown:
+        raise typer.BadParameter(
+            f"unknown skill(s): {', '.join(unknown)}; choose from {', '.join(SKILL_NAMES)}",
+            param_hint="--only",
+        )
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
     for key in selected:
@@ -242,6 +252,7 @@ def skills(
                 force=force,
                 base_branch=base_branch,
                 review_template=review_template,
+                only=chosen,
             )
         except SystemExit:
             console.print(f"[yellow]⚠ Skipped {key} skills[/yellow]")

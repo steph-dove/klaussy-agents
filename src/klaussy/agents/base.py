@@ -15,6 +15,7 @@ package format and place it per agent.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -120,6 +121,7 @@ def build_skill_payloads(
     base_branch: str = "main",
     review_template: Path | None = None,
     forge: str | None = None,
+    only: Sequence[str] | None = None,
 ) -> list[SkillPayload]:
     """Build canonical payloads for every bundled skill.
 
@@ -152,7 +154,7 @@ def build_skill_payloads(
         return render_tokens(text, tokens)
 
     payloads: list[SkillPayload] = []
-    for skill in SKILL_NAMES:
+    for skill in only or SKILL_NAMES:
         skill_dir = templates.joinpath(skill)
 
         aux_files: dict[str, str] = {}

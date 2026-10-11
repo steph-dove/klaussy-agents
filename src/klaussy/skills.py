@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
 
@@ -535,6 +536,7 @@ def scaffold_skills(
     review_template: Path | None = None,
     base_branch: str = "main",
     forge: str | None = None,
+    only: Sequence[str] | None = None,
 ) -> list[Path]:
     """Create .claude/skills/<repo>-<skill>/SKILL.md for each shipped skill.
 
@@ -548,7 +550,7 @@ def scaffold_skills(
     _migrate_legacy_commands(repo)
 
     existing_version = _read_version(skills_dir)
-    if existing_version == __version__ and not force:
+    if existing_version == __version__ and not force and not only:
         console.print(f"[dim]Skills already up to date (v{__version__}), skipping.[/dim]")
         return []
 
@@ -576,7 +578,7 @@ def scaffold_skills(
     def _substitute(text: str) -> str:
         return render_tokens(text, tokens)
 
-    for skill in SKILL_NAMES:
+    for skill in only or SKILL_NAMES:
         skill_dir = skills_dir / _skill_dir_name(repo, skill)
         skill_dir.mkdir(parents=True, exist_ok=True)
         skill_template_dir = templates.joinpath(skill)
@@ -605,7 +607,9 @@ def scaffold_skills(
             created.append(target)
             console.print(f"[green]✔ Created {target.relative_to(repo)}[/green]")
 
-    _write_version(skills_dir)
+    # The version marks a full set; writing it for a subset would make a later full run skip.
+    if not only:
+        _write_version(skills_dir)
 
     if not created:
         console.print("[dim]No skill files created.[/dim]")

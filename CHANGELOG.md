@@ -9,6 +9,10 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ### Added
 
+- **`klaussy skills --only review,humanize`** writes just the named skills (and leaves the
+  version marker alone, so a later full run still writes the rest). The headless review uses it
+  to give the agent only the review and humanize skills, which cut a Copilot review's input
+  tokens by about a fifth.
 - **`klaussy review --headless`** runs the review skill unattended on a pull request checkout
   with Claude Code, Copilot CLI, or OpenAI models through Copilot CLI (`--agent`), and writes
   `REVIEW_OUTPUT.md` plus a result JSON with the status, cost or usage, and the reason a

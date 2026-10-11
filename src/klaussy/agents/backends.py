@@ -196,7 +196,7 @@ class ClaudeBackend:
     key = "claude"
     label = "Claude Code"
 
-    def run_skills(self, repo, *, force, base_branch, review_template):
+    def run_skills(self, repo, *, force, base_branch, review_template, only=None):
         from klaussy.skills import scaffold_skills
 
         scaffold_skills(
@@ -204,6 +204,7 @@ class ClaudeBackend:
             force=force,
             review_template=review_template,
             base_branch=base_branch,
+            only=only,
         )
 
     def run_settings(self, repo, *, force):
@@ -253,7 +254,7 @@ class GenericBackend:
     label: str
     profile: CapabilityProfile
 
-    def run_skills(self, repo, *, force, base_branch, review_template):
+    def run_skills(self, repo, *, force, base_branch, review_template, only=None):
         write_skills(
             repo,
             self.profile,
@@ -261,6 +262,7 @@ class GenericBackend:
                 repo=repo,
                 base_branch=base_branch,
                 review_template=review_template,
+                only=only,
             ),
             force=force,
         )
@@ -799,7 +801,7 @@ class AiderBackend(GenericBackend):
     key = "aider"
     label = "Aider"
 
-    def run_skills(self, repo, *, force, base_branch, review_template):
+    def run_skills(self, repo, *, force, base_branch, review_template, only=None):
         console.print(
             "[dim][Aider] no skills mechanism — skipping skill emission. Aider "
             "reads the conventions from CONVENTIONS.md instead.[/dim]"
