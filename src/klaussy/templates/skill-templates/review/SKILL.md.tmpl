@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-review
-description: Use when the user wants a thorough PR or branch review. Triages by diff size — small PRs get a single-pass review, large PRs fan out to parallel sub-agents (correctness, architecture, security, scope, and an Agentic & Evals lens that activates on AI/agent code) with a validation phase that drops false positives.
+description: Use when the user wants a thorough PR or branch review. Triages by diff size — small PRs get one review plus a second-sweep sub-agent and validation, large PRs fan out to parallel sub-agents (correctness, architecture, security, scope, and an Agentic & Evals lens that activates on AI/agent code) with a validation phase that drops false positives.
 allowed-tools: Read Grep Glob Bash(git *) Bash(klaussy base *) Bash(klaussy review-prep *) Bash(python3 -m klaussy *) Bash(python -m klaussy *) Write Agent
 ---
 
@@ -17,7 +17,10 @@ You are conducting a thorough PR review. Follow these phases in order.
 ```!
 klaussy base --explain
 git branch --show-current
+klaussy review-prep --summary
 ```
+
+The last command printed the **Review path** for this change. If you settle on a different base than `klaussy base` picked, rerun `klaussy review-prep --summary --base <base>` for the right one.
 
 ### What you still need to fetch
 
@@ -34,9 +37,9 @@ The diff stat and commit log depend on `<base>`, so run them once you have it: `
 
 1. **Get the reviewable diff.** Run `klaussy review-prep`, which resolves the base itself. It returns the diff trimmed to reviewable files — lockfiles, generated/vendored trees, minified/binary blobs, and pure renames are dropped — followed by an **Excluded from review** manifest listing what it dropped and why. Use this trimmed diff as *the diff* for the rest of the review. If the `klaussy` CLI isn't on PATH (the command errors), fall back to `git diff <base>...HEAD` for the full untrimmed diff and proceed as before. Kept as a tool call rather than injected — even trimmed, diffs can be large.
 2. **Don't read the full files yet.** The small-PR path reads them next; on the parallel path each lens reads what it needs, so reading them here too would pay for every file twice.
-3. Count the total **reviewable** lines changed — use the `N changed line(s)` figure in the review-prep summary line (on the `git diff` fallback, take the `--stat` total but ignore any lockfile / generated / vendored / minified / binary files).
+3. Note the **Review path** line `review-prep` printed (`small` or `parallel`). Only on the `git diff` fallback do you count lines yourself: take the `--stat` total, ignoring lockfile / generated / vendored / minified / binary files.
 4. If the branch name contains a ticket reference (e.g. FEAT-1234), note it for context.
-5. **Detect Architecture Decision Records / design docs.** Check the changed files for an ADR, RFC, or technical design doc using two signals:
+5. **Detect Architecture Decision Records / design docs.** `review-prep` names any it found (in its lens list, or a "Design docs changed" line). Only on the `git diff` fallback, check the changed files yourself using two signals:
    - **Path**: any of `docs/adr/`, `doc/adr/`, `adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, `rfcs/`, `docs/rfcs/`, `docs/design/`, `design-docs/`, or filenames like `NNNN-title.md`, `ADR-NNNN-*.md`, `*.adr.md`, `*.rfc.md`, `*.design.md`.
    - **Content**: a changed Markdown file containing ≥3 of the headings `## Status`, `## Context`, `## Decision`, `## Consequences`; or MADR headings (`## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`); or Rust-RFC headings (`## Motivation`, `## Rationale and alternatives`, `## Drawbacks`); or YAML frontmatter with `status:` / `deciders:` keys.
 
@@ -48,10 +51,10 @@ Store the diff output and file contents — you will need them in the next phase
 
 ## Phase 2: Triage
 
-Count the total **reviewable** lines changed (from Phase 1 step 3 — the trimmed-diff figure, not the raw `--stat`, which still counts the dropped lockfile/generated/vendored noise).
+Take the path `review-prep` printed. Don't recount or second-guess it; it was computed from the trimmed diff. The one override is the user: if they asked for the full fan-out (or a quick single pass), rerun `klaussy review-prep --summary --path parallel` (or `--path small`) and take that path instead.
 
-- **If < 150 lines changed:** proceed to [Small PR Review](#small-pr-review) below.
-- **If ≥ 150 lines changed:** proceed to [Parallel Review](#parallel-review) below.
+- **`small`** (under 150 reviewable lines): proceed to [Small PR Review](#small-pr-review) below.
+- **`parallel`** (150 or more): proceed to [Parallel Review](#parallel-review) below. Reviewing a parallel-path change single-handed is not a shortcut you get to take.
 
 **Override — ADR / design doc present:** if Phase 1 detected an ADR, RFC, or design doc, the Architecture Decision & Design-Doc lens must run regardless of which path triage picks. In the parallel path it's the design-doc lens. In the small-PR path, additionally read `.claude/skills/{{REPO}}-review/lens-adr.md` and apply its checklist to the doc before writing your output. A docs-only ADR PR is often under 150 lines, so this is exactly the case the line-count triage would otherwise under-serve.
 
@@ -60,6 +63,17 @@ Count the total **reviewable** lines changed (from Phase 1 step 3 — the trimme
 ## Small PR Review
 
 You are a senior/principal-level engineer reviewing a pull request. Treat this as a real production PR. Output ONLY PR-style review comments, as if leaving inline comments on GitHub/GitLab/Bitbucket.
+
+Work through these steps in order. Don't write `REVIEW_OUTPUT.md` before step 6, however small the diff or clear the findings look:
+
+1. Read the reviewable files in full (below).
+2. Review them against the rules and "What to look for", rating each finding honestly.
+3. Launch the [Second sweep](#second-sweep) sub-agent and merge its findings with yours.
+4. Launch a [validation](#validate-findings) sub-agent on every finding and apply its verdicts.
+5. Cut Warn and Nit.
+6. Write the comments in the delivery mode from Tone & standards, humanize them, and write `REVIEW_OUTPUT.md` with the [end-of-review](#end-of-review) summary.
+
+Steps 3 and 4 run in sub-agents because a reviewer checking its own read skims past what it already decided. Only with no sub-agent tool at all do you do them yourself, by opening `lens-correctness.md` and `lens-validation.md`.
 
 **Read the full file (not just the diff hunks) for every *reviewable* changed file** — the files present in the trimmed diff, not the ones in the Excluded manifest. These are independent reads — issue them all in a single batch of parallel tool calls, not sequentially. The excluded files are deliberately out of scope: don't read or comment on them unless a finding in a reviewable file points directly at one.
 
@@ -77,6 +91,10 @@ Severities: Blocker, High, Medium, Low, Warn, Nit.
 
 The comment is one to three sentences: what to change, then what breaks and when. Lead with the fix so a reader who stops after one sentence can still act. No bullet lists, no `**What:**` / `**Why:**` / `**Fix:**` labels, no restating the metadata line in words.
 
+**Name the root defect, not just one symptom.** After the fix, say what is wrong in the code, then the consequence a user hits. A finding that only describes a symptom reads as a different issue from the one the author has to fix.
+
+**Keep checking after the first finding.** A function with one bug often has another; finishing one finding there is not a reason to stop checking it against the rest of the list.
+
 **One entry per problem, not per location.** Unrelated findings get their own entries even when they share a file. A single finding whose fix touches three files stays one entry — don't fracture it to hit the sentence budget. Ask whether the reader would act on the parts separately.
 
 ### Review rules:
@@ -88,26 +106,66 @@ The comment is one to three sentences: what to change, then what breaks and when
 - If something relies on an unstated assumption, call it out.
 - If behavior is unclear, treat that as a problem.
 - Prefer concrete fixes over vague advice.
+- **The written review carries Blocker, High, Medium and Low.** Warn and Nit findings stay out unless the user asked for them ("include nits", "thorough", "everything"); drop them entirely, with no minor section and no "also below threshold" mention in the summary or anywhere else. Rate every finding honestly while you work and apply this cut last, when you write the output. Never raise a severity to keep a finding.
 - **Precision over recall.** Default to *not* reporting. If no finding is one a competent author would clearly want to fix, return an empty review and say so — an empty review is a valid, good outcome, not a failure. Do not invent findings or pad to look thorough.
 - **Every finding must name a concrete trigger.** State the specific input, state, or execution path that makes it go wrong. If you cannot describe how the problem is reached, you have not proven it — drop it.
+- **It must be about this change.** Code the PR adds, edits or newly exercises; problems that were already there are out of scope, even on lines the PR touches, unless the PR makes them worse. "Consider adding…" isn't a finding unless you can name the failure the missing piece lets through.
+- **Rate severity with the scale below.**
 - **Don't self-assign confidence scores.** A number you make up is noise; the trigger path above is the real evidence. Lead with the evidence, not a percentage.
+
+### Severity scale
+
+Rate by the worst realistic outcome when the trigger happens, not by how likely the trigger is, how sure you are, or how much you want the finding to survive. A rare trigger with a wrong result is still a wrong result.
+
+| Severity | Meaning | For example |
+|---|---|---|
+| Blocker | Breaks the build, the main flow, or data/security for everyone, on the normal path. | An import of a name that doesn't exist; a migration that fails on deploy. |
+| High | Wrong results, data loss, a crash, or a security hole on a realistic path. | A cache key two different inputs can share, so one gets the other's answer; an attribute read on a value that is None for a supported caller, like API-token requests; a check that can be skipped with crafted input. |
+| Medium | Breaks under specific but reachable conditions, a real performance/reliability problem under normal load, a guard against regressions that doesn't work, text that states the wrong behavior, or a wrong signal to the people running it: input a sibling path validates that this one lets through, an expected condition reported as a failure, or a failure that goes quiet. | A test that passes whether or not the code it targets works; a leak that grows per request; a comment, docstring, error message or translation the diff left saying something the code no longer does; a query parameter sent on to a header or backend call unchecked, so a crafted value gets a 500 instead of a 400; cancellation caught by a catch-all and logged as an unexpected error on every shutdown; a first error that switches every later call to a silent fallback; an operator hint in a branch the case it describes never reaches. |
+| Low | A real flaw nobody using or running the code would notice: no wrong result and no wrong signal. | A vague log line; cleanup that never fails visibly; a parameter typed looser than every caller needs. |
+| Warn | Out-of-scope change the author should confirm. | A drive-by refactor in an unrelated module. |
+| Nit | Style, naming, comment hygiene. | A narrating comment; an unexported name that should be private. |
 
 ### What to look for (in order of priority):
 
 1. **Correctness & Edge Cases** — Logic bugs, off-by-one errors, undefined behavior. Error handling gaps, partial failures.
    - **Removed-behavior audit:** for every deleted or replaced line in the diff, name the invariant, guard, or behavior it enforced, then confirm the new code re-establishes it (or that dropping it is intentional and safe). Silently removed checks are a top source of regressions.
+   - **Common defect patterns:** an async result never awaited or returned; null-safety that guards one access but not the next; a new definition that silently replaces an existing one; a subclass missing a method its base requires; state or a cache written before the operation it records succeeds; a hardcoded value where the codebase reads that value from a setting.
+   - **Every new reference resolves:** each new import, call, attribute, config key or route points at something that exists with that name and signature. Grep for it; don't assume.
+   - **Input is compared and matched the same way on both sides:** case, whitespace, separators and encoding are normalized before comparing against user or external input, and regexes built from settings or input escape every metacharacter and are anchored to the whole token.
+   - **Changed text says the right thing:** user-facing strings, error messages, log lines, translations and docs touched by the diff describe what the code actually does, for the right action, in the right language and script for their locale file, and comments, docstrings and test names near changed code still match what it does (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese).
 2. **Concurrency & State** — Race conditions, shared mutable state. Thread safety, async misuse, ordering assumptions.
 3. **Design & API Boundaries** — Leaky abstractions, tight coupling. Public interfaces that are hard to evolve.
 4. **Performance & Scalability** — Inefficient loops, N+1 calls, blocking I/O. Work done in hot paths that doesn't need to be.
 5. **Reliability** — Missing retries, timeouts, idempotency. Resource cleanup (connections, files, tasks).
 6. **Security** — Input validation, trust boundaries. Logging sensitive data.
 7. **Readability & Maintainability** — Ambiguous naming, overly clever code. **Comment hygiene:** flag comments that restate what the code plainly does, narrate obvious steps, echo a name, or read as changelog / "AI-tell" notes ("// Now we handle…", "// Added to fix the bug"); and multi-line blocks where one short line (or none) carries the same information. The fix is delete it, or condense to a one-line WHY. Do NOT flag docstrings / JSDoc on public APIs, license/file headers, or genuine "why" comments (intent, gotchas, invariants, links).
-8. **Test Coverage** — Were tests added or updated for the changes? Are edge cases covered?
+8. **Test Coverage** — Only a test in the diff that can't catch what it claims to: it asserts the wrong thing, passes whether or not the code works, or sets up data that never reaches the code under test. Name the regression it would let through. A missing test is not a finding, however risky the branch.
 9. **Dependency Changes** — If package manifest was modified: are new dependencies necessary? Are versions pinned? Flag any new dependencies that duplicate existing functionality.
 10. **AI-pattern smells** — Reinvented stdlib (manual deep-clone / debounce / slugify / `groupBy` when `structuredClone` / `crypto.randomUUID` / `Object.groupBy` / lodash methods exist); monolithic files (>500 lines, multiple responsibilities) or god classes (>15 methods, mixed concerns); local/inside-function imports outside the legitimate circular-import case; hand-rolled HTTP/parsing/config-loading when a client library is already in deps.
 11. **Scope** — Identify the primary intent of the PR. Flag changes unrelated to that intent with **Warn** severity.
 
 {{REPO_SPECIFIC_CHECKS}}
+
+### Second sweep:
+
+One read finds a given bug only about half the time. Launch one sub-agent with the Agent tool (`subagent_type: general-purpose`) and this prompt:
+
+```
+Review this pull request through one lens. Base branch: <base>.
+Read .claude/skills/{{REPO}}-review/sub-agents.md, then
+.claude/skills/{{REPO}}-review/lens-correctness.md, and follow them.
+This is the second correctness pass.
+Return only your findings. Do not write any files.
+```
+
+It runs the **Hunk sweep** from `lens-correctness.md` over every hunk. Wait for it, then merge its findings with yours: where both found the same problem, keep the more detailed one and the higher severity.
+
+### Validate findings:
+
+Number the merged findings `F1`, `F2`, … and reduce each to a claim: `<ID> · <severity> · <file:line> · <one line saying what breaks>`, without your reasoning or fix. Launch one validation sub-agent per batch of at most 6 claims, all in one message, each with the base branch, its claims, and "Read .claude/skills/{{REPO}}-review/lens-validation.md and follow it. Write no files." Drop the DROPs and apply the DOWNGRADEs; keep your own wording for what survives. A claim with no verdict goes to a fresh validator, and if that fails too, apply the rubric to it yourself. Then apply the Medium cut from the review rules.
+
+A shorter, accurate review is far more valuable than a long review with false positives.
 
 ### Tone & standards — pick a delivery mode, keep the substance:
 
@@ -128,24 +186,13 @@ Keep the analysis rigorous and the bar high (staff/principal quality); the mode 
 
 **Brevity must not dilute substance.** Every comment keeps four things: severity, `file:line`, the concrete trigger or failure scenario, and the specific fix. Everything else is cuttable, and most of it should go. Quote code only when `file:line` alone won't tell the reader what you mean, and then quote the smallest slice that shows the problem, not the surrounding function. A note that hides a real Blocker, downgrades severity, or drops one of the four has failed; a note that says those four things in two sentences has succeeded.
 
-### Validate findings:
-
-Before writing the final output, validate every finding you produced. For each one:
-
-1. **Read the full file** referenced in the finding (not just the diff hunk).
-2. **Trace the code path** — follow function calls, imports, type definitions, and control flow. Read caller and callee files as needed.
-3. **Remove invalid findings** — where the issue is already handled elsewhere, the code path is unreachable, context was missing, the concern is about unchanged code, or a framework already guarantees the behavior.
-4. **Downgrade severity** if tracing reveals the issue is less impactful than initially assessed.
-
-A shorter, accurate review is far more valuable than a long review with false positives.
-
 ### End of review:
 
 After validation, close with a short summary. No more than this:
 
 **Verdict:** Approve / Request Changes / Block · reviewed at `<short-sha>`
 
-Then one line naming the issues that drive that verdict (skip it entirely if there are none), and one line on test coverage — what's missing, or "covered" if nothing is. Don't restate findings the reader just read, and don't append a footer describing how the review was run.
+Then one line naming the issues that drive that verdict (skip it entirely if there are none), and one line on test coverage — what's missing, or "covered" if nothing is. Name only findings that are in the review; findings you cut stay unmentioned. Don't restate findings the reader just read, and don't append a footer describing how the review was run.
 
 Before writing, re-run the step 0 fetch and comparison. If the branch moved while you reviewed, read the new commits (`git diff <reviewed-sha>..origin/<branch>`), update any finding they fix or change, and stamp the new SHA. Then write this output to `REVIEW_OUTPUT.md`.
 
@@ -153,7 +200,7 @@ Before writing, re-run the step 0 fetch and comparison. If the branch moved whil
 
 ## Parallel Review
 
-At 150 or more reviewable lines, read `.claude/skills/{{REPO}}-review/parallel.md` and follow it. It fans the review out to parallel lens sub-agents, validates their findings, and synthesizes the result. The comment format, rubric, and tone rules above still apply there.
+On the `parallel` path, read `.claude/skills/{{REPO}}-review/parallel.md` and follow it. It fans the review out to parallel lens sub-agents, validates their findings through validation sub-agents, and synthesizes the result. Launching those sub-agents is required on this path; don't review the diff single-handed instead. The comment format, rubric, and tone rules above still apply there.
 
 ---
 

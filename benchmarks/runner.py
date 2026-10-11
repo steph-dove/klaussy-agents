@@ -1,0 +1,393 @@
+"""Benchmark-agnostic plumbing: rebuild a GitHub PR locally, run the review skill on it.
+
+The PR becomes a two-commit repo: `main` at the merge base and `pr` holding the
+PR's tree as one commit, so the skill sees exactly the PR diff and nothing else.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import os
+import re
+import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+
+DEFAULT_REVIEW_MODEL = "claude-opus-5-5"
+
+_PR_URL = re.compile(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)")
+_FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
+
+
+@dataclass
+class PullRequest:
+    url: str
+    owner: str
+    repo: str
+    number: int
+    title: str
+    body: str
+    merge_base: str
+    head: str
+
+
+def _run(args: list[str], cwd: Path | None = None, timeout: int = 1800) -> str:
+    proc = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise RuntimeError(f"{' '.join(args[:4])} failed: {proc.stderr[-1500:]}")
+    return proc.stdout
+
+
+def load_constants(source: Path, names: set[str]) -> dict:
+    """Read literal constants (prompts, maps) from a benchmark's source without importing it."""
+    tree = ast.parse(source.read_text())
+    found = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in names
+    }
+    missing = names - found.keys()
+    if missing:
+        raise SystemExit(f"{source.name} no longer defines {sorted(missing)}")
+    return found
+
+
+def merge_base(owner: str, repo: str, base: str, head: str) -> str:
+    out = _run(
+        [
+            "gh",
+            "api",
+            f"repos/{owner}/{repo}/compare/{base}...{head}",
+            "--jq",
+            ".merge_base_commit.sha",
+        ]
+    )
+    return out.strip()
+
+
+def fetch_pr(url: str) -> PullRequest:
+    owner, repo, number = _PR_URL.search(url).groups()
+    pr = json.loads(_run(["gh", "pr", "view", url, "--json", "title,body,baseRefOid,headRefOid"]))
+    return PullRequest(
+        url=url,
+        owner=owner,
+        repo=repo,
+        number=int(number),
+        title=pr["title"],
+        body=pr.get("body") or "",
+        merge_base=merge_base(owner, repo, pr["baseRefOid"], pr["headRefOid"]),
+        head=pr["headRefOid"],
+    )
+
+
+def prepare_repo(pr: PullRequest, work_dir: Path, name: str, *, enrich: bool = True) -> Path:
+    """Materialize `pr` under work_dir/name with klaussy scaffolded; reuse it if present.
+
+    A reused checkout keeps its enriched CLAUDE.md but gets the current skills.
+    `name` becomes the skill namespace, so give each PR its own work_dir.
+    """
+    dest = work_dir / name
+    if (dest / ".claude" / "skills" / f"{name}-review" / "SKILL.md").exists():
+        (dest / "REVIEW_OUTPUT.md").unlink(missing_ok=True)
+        skills = ["klaussy", "skills", "--repo", str(dest), "-b", "main", "--agents", "claude"]
+        _run([*skills, "--force"], cwd=dest)
+        return dest
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    git = ["git", "-c", "user.name=bench", "-c", "user.email=bench@localhost"]
+    _run(["git", "init", "-q", "-b", "main"], cwd=dest)
+    remote = f"https://github.com/{pr.owner}/{pr.repo}.git"
+    _run(["git", "fetch", "-q", "--depth", "1", remote, pr.merge_base, pr.head], cwd=dest)
+    _run(["git", "reset", "-q", "--hard", pr.merge_base], cwd=dest)
+    _run(["git", "checkout", "-q", "-b", "pr"], cwd=dest)
+    _run(["git", "read-tree", "-u", "--reset", pr.head], cwd=dest)
+    _run([*git, "commit", "-q", "--no-verify", "-m", pr.title, "-m", pr.body], cwd=dest)
+    _scaffold(dest, enrich=enrich)
+    return dest
+
+
+def _scaffold(repo: Path, *, enrich: bool) -> None:
+    """Run `klaussy init` and hide its output from git so the review sees only the PR."""
+    before = set(_run(["git", "ls-files", "--others", "--exclude-standard"], cwd=repo).split())
+    cmd = ["klaussy", "init", "--repo", str(repo), "-b", "main", "--agents", "claude"]
+    _run(cmd if enrich else [*cmd, "--skip-enrich"], cwd=repo, timeout=3600)
+    _run(["git", "checkout", "-q", "--", "."], cwd=repo)
+    after = set(_run(["git", "ls-files", "--others", "--exclude-standard"], cwd=repo).split())
+    tops = sorted({p.split("/")[0] for p in after - before})
+    with open(repo / ".git" / "info" / "exclude", "a") as f:
+        f.write("".join(f"/{t}\n" for t in tops))
+        f.write("/REVIEW_OUTPUT.md\n")
+
+
+RESUME_PROMPT = (
+    "The review isn't finished: REVIEW_OUTPUT.md doesn't exist. Continue from where you "
+    "stopped. Re-launch any validator that didn't report (or validate those claims inline), "
+    "then write REVIEW_OUTPUT.md."
+)
+
+
+def run_review(
+    repo: Path,
+    *,
+    model: str | None = None,
+    budget_usd: float = 10.0,
+    instruction: str = "",
+    max_resumes: int = 1,
+) -> dict:
+    """Run the review headless, resuming the session if it ends without writing a report."""
+    prompt = (
+        f"Use the {repo.name}-review skill to review this branch (`pr`) against `main`. "
+        f"{instruction} "
+        "There is no remote and no one to answer questions: make reasonable calls yourself "
+        "and finish by writing REVIEW_OUTPUT.md."
+    )
+    report = repo / "REVIEW_OUTPUT.md"
+    stream, trace, cost, resumes, session, meta = "", [], 0.0, 0, None, {}
+    while True:
+        args = ["-p", RESUME_PROMPT, "--resume", session] if session else ["-p", prompt]
+        proc = subprocess.run(
+            [
+                "claude",
+                *args,
+                "--permission-mode",
+                "bypassPermissions",
+                "--model",
+                model or os.environ.get("KLAUSSY_BENCH_MODEL", DEFAULT_REVIEW_MODEL),
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--max-budget-usd",
+                str(budget_usd),
+                "--disallowedTools",
+                "WebFetch",
+                "WebSearch",
+                "ScheduleWakeup",
+                "--strict-mcp-config",
+            ],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=3600,
+        )
+        stream += proc.stdout
+        part, meta = _parse_stream(proc.stdout)
+        trace += part
+        if not meta:
+            meta = {"error": proc.stderr[-1500:] or proc.stdout[-1500:]}
+        cost += meta.get("total_cost_usd") or 0.0
+        failed = _result_error(meta)
+        session = meta.get("session_id")
+        if report.exists() or failed or not session or resumes >= max_resumes:
+            break
+        resumes += 1
+    (repo / ".git" / "bench-stream.jsonl").write_text(stream)
+    return {
+        "report": report.read_text() if report.exists() else meta.get("result", ""),
+        "report_written": report.exists(),
+        "resumes": resumes,
+        "cost_usd": cost,
+        "cost_usd_per_result": meta.get("costs", []),
+        "duration_s": (meta.get("duration_ms") or 0) / 1000,
+        "num_turns": meta.get("num_turns"),
+        "error": failed,
+        "phases": review_phases(trace),
+        "trace": trace,
+    }
+
+
+def _result_error(meta: dict):
+    return (
+        meta.get("error")
+        or (meta.get("subtype") not in (None, "success") and meta["subtype"])
+        or (meta.get("is_error") and (meta.get("result") or "is_error"))
+    )
+
+
+def _parse_stream(stdout: str) -> tuple[list[dict], dict]:
+    """Tool calls from a stream-json run, sub-agents' included, plus the final result event.
+
+    Agent calls also get the sub-agent's status and final output. A backgrounded
+    sub-agent reports through `task_started` / `task_notification` system events keyed
+    by the Agent call's tool_use_id; a foreground one through the call's tool_result.
+    """
+    trace, result, costs = [], {}, []
+    agents: dict[str, dict] = {}
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind, subtype = event.get("type"), event.get("subtype")
+        if kind == "result":
+            result = event
+            costs.append(event.get("total_cost_usd"))
+        elif kind == "system" and subtype in ("task_started", "task_notification"):
+            call = agents.get(event.get("tool_use_id"))
+            if call is None:
+                continue
+            if subtype == "task_started":
+                call["background"] = bool(event.get("is_backgrounded"))
+            else:
+                call["status"] = event.get("status")
+                call["output"] = event.get("summary") or ""
+        for block in _content(event):
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                call = _tool_call(block, event)
+                if call["tool"] in ("Agent", "Task"):
+                    agents[block.get("id")] = call
+                trace.append(call)
+            elif block.get("type") == "tool_result" and block.get("tool_use_id") in agents:
+                call = agents[block["tool_use_id"]]
+                text = _text(block.get("content"))
+                if not call.get("background") and "agentId:" not in text:
+                    call["status"] = "error" if block.get("is_error") else "completed"
+                    call["output"] = text
+    if result:
+        result = {**result, "costs": costs}
+    return trace, result
+
+
+def _tool_call(block: dict, event: dict) -> dict:
+    arg = block.get("input") if isinstance(block.get("input"), dict) else {}
+    detail = next(
+        (arg[k] for k in ("skill", "file_path", "command", "description") if arg.get(k)), ""
+    )
+    call = {
+        "tool": block.get("name", ""),
+        "detail": str(detail)[:300],
+        "subagent": bool(event.get("parent_tool_use_id")),
+    }
+    if call["tool"] in ("Agent", "Task"):
+        call.update(prompt=arg.get("prompt", ""), status=None, output="")
+    return call
+
+
+def _content(event: dict) -> list:
+    """An event's content blocks; some CLI events carry a plain-string message instead."""
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
+def _text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
+    return ""
+
+
+def review_phases(trace: list[dict]) -> dict:
+    """Which parts of the review skill the run actually touched."""
+
+    def read(name: str) -> bool:
+        return any(
+            (t["tool"] == "Read" and t["detail"].endswith(name))
+            or (t["tool"] == "Bash" and name in t["detail"])
+            for t in trace
+        )
+
+    return {
+        "skill_invoked": any(
+            t["tool"] == "Skill" or t["detail"].endswith("-review/SKILL.md") for t in trace
+        ),
+        "review_prep": any("review-prep" in t["detail"] for t in trace),
+        "read_claude_md": read("CLAUDE.md"),
+        "parallel_path": read("parallel.md"),
+        "subagents": sum(1 for t in trace if t["tool"] in ("Agent", "Task")),
+        "subagents_incomplete": sum(
+            1 for t in trace if t["tool"] in ("Agent", "Task") and t.get("status") != "completed"
+        ),
+        "validation_rubric_read": read("lens-validation.md"),
+        "hunk_sweep_read": read("lens-correctness.md"),
+    }
+
+
+def review_failed(review: dict) -> str | None:
+    """Why a review can't be scored, or None. An empty report would score as a clean pass."""
+    if review.get("error"):
+        return str(review["error"])[:300]
+    if not review.get("report_written"):
+        return "no REVIEW_OUTPUT.md written"
+    return None
+
+
+def parse_findings(report: str) -> list[dict]:
+    """Split a REVIEW_OUTPUT.md into findings using the skill's `**Sev · Cat · loc**` lines."""
+    marks = list(_FINDING.finditer(report))
+    findings = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(report)
+        body = report[m.end() : end]
+        body = re.split(r"^\*\*Verdict:|^#{1,3} ", body, maxsplit=1, flags=re.MULTILINE)[0]
+        parts = [p.strip(" `") for p in m.group("meta").split("·")]
+        findings.append(
+            {
+                "severity": parts[0],
+                "category": parts[1] if len(parts) > 2 else "",
+                "location": parts[-1],
+                "text": f"{m.group('meta').strip()}\n{body.strip()}",
+            }
+        )
+    return findings
+
+
+def ask_claude_json(system: str, prompt: str, model: str) -> dict:
+    proc = subprocess.run(
+        [
+            "claude",
+            "-p",
+            prompt,
+            "--system-prompt",
+            system,
+            "--tools",
+            "",
+            "--model",
+            model,
+            "--output-format",
+            "json",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--setting-sources",
+            "",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"claude -p failed ({proc.returncode}): {proc.stderr[-1500:]}")
+    meta = json.loads(proc.stdout)
+    if meta.get("is_error"):
+        raise RuntimeError(
+            f"claude -p returned an error: {meta.get('result') or meta.get('subtype')}"
+        )
+    text = meta.get("result", "").strip()
+    if text.startswith("```"):
+        text = text.removeprefix("```").removeprefix("json").rsplit("```", 1)[0].strip()
+    out = json.loads(text)
+    out["_cost_usd"] = meta.get("total_cost_usd") or 0.0
+    return out
+
+
+def prf1(tp: int, fp: int, fn: int) -> dict[str, float]:
+    p = tp / (tp + fp) if tp + fp else 0.0
+    r = tp / (tp + fn) if tp + fn else 0.0
+    f1 = 2 * p * r / (p + r) if p + r else 0.0
+    f2 = 5 * p * r / (4 * p + r) if p + r else 0.0
+    return {"precision": p, "recall": r, "f1": f1, "f2": f2}
+
+
+def parallel_map(fn, items: list, workers: int = 8) -> list:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(fn, items))
