@@ -144,8 +144,9 @@ runs:
           .claude/settings.json .claude/settings.local.json .mcp.json \
           .github/skills .github/agents .github/hooks .copilot
         conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md)$|^\.claude/rules/|^\.github/copilot-instructions\.md$|^\.github/instructions/'
-        { git ls-files; git ls-tree -r --name-only "origin/${BASE_REF}"; } | { grep -E "$conventions" || true; } | sort -u |
-          while IFS= read -r path; do
+        { git ls-files -z; git ls-tree -r -z --name-only "origin/${BASE_REF}"; } |
+          { grep -zE "$conventions" || true; } | sort -zu |
+          while IFS= read -r -d '' path; do
             rm -f "$path"
             if git cat-file -e "origin/${BASE_REF}:${path}" 2>/dev/null; then
               git checkout -q "origin/${BASE_REF}" -- "$path"
