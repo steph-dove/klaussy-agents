@@ -27,7 +27,7 @@ from klaussy.repo import git_root, resolve_repo
 from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.review_run import AGENTS as REVIEW_AGENTS
-from klaussy.review_run import ReviewRunError, prepare_checkout, run_headless_review
+from klaussy.review_run import prepare_checkout, run_headless_review
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
 from klaussy.split_prep import prepare_split
@@ -572,7 +572,9 @@ def review(
         None, "--max-ai-credits", help="Credit cap (Copilot)."
     ),
     model: str | None = typer.Option(None, "--model", help="Model for the agent."),
-    timeout: float = typer.Option(3600, "--timeout", help="Seconds before the review is stopped."),
+    timeout: float = typer.Option(
+        3600, "--timeout", help="Seconds the agent may run, across both attempts."
+    ),
     include_nits: bool = typer.Option(False, "--include-nits", help="Also report Warn and Nit."),
     enrich: bool = typer.Option(False, "--enrich", help="Let init enrich a generated CLAUDE.md."),
 ) -> None:
@@ -587,7 +589,8 @@ def review(
         raise typer.BadParameter(f"must be one of {', '.join(REVIEW_AGENTS)}", param_hint="--agent")
     repo = repo.resolve()
     work_dir = work_dir.resolve()
-    work_dir.mkdir(parents=True, exist_ok=True)
+    for directory in (work_dir, out.parent, diff_out.parent):
+        directory.mkdir(parents=True, exist_ok=True)
     try:
         prepare_checkout(repo, base=base, agent=agent, diff_out=diff_out, enrich=enrich)
         result = run_headless_review(
@@ -602,7 +605,8 @@ def review(
             max_ai_credits=max_ai_credits,
             include_nits=include_nits,
         )
-    except ReviewRunError as exc:
+    except Exception as exc:
+        # Every failure still writes the result, so the caller can say why.
         out.write_text(json.dumps({"status": "error", "agent": agent, "error": str(exc)}, indent=2))
         console.print(f"[red]✗ {exc}[/red]")
         raise typer.Exit(1) from exc

@@ -21,6 +21,7 @@ for arg in "$@"; do
   prev="$arg"
   name="${arg%%=*}"
   case "$name" in
+    --text|--ignore-rev) ;;  # real options that happen to be prefixes of blocked ones
     --?*)
       list="$blocked"
       [ "$sub" = branch ] && list="$list $branch_blocked"

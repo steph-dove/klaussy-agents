@@ -157,6 +157,7 @@ def test_git_guard_refuses_options_that_write_or_run_or_escape(guarded, args):
     [
         ["status", "--short"],
         ["diff", "-M", "--stat"],
+        ["diff", "--text", "--stat"],
         ["branch", "--show-current"],
         ["diff", "--stat", "--", "--output"],
     ],
@@ -475,3 +476,44 @@ def test_a_timeout_without_process_groups_still_kills_the_agent(tmp_path, monkey
         timeout_s=1,
     )
     assert result.status == "timeout"
+
+
+def test_a_failed_run_whose_output_mentions_401_is_not_an_auth_failure(tmp_path, monkeypatch):
+    script = 'echo \'{"type": "tool", "output": "returns 401 unauthorized"}\'\nexit 3\n'
+    work = _fake(tmp_path, monkeypatch, "copilot", script)
+    result = run_headless_review(
+        work, agent="copilot", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "error"
+
+
+def test_a_rejected_copilot_key_on_stderr_is_auth(tmp_path, monkeypatch):
+    work = _fake(
+        tmp_path, monkeypatch, "copilot", "echo 'Authentication failed (HTTP 401)' >&2\nexit 1\n"
+    )
+    result = run_headless_review(
+        work, agent="copilot", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "auth"
+
+
+def test_prepare_never_hands_a_write_token_to_init(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setenv("GH_TOKEN", "ghs_write")
+    monkeypatch.setattr(review_run, "_klaussy", lambda *a, repo, env: seen.update(env))
+    repo = _repo(tmp_path, {"app.py": "x = 1\n"})
+    prepare_checkout(repo, base="origin/main", agent="claude", diff_out=tmp_path / "pr.diff")
+    assert seen and "GH_TOKEN" not in seen and seen["PYTHONSAFEPATH"] == "1"
+
+
+def test_guard_targets_with_spaces_are_quoted(tmp_path, monkeypatch):
+    real_which = review_run.shutil.which
+    monkeypatch.setattr(
+        review_run.shutil,
+        "which",
+        lambda name: "/opt/my tools/git" if name == "git" else real_which(name),
+    )
+    install_guards(tmp_path / "guard")
+    assert (
+        "exec '/opt/my tools/git' --no-replace-objects" in (tmp_path / "guard" / "git").read_text()
+    )

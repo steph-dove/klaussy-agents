@@ -149,3 +149,26 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
     assert "--base origin/main" in args and "--repo-name My_App" in args
     assert "--include-nits" in args and "--enrich" not in args
     assert '"status": "x"' in result.stdout
+
+
+def test_the_cli_writes_a_result_even_when_the_out_dir_is_missing(tmp_path):
+    out = tmp_path / "nested" / "result.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "review",
+            "--headless",
+            "--repo",
+            str(tmp_path),
+            "--base",
+            "origin/main",
+            "--out",
+            str(out),
+            "--diff-out",
+            str(tmp_path / "d" / "pr.diff"),
+            "--work-dir",
+            str(tmp_path / "w"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert '"status": "error"' in out.read_text()

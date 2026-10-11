@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -97,6 +98,7 @@ class AgentRun:
     cost_usd: float | None = None
     usage: dict | None = None
     timed_out: bool = False
+    error_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -181,7 +183,8 @@ def prepare_checkout(
         _remove(repo / path)
     _restore_conventions(repo, base, drop_unknown=True)
 
-    env = {**os.environ, "PYTHONSAFEPATH": "1"}
+    # `init --enrich` runs a model over the PR's files, so it gets no token that can write.
+    env = {k: v for k, v in os.environ.items() if k not in WRITE_TOKENS} | {"PYTHONSAFEPATH": "1"}
     branch = base.removeprefix("origin/")
     backend = SKILL_BACKEND[agent]
     if not (repo / "CLAUDE.md").is_file():
@@ -225,8 +228,9 @@ def install_guards(guard_dir: Path) -> dict[str, str]:
     git = shutil.which("git")
     if not git:
         raise ReviewRunError("git isn't on PATH")
-    klaussy = shutil.which("klaussy") or f'"{sys.executable}" -m klaussy'
-    real = {"REAL_GIT": git, "REAL_KLAUSSY": klaussy}
+    found = shutil.which("klaussy")
+    klaussy = shlex.quote(found) if found else f"{shlex.quote(sys.executable)} -m klaussy"
+    real = {"REAL_GIT": shlex.quote(git), "REAL_KLAUSSY": klaussy}
     guards = resources.files("klaussy").joinpath("templates", "review-guards")
     for name in ("git", "klaussy"):
         script = guards.joinpath(name).read_text()
@@ -386,6 +390,7 @@ class Claude:
             float(cost) if isinstance(cost, (int, float)) else None,
             None,
             timed_out,
+            str(data.get("result", "")) if data.get("is_error") else "",
         )
 
 
@@ -511,6 +516,8 @@ def run_headless_review(
         )
         log = f"{out}\n{err}".strip()
         last = runner.result(code, out, timed_out, work_dir, runs, session)
+        # Only the agent's own error text, never its event stream, which carries tool output.
+        auth_text = f"{err}\n{last.error_text}"
         runs += 1
         session = last.session or session
         if last.usage:
@@ -545,7 +552,7 @@ def run_headless_review(
         status, error = "timeout", f"the review hit its {int(timeout_s)}s limit"
     elif agent == "claude" and "error_max_budget" in log:
         status, error = "budget", f"the ${budget_usd} budget ran out"
-    elif last.returncode not in (0, None) and _AUTH.search(log):
+    elif last.returncode not in (0, None) and _AUTH.search(auth_text):
         status, error = "auth", "the agent's credential was rejected"
     elif last.returncode not in (0, None):
         status, error = "error", f"{agent} exited with status {last.returncode}"
