@@ -123,3 +123,25 @@ def test_review_post_cli_prints_the_payload(tmp_path):
     payload = json.loads(result.output)
     assert payload["event"] == "REQUEST_CHANGES"
     assert len(payload["comments"]) == 1
+
+
+def test_build_review_redacts_secrets_from_body_and_comments():
+    leaked = "sk-ant-api03-" + "x" * 30
+    report = REPORT.replace(
+        "Hold it until the write returns.", f"Hold it. Env: {leaked} hunter2hunter2"
+    ).replace("Consider splitting the module.", f"Key {leaked}")
+    review = build_review(report, DIFF, secrets=["hunter2hunter2"])
+    posted = review["body"] + "".join(c["body"] for c in review["comments"])
+    assert leaked not in posted and "hunter2hunter2" not in posted
+    assert posted.count("[redacted]") == 3
+
+
+def test_review_post_cli_redacts_credentials_from_the_environment(tmp_path, monkeypatch):
+    leaked = "-".join(["plain", "oauth", "token", "value"])
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", leaked)
+    (tmp_path / "REVIEW_OUTPUT.md").write_text(REPORT.replace("splitting", leaked))
+    (tmp_path / "pr.diff").write_text(DIFF)
+    args = ["review-post", "--report", str(tmp_path / "REVIEW_OUTPUT.md")]
+    result = CliRunner().invoke(app, [*args, "--diff", str(tmp_path / "pr.diff")])
+    assert result.exit_code == 0, result.output
+    assert leaked not in result.output

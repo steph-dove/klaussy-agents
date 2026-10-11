@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
+from klaussy.secret_scan import redact
+
 MARKER = "<!-- klaussy-review -->"
+CREDENTIAL_ENV = (
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "OPENAI_API_KEY",
+    "COPILOT_GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+)
 FOOTER = "Reviewed by [klaussy](https://klaussy.com)."
 
 _FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
@@ -92,8 +103,16 @@ def summary(report: str) -> str:
     return "" if parse_findings(report) else report.strip()
 
 
-def build_review(report: str, diff: str, *, event: str = "COMMENT", inline: bool = True) -> dict:
+def build_review(
+    report: str,
+    diff: str,
+    *,
+    event: str = "COMMENT",
+    inline: bool = True,
+    secrets: Iterable[str] = (),
+) -> dict:
     """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
+    report = redact(report, secrets)
     commentable = commentable_lines(diff) if inline else {}
     comments, unplaced = [], []
     for f in parse_findings(report):

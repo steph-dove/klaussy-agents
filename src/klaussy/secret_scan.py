@@ -16,15 +16,20 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from klaussy.comment_lint import changed_lines
+
+REDACTED = "[redacted]"
 
 # Provider tokens with a fixed, unmistakable shape — flagged on sight.
 _HIGH_CONFIDENCE: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("AWS access key ID", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("private key block", re.compile(r"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----")),
     ("GitHub token", re.compile(r"\bgh[posru]_[A-Za-z0-9]{36,}\b")),
+    ("GitHub fine-grained token", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b")),
+    ("Anthropic key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
     ("Slack token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b")),
     ("Google API key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
     ("Stripe secret key", re.compile(r"\bsk_live_[0-9A-Za-z]{24,}\b")),
@@ -103,6 +108,16 @@ def analyze(path: str, text: str, scope: set[int] | None = None) -> list[Finding
             if m and _looks_secret(m.group("val")):
                 findings.append(Finding(path, idx, "hardcoded credential"))
     return findings
+
+
+def redact(text: str, literals: Iterable[str] = ()) -> str:
+    """Replace provider tokens, and each of `literals`, with a placeholder."""
+    for value in literals:
+        if len(value) >= 8:
+            text = text.replace(value, REDACTED)
+    for _, pattern in _HIGH_CONFIDENCE:
+        text = pattern.sub(REDACTED, text)
+    return text
 
 
 def scan_paths(paths: list[str], *, diff: bool) -> list[Finding]:

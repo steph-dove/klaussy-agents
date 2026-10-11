@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -23,7 +24,7 @@ from klaussy.humanize import humanize as humanize_text
 from klaussy.import_lint import scan_paths as scan_imports
 from klaussy.pr_template import scaffold_pr_template
 from klaussy.repo import git_root, resolve_repo
-from klaussy.review_post import build_review
+from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
@@ -570,6 +571,7 @@ def review_post(
         diff.read_text(encoding="utf-8"),
         event=event,
         inline=inline,
+        secrets=[os.environ[name] for name in CREDENTIAL_ENV if os.environ.get(name)],
     )
     sys.stdout.write(json.dumps(payload, indent=2) + "\n")
 
