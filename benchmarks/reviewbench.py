@@ -12,7 +12,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -27,6 +30,62 @@ AGENT = "klaussy-review"
 def task_key(task: dict) -> str:
     """The findings file name try-agent.sh and the judge use."""
     return f"{task['nwo'].replace('/', '_')}_{task['pr_number']}-{task['head'][:8]}"
+
+
+def headless_review(path: Path, repo: str, key: str, args: argparse.Namespace) -> dict:
+    """Review through `klaussy review --headless`, the runner the Action and hosted App use,
+    in the dict shape run_task reads."""
+    work = args.work_dir.resolve() / f"{key}-headless"
+    shutil.rmtree(work, ignore_errors=True)  # a stale report must never be scored
+    cmd = [
+        sys.executable,
+        "-m",
+        "klaussy",
+        "review",
+        "--headless",
+        "--repo",
+        str(path),
+        "--agent",
+        "claude",
+        "--base",
+        "main",
+        "--repo-name",
+        repo,
+        "--enrich",
+        "--budget-usd",
+        str(args.budget_usd),
+        "--timeout",
+        "3600",
+        "--work-dir",
+        str(work),
+        "--out",
+        str(work / "result.json"),
+        "--diff-out",
+        str(work / "pr.diff"),
+    ]
+    if args.model:
+        cmd += ["--model", args.model]
+    started = time.monotonic()
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    result = (
+        json.loads((work / "result.json").read_text()) if (work / "result.json").exists() else {}
+    )
+    report = work / "REVIEW_OUTPUT.md"
+    return {
+        "report": report.read_text() if report.exists() else "",
+        "report_written": report.exists(),
+        "cost_usd": result.get("cost_usd") or 0.0,
+        "duration_s": time.monotonic() - started,
+        "error": None
+        if result.get("status") == "ok" and proc.returncode == 0
+        else (
+            result.get("error")
+            or proc.stderr[-1500:]
+            or f"headless review exited {proc.returncode} with status {result.get('status')!r}"
+        ),
+        "phases": {"status": result.get("status"), "runs": result.get("runs")},
+        "headless": result,
+    }
 
 
 def run_task(task: dict, args: argparse.Namespace) -> str:
@@ -49,9 +108,12 @@ def run_task(task: dict, args: argparse.Namespace) -> str:
     print(f"[{key}] preparing", flush=True)
     path = runner.prepare_repo(pr, args.work_dir.resolve() / key, repo)
     print(f"[{key}] reviewing in {path}", flush=True)
-    review = runner.run_review(
-        path, model=args.model, budget_usd=args.budget_usd, instruction=args.instruction
-    )
+    if args.headless:
+        review = headless_review(path, repo, key, args)
+    else:
+        review = runner.run_review(
+            path, model=args.model, budget_usd=args.budget_usd, instruction=args.instruction
+        )
     (args.out / "reviews" / f"{key}.json").write_text(json.dumps(review, indent=2))
     failed = runner.review_failed(review)
     if failed:
@@ -84,12 +146,18 @@ def main() -> None:
     parser.add_argument("--budget-usd", type=float, default=20.0, help="Per-PR review cap")
     parser.add_argument("--instruction", default="", help="Extra user request for the review")
     parser.add_argument("--workers", type=int, default=1, help="Pull requests run at once")
+    parser.add_argument("--limit", type=int, help="Only the first N pull requests")
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Review through `klaussy review --headless` instead of the bench runner",
+    )
     args = parser.parse_args()
 
     if os.environ.get("KLAUSSY_RUN_BENCH") != "1":
         sys.exit("Set KLAUSSY_RUN_BENCH=1: this runs paid agent reviews.")
     manifest = "corpus/test/test.json" if args.set == "test" else "corpus/manifest.json"
-    tasks = json.loads((args.rb_dir / manifest).read_text())
+    tasks = json.loads((args.rb_dir / manifest).read_text())[: args.limit]
     for sub in ("findings", "reviews"):
         (args.out / sub).mkdir(parents=True, exist_ok=True)
 
