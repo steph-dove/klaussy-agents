@@ -1,0 +1,45 @@
+name: klaussy review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: klaussy-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./actions/review
+        with:
+          claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Preview: runs only once the COPILOT_GITHUB_TOKEN secret exists, and never fails the PR.
+  review-copilot:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.HAS_COPILOT_TOKEN == 'true'
+        with:
+          persist-credentials: false
+      - uses: ./actions/review
+        if: env.HAS_COPILOT_TOKEN == 'true'
+        with:
+          agent: copilot
+          copilot-github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}

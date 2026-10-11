@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -20,25 +19,24 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import runner  # noqa: E402
 
-_LOCATION = re.compile(r"([\w./-]+\.\w+|[\w./-]*/[\w.-]+):(\d+)(?:\s*[-–]\s*(\d+))?")
+from klaussy import review_post  # noqa: E402
 
 
 def to_findings(report: str, producer: str) -> list[dict]:
     """The report's findings in contract form; findings with no file:line are dropped."""
     out = []
-    for f in runner.parse_findings(report):
-        m = _LOCATION.search(f["location"]) or _LOCATION.search(f["text"])
-        if not m:
-            print(f"agent: no file:line, dropped: {f['location']}", file=sys.stderr)
+    for f in review_post.parse_findings(report):
+        where = f.place()
+        if not where:
+            print(f"agent: no file:line, dropped: {f.location}", file=sys.stderr)
             continue
-        start = int(m.group(2))
-        end = max(start, int(m.group(3) or start))
+        path, start, end = where
         out.append(
             {
-                "file": m.group(1).removeprefix("./"),
+                "file": path,
                 "start_line": start,
                 "end_line": end,
-                "message": f["text"],
+                "message": f.text,
                 "producer": producer,
             }
         )

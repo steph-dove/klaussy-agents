@@ -5,6 +5,20 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **A GitHub Action that reviews pull requests** (`actions/review`). It runs the review skill
+  headless in Claude Code or GitHub Copilot CLI (`agent: copilot`) and posts the result as a
+  pull request review, with each finding on the diff line it's about. The reviewer gets
+  read-only tools and never sees the GitHub token, a pull request can't swap in its own skills,
+  settings or conventions, and fork pull requests are skipped because they get no secrets.
+- **`klaussy secret-scan` catches Anthropic keys and fine-grained GitHub tokens**, and
+  `secret_scan.redact` strips them, plus the Action's credential values, from posted reviews.
+- **`klaussy review-post`** turns a `REVIEW_OUTPUT.md` and the pull request's diff into a
+  GitHub review payload. Findings outside the diff go in the review body, which GitHub requires.
+
 ## [0.38.0] - 2026-10-11
 
 ### Changed

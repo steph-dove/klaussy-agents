@@ -317,7 +317,7 @@ def test_judge_leaves_pairs_without_a_majority_unscored(monkeypatch):
 
 def test_severe_only_keeps_medium_and_above():
     kept = martian.severe_only(REPORT)
-    assert kept.startswith("High · Correctness · `pkg/a.go:12`")
+    assert kept.startswith("**High · Correctness · `pkg/a.go:12`**")
     assert "Rename x" not in kept
 
 

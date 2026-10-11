@@ -2,7 +2,7 @@
 
 import pytest
 
-from klaussy.secret_scan import analyze, scan_paths
+from klaussy.secret_scan import REDACTED, analyze, redact, scan_paths
 
 
 @pytest.mark.parametrize(
@@ -14,6 +14,8 @@ from klaussy.secret_scan import analyze, scan_paths
         ('slack = "xoxb-123456789012-abcdefghijkl"', "Slack token"),
         ('key = "AIza' + "b" * 35 + '"', "Google API key"),
         ('stripe = "sk_live_' + "c" * 24 + '"', "Stripe secret key"),
+        ('tok = "github_pat_' + "d" * 40 + '"', "GitHub fine-grained token"),
+        ('key = "sk-ant-api03-' + "e" * 30 + '"', "Anthropic key"),
     ],
 )
 def test_high_confidence_tokens_flagged(line, kind):
@@ -62,3 +64,11 @@ def test_scan_paths_reports_real_file(tmp_path):
     f.write_text('token = "ghp_' + "z" * 36 + '"\n')
     findings = scan_paths([str(f)], diff=False)
     assert len(findings) == 1 and findings[0].kind == "GitHub token"
+
+
+def test_redact_replaces_token_shapes_and_given_values():
+    token = "sk-ant-oat01-" + "f" * 30
+    text = f"env had {token} and plainvalue123 and short"
+    assert redact(text, ["plainvalue123", "short"]) == (
+        f"env had {REDACTED} and {REDACTED} and short"
+    )
