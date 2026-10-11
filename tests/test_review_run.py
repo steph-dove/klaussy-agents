@@ -404,6 +404,7 @@ def test_the_nested_claude_sweep_does_not_follow_symlinks_out_of_the_checkout(tm
     ("args", "code"),
     [
         (["branch", "evil", "HEAD"], 1),
+        (["branch", "--", "evil"], 1),
         (["branch", "--list", "ma*"], 0),
         (["branch", "--contains", "HEAD"], 0),
     ],
@@ -460,3 +461,17 @@ def test_a_timeout_kills_what_the_agent_started(tmp_path, monkeypatch):
     )
     time.sleep(4)
     assert result.status == "timeout" and not marker.exists()
+
+
+def test_a_timeout_without_process_groups_still_kills_the_agent(tmp_path, monkeypatch):
+    monkeypatch.delattr(review_run.os, "killpg")
+    work = _fake(tmp_path, monkeypatch, "claude", "sleep 30\n")
+    result = run_headless_review(
+        work,
+        agent="claude",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        timeout_s=1,
+    )
+    assert result.status == "timeout"

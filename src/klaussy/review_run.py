@@ -268,6 +268,17 @@ def _text(stream: str | bytes | None) -> str:
     return stream.decode(errors="replace") if isinstance(stream, bytes) else stream or ""
 
 
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Kill the agent and what it started; Windows has no process groups, so just the agent."""
+    try:
+        if hasattr(os, "killpg"):
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()
+    except ProcessLookupError:
+        pass
+
+
 def _run(
     argv: list[str], *, repo: Path, env: dict[str, str], timeout: float
 ) -> tuple[int | None, str, str, bool]:
@@ -288,8 +299,12 @@ def _run(
     try:
         out, err = proc.communicate(timeout=max(timeout, 1))
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        out, err = proc.communicate()
+        _kill_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # A grandchild that outlived the kill still holds the pipes; stop waiting on it.
+            out, err = "", ""
         return None, out or "", err or "", True
     return proc.returncode, out, err, False
 

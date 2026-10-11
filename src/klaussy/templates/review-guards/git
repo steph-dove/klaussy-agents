@@ -9,7 +9,11 @@ sub=""
 prev=""
 listing=""
 for arg in "$@"; do
-  [ "$arg" = "--" ] && break
+  if [ "$arg" = "--" ]; then
+    # Anything after `--` is a name, and `git branch -- NAME` creates that ref.
+    [ "$sub" = branch ] && refuse "branch --"
+    break
+  fi
   case " --list -l " in *" $arg "*) [ "$sub" = branch ] && listing=1 ;; esac
   if [ "$sub" = branch ] && [ "${arg#-}" = "$arg" ] && [ -z "$listing" ]; then
     case " $branch_reads " in *" $prev "*) ;; *) refuse "branch $arg" ;; esac
