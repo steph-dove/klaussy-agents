@@ -26,6 +26,7 @@ _HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _VERDICT = re.compile(r"^\*\*Verdict:", re.MULTILINE)
+_APPROVED = re.compile(r"^\*\*Verdict:\*\*\s*Approve\b", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -140,7 +141,7 @@ def build_review(
     """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
     report = redact(report, secrets)
     findings = parse_findings(report)
-    if event == "REQUEST_CHANGES" and not findings:
+    if event == "REQUEST_CHANGES" and not findings and _APPROVED.search(report):
         event = "COMMENT"
     commentable = commentable_lines(diff) if inline else {}
     comments, unplaced = [], []

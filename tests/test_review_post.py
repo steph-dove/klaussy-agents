@@ -158,10 +158,12 @@ def test_a_heading_or_rule_inside_a_code_fence_stays_in_the_finding():
     assert "# keep this comment" in body and "Verdict" not in body
 
 
-def test_request_changes_falls_back_to_comment_when_there_are_no_findings():
+def test_request_changes_falls_back_to_comment_only_for_an_approved_clean_report():
     clean = "**Verdict:** Approve · reviewed at `abc1234`\n"
     assert build_review(clean, DIFF, event="REQUEST_CHANGES")["event"] == "COMMENT"
     assert build_review(REPORT, DIFF, event="REQUEST_CHANGES")["event"] == "REQUEST_CHANGES"
+    unparsed = "Found a race in pool.py.\n\n**Verdict:** Request Changes\n"
+    assert build_review(unparsed, DIFF, event="REQUEST_CHANGES")["event"] == "REQUEST_CHANGES"
 
 
 def test_commentable_lines_only_reads_headers_outside_hunks():
