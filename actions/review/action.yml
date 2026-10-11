@@ -70,11 +70,17 @@ runs:
 
     - name: Check out the pull request head
       if: steps.gate.outputs.run == 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
         persist-credentials: false
+
+    - name: Set up Python
+      if: steps.gate.outputs.run == 'true'
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
 
     - name: Install klaussy and Claude Code
       if: steps.gate.outputs.run == 'true'
