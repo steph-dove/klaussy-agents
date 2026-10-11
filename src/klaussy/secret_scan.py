@@ -30,6 +30,7 @@ _HIGH_CONFIDENCE: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("GitHub token", re.compile(r"\bgh[posru]_[A-Za-z0-9]{36,}\b")),
     ("GitHub fine-grained token", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b")),
     ("Anthropic key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
+    ("OpenAI project key", re.compile(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}")),
     ("Slack token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b")),
     ("Google API key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
     ("Stripe secret key", re.compile(r"\bsk_live_[0-9A-Za-z]{24,}\b")),

@@ -32,7 +32,7 @@ def _gate(tmp_path: Path, **env: str) -> tuple[subprocess.CompletedProcess, str]
         "EVENT": "COMMENT",
         "HAS_CLAUDE_KEY": "false",
         "HAS_COPILOT_KEY": "false",
-        "HAS_CODEX_KEY": "false",
+        "HAS_OPENAI_KEY": "false",
         "PR": "7",
         "HEAD_REPO": "me/app",
         "BASE_REPO": "me/app",
@@ -66,9 +66,10 @@ def test_every_klaussy_subcommand_the_action_calls_exists():
     [
         ({"AGENT": "claude", "HAS_CLAUDE_KEY": "true"}, 0, "run=true"),
         ({"AGENT": "copilot", "HAS_COPILOT_KEY": "true"}, 0, "run=true"),
-        ({"AGENT": "codex", "HAS_CODEX_KEY": "true"}, 0, "run=true"),
+        ({"AGENT": "openai", "HAS_OPENAI_KEY": "true"}, 0, "run=true"),
         ({"AGENT": "copilot", "HAS_CLAUDE_KEY": "true"}, 1, ""),
-        ({"AGENT": "codex", "HAS_CLAUDE_KEY": "true"}, 1, ""),
+        ({"AGENT": "openai", "HAS_CLAUDE_KEY": "true"}, 1, ""),
+        ({"AGENT": "codex", "HAS_OPENAI_KEY": "true"}, 1, ""),
         ({"HEAD_REPO": "someone/fork"}, 0, "run=false"),
         ({"ACTOR": "dependabot[bot]"}, 0, "run=false"),
         ({}, 1, ""),
@@ -107,7 +108,7 @@ def test_posting_redacts_every_agents_credential():
     env = _step("Post the review")["env"]
     for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "COPILOT_GITHUB_TOKEN"):
         assert name in env, name
-    assert "CODEX_API_KEY" in env
+    assert "OPENAI_API_KEY" in env
 
 
 @pytest.mark.parametrize(("code", "step_code"), [(0, 0), (1, 1)])
@@ -124,7 +125,7 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
     fake.chmod(0o755)
     env = {
         **os.environ,
-        "AGENT": "codex",
+        "AGENT": "openai",
         "BASE_REF": "main",
         "BUDGET": "20",
         "MODEL": "",
@@ -144,7 +145,7 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
     )
     assert result.returncode == step_code, result.stdout + result.stderr
     args = (tmp_path / "args").read_text()
-    assert "review --headless" in args and "--agent codex" in args
+    assert "review --headless" in args and "--agent openai" in args
     assert "--base origin/main" in args and "--repo-name My_App" in args
     assert "--include-nits" in args and "--enrich" not in args
     assert '"status": "x"' in result.stdout

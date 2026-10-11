@@ -26,6 +26,7 @@ from klaussy.pr_template import scaffold_pr_template
 from klaussy.repo import git_root, resolve_repo
 from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
+from klaussy.review_run import AGENTS as REVIEW_AGENTS
 from klaussy.review_run import ReviewRunError, prepare_checkout, run_headless_review
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK
@@ -552,7 +553,9 @@ def review_prep(
 def review(
     headless: bool = typer.Option(False, "--headless", help="Run the review unattended."),
     repo: Path = typer.Option(Path("."), "--repo", "-r", help="The pull request checkout."),
-    agent: str = typer.Option("claude", "--agent", help="claude, copilot or codex."),
+    agent: str = typer.Option(
+        "claude", "--agent", help="claude, copilot, or openai (Copilot CLI on your OpenAI key)."
+    ),
     base: str = typer.Option(
         ..., "--base", help="Ref the PR is compared against, e.g. origin/main."
     ),
@@ -580,9 +583,10 @@ def review(
     if not headless:
         console.print("Run the review skill from your agent, or pass --headless.")
         raise typer.Exit(2)
-    if agent not in ("claude", "copilot", "codex"):
-        raise typer.BadParameter("must be claude, copilot or codex", param_hint="--agent")
+    if agent not in REVIEW_AGENTS:
+        raise typer.BadParameter(f"must be one of {', '.join(REVIEW_AGENTS)}", param_hint="--agent")
     repo = repo.resolve()
+    work_dir = work_dir.resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
     try:
         prepare_checkout(repo, base=base, agent=agent, diff_out=diff_out, enrich=enrich)

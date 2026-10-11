@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -23,7 +24,6 @@ from klaussy.skills import sanitize_skill_namespace
 
 REPORT = "REVIEW_OUTPUT.md"
 RESUME_PROMPT = f"{REPORT} doesn't exist yet. Finish the review and write it."
-CODEX_RESUME_PROMPT = "Finish the review and give the whole report as your final message."
 MIN_RESUME_USD = 0.5
 MIN_RESUME_SECONDS = 60
 
@@ -70,9 +70,19 @@ GIT_COMMANDS = (
 CREDENTIALS = {
     "claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"),
     "copilot": ("COPILOT_GITHUB_TOKEN",),
-    "codex": ("CODEX_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
 }
 WRITE_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN")
+# `openai` runs Copilot CLI with OpenAI as its model provider, so it keeps Copilot's allow-list
+# and confinement; the skill is rendered where Copilot reads it.
+SKILL_BACKEND = {"claude": "claude", "copilot": "copilot", "openai": "copilot"}
+OPENAI_PROVIDER = {
+    "COPILOT_PROVIDER_BASE_URL": "https://api.openai.com/v1",
+    "COPILOT_PROVIDER_TYPE": "openai",
+    # Copilot's help: use the responses wire API for GPT-5 series models.
+    "COPILOT_PROVIDER_WIRE_API": "responses",
+}
+DEFAULT_MODEL = {"claude": "claude-opus-5-5", "openai": "gpt-5.4"}
 
 
 class ReviewRunError(RuntimeError):
@@ -159,15 +169,21 @@ def prepare_checkout(
     for top in (".claude", ".claude/rules", ".github", ".github/instructions"):
         if (repo / top).is_symlink():
             (repo / top).unlink()
-    nested = [d for d in repo.glob("*/**/.claude") if ".git" not in d.relative_to(repo).parts]
-    for path in nested:
-        _remove(path)
+    # os.walk doesn't follow symlinked directories, so a PR's symlink can't point the sweep
+    # outside the checkout.
+    for root, dirs, _ in os.walk(repo):
+        if ".git" in dirs:
+            dirs.remove(".git")
+        if Path(root) != repo and ".claude" in dirs:
+            _remove(Path(root) / ".claude")
+            dirs.remove(".claude")
     for path in PR_AGENT_CONFIG:
         _remove(repo / path)
     _restore_conventions(repo, base, drop_unknown=True)
 
     env = {**os.environ, "PYTHONSAFEPATH": "1"}
     branch = base.removeprefix("origin/")
+    backend = SKILL_BACKEND[agent]
     if not (repo / "CLAUDE.md").is_file():
         flags = [] if enrich and agent == "claude" else ["--skip-enrich"]
         _klaussy(
@@ -177,7 +193,7 @@ def prepare_checkout(
             "-b",
             branch,
             "--agents",
-            agent,
+            backend,
             "--force",
             *flags,
             repo=repo,
@@ -193,7 +209,7 @@ def prepare_checkout(
         "-b",
         branch,
         "--agents",
-        agent,
+        backend,
         "--force",
         repo=repo,
         env=env,
@@ -204,6 +220,7 @@ def prepare_checkout(
 
 def install_guards(guard_dir: Path) -> dict[str, str]:
     """Write the git and klaussy wrappers and return the env that puts them first on PATH."""
+    guard_dir = guard_dir.resolve()
     guard_dir.mkdir(parents=True, exist_ok=True)
     git = shutil.which("git")
     if not git:
@@ -232,21 +249,18 @@ def agent_env(agent: str, guard_env: dict[str, str]) -> dict[str, str]:
     env.update(guard_env)
     if agent == "claude":
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+    if agent == "openai":
+        env.update(OPENAI_PROVIDER, COPILOT_PROVIDER_API_KEY=env.pop("OPENAI_API_KEY", ""))
     return env
 
 
 def review_prompt(repo_name: str, base: str, *, include_nits: bool, agent: str) -> str:
     skill = f"{sanitize_skill_namespace(repo_name)}-review"
     nits = "Include nits: report Warn and Nit findings too. " if include_nits else ""
-    finish = (
-        "You can't write files here, so give the whole report, in the skill's format, as your "
-        "final message."
-        if agent == "codex"
-        else f"Finish by writing {REPORT}."
-    )
     return (
         f"Use the {skill} skill to review this branch (HEAD) against `{base}`. {nits}"
-        f"There is no one to answer questions: make reasonable calls yourself. {finish}"
+        f"There is no one to answer questions: make reasonable calls yourself. "
+        f"Finish by writing {REPORT}."
     )
 
 
@@ -257,16 +271,27 @@ def _text(stream: str | bytes | None) -> str:
 def _run(
     argv: list[str], *, repo: Path, env: dict[str, str], timeout: float
 ) -> tuple[int | None, str, str, bool]:
-    """(returncode, stdout, stderr, timed_out); a timeout keeps whatever was printed."""
+    """(returncode, stdout, stderr, timed_out); a timeout kills the agent and everything it
+    started, and keeps whatever was printed."""
     try:
-        proc = subprocess.run(
-            argv, cwd=repo, env=env, capture_output=True, text=True, timeout=max(timeout, 1)
+        proc = subprocess.Popen(
+            argv,
+            cwd=repo,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired as exc:
-        return None, _text(exc.stdout), _text(exc.stderr), True
     except OSError as exc:
         return 127, "", f"couldn't start {argv[0]}: {exc}", False
-    return proc.returncode, proc.stdout, proc.stderr, False
+    try:
+        out, err = proc.communicate(timeout=max(timeout, 1))
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        out, err = proc.communicate()
+        return None, out or "", err or "", True
+    return proc.returncode, out, err, False
 
 
 class Claude:
@@ -308,7 +333,7 @@ class Claude:
             prompt,
             *resume,
             "--model",
-            model or "claude-opus-5-5",
+            model or DEFAULT_MODEL["claude"],
             "--max-budget-usd",
             str(budget_usd),
             "--allowedTools",
@@ -377,7 +402,7 @@ class Copilot:
             "--disable-builtin-mcps",
             "--no-ask-user",
             "--disallow-temp-dir",
-            "--secret-env-vars=COPILOT_GITHUB_TOKEN",
+            "--secret-env-vars=COPILOT_GITHUB_TOKEN,COPILOT_PROVIDER_API_KEY",
             "--add-dir",
             ".",
             "--no-auto-update",
@@ -412,73 +437,19 @@ class Copilot:
         return AgentRun(returncode, stdout, session, None, usage, timed_out)
 
 
-class Codex:
-    key = "codex"
-
-    def argv(
-        self,
-        prompt: str,
-        *,
-        model: str | None,
-        budget_usd: float,
-        session: str | None,
-        work_dir: Path,
-        runs: int,
-    ) -> list[str]:
-        head = (
-            ["codex", "exec", "resume", session, prompt]
-            if runs and session
-            else ["codex", "exec", prompt]
-        )
-        flags = [
-            "--sandbox",
-            "read-only",
-            "--ignore-rules",
-            "--ignore-user-config",
-            # Commands Codex runs see only core variables, never the API key.
-            "-c",
-            "shell_environment_policy.inherit=core",
-            "--json",
-            "--output-last-message",
-            str(work_dir / f"codex-last-{runs}.md"),
-        ]
-        if model:
-            flags += ["--model", model]
-        return [*head, *flags]
-
-    def result(
-        self,
-        returncode: int | None,
-        stdout: str,
-        timed_out: bool,
-        work_dir: Path,
-        runs: int,
-        session: str | None,
-    ) -> AgentRun:
-        thread, usage = session, None
-        for line in stdout.splitlines():
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") == "thread.started":
-                thread = event.get("thread_id") or thread
-            elif event.get("type") == "turn.completed":
-                usage = event.get("usage") or usage
-        return AgentRun(returncode, stdout, thread, None, usage, timed_out)
+AGENTS = ("claude", "copilot", "openai")
 
 
 def make_agent(name: str, *, max_ai_credits: str | None = None):
     if name == "claude":
         return Claude()
-    if name == "copilot":
-        return Copilot(max_ai_credits)
-    if name == "codex":
-        return Codex()
-    raise ValueError(f"agent must be claude, copilot or codex, not {name!r}")
+    if name in ("copilot", "openai"):
+        # A BYOK OpenAI run isn't billed in Copilot credits, so the credit cap doesn't apply.
+        return Copilot(max_ai_credits if name == "copilot" else None)
+    raise ValueError(f"agent must be one of {', '.join(AGENTS)}, not {name!r}")
 
 
-_AUTH = re.compile(r"authentication|unauthori[sz]ed|invalid api key|401|access denied", re.I)
+_AUTH = re.compile(r"authentication|unauthori[sz]ed|invalid (api )?key|\b401\b|access denied", re.I)
 
 
 def run_headless_review(
@@ -500,7 +471,8 @@ def run_headless_review(
     report = repo / REPORT
     deadline = time.monotonic() + timeout_s
     prompt = review_prompt(repo_name, base, include_nits=include_nits, agent=agent)
-    session = str(uuid.uuid4()) if agent == "copilot" else None
+    session = None if agent == "claude" else str(uuid.uuid4())
+    model = model or DEFAULT_MODEL.get(agent)
     spent: float | None = 0.0
     usage: list[dict] = []
     runs = 0
@@ -511,9 +483,8 @@ def run_headless_review(
 
     while runs < 2:
         left = budget_usd - (spent or 0.0)
-        resume = CODEX_RESUME_PROMPT if agent == "codex" else RESUME_PROMPT
         argv = runner.argv(
-            prompt if runs == 0 else resume,
+            prompt if runs == 0 else RESUME_PROMPT,
             model=model,
             budget_usd=round(left, 2),
             session=session,
@@ -533,15 +504,11 @@ def run_headless_review(
             if last.cost_usd is None:
                 notes.append(f"run {runs}'s cost couldn't be read from Claude's output")
             spent = None if spent is None or last.cost_usd is None else spent + last.cost_usd
-        if agent == "codex":
-            message = work_dir / f"codex-last-{runs - 1}.md"
-            if message.is_file() and message.read_text().strip():
-                shutil.copyfile(message, report)
 
-        if report.is_file() or timed_out or code != 0:
+        if report.is_file() or timed_out or code != 0 or runs >= 2:
             break
-        # Resume only when it can't overspend: Claude reports its cost, Copilot can't report
-        # what's left of a credit cap, and Codex has no cap but the deadline.
+        # Resume only when it can't overspend: Claude reports its cost, and Copilot can't
+        # report what's left of a credit cap.
         if agent == "claude" and spent is None:
             skipped = "not resumed past an unknown spend"
         elif agent == "claude" and budget_usd - spent < MIN_RESUME_USD:
@@ -563,7 +530,7 @@ def run_headless_review(
         status, error = "timeout", f"the review hit its {int(timeout_s)}s limit"
     elif agent == "claude" and "error_max_budget" in log:
         status, error = "budget", f"the ${budget_usd} budget ran out"
-    elif _AUTH.search(log):
+    elif last.returncode not in (0, None) and _AUTH.search(log):
         status, error = "auth", "the agent's credential was rejected"
     elif last.returncode not in (0, None):
         status, error = "error", f"{agent} exited with status {last.returncode}"

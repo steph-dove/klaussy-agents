@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -99,7 +100,7 @@ def test_prepare_drops_a_symlinked_rules_dir(tmp_path):
 
 
 def test_prepare_renders_the_skill_where_each_agent_reads_it(tmp_path):
-    for agent, root in (("copilot", ".github/skills"), ("codex", ".agents/skills")):
+    for agent, root in (("copilot", ".github/skills"), ("openai", ".github/skills")):
         repo = _repo(tmp_path / agent, {"CLAUDE.md": "# Base\n"})
         _commit(repo, {"app.py": "x = 1\n"})
         prepare_checkout(repo, base="origin/main", agent=agent, diff_out=tmp_path / "pr.diff")
@@ -180,21 +181,30 @@ def test_klaussy_guard_passes_base_through(guarded):
 
 
 def test_the_agent_env_has_no_write_token_or_other_agents_credentials(monkeypatch, tmp_path):
-    for name in ("GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN"):
+    for name in ("GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.setenv(name, "x")
-    monkeypatch.setenv("CODEX_API_KEY", "codex")
-    env = agent_env("codex", install_guards(tmp_path / "guard"))
-    assert env["CODEX_API_KEY"] == "codex"
-    for name in ("GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "COPILOT_GITHUB_TOKEN"):
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "copilot")
+    env = agent_env("copilot", install_guards(tmp_path / "guard"))
+    assert env["COPILOT_GITHUB_TOKEN"] == "copilot"
+    for name in ("GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
         assert name not in env, name
     assert env["PATH"].startswith(str(tmp_path / "guard"))
     assert env["GIT_CONFIG_GLOBAL"] == os.devnull and env["PYTHONSAFEPATH"] == "1"
 
 
+def test_openai_runs_copilot_with_openai_as_the_provider(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-key")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "copilot")
+    env = agent_env("openai", install_guards(tmp_path / "guard"))
+    assert env["COPILOT_PROVIDER_API_KEY"] == "sk-proj-key"
+    assert env["COPILOT_PROVIDER_BASE_URL"] == "https://api.openai.com/v1"
+    assert env["COPILOT_PROVIDER_WIRE_API"] == "responses"
+    assert "OPENAI_API_KEY" not in env and "COPILOT_GITHUB_TOKEN" not in env
+
+
 def test_the_prompt_names_the_sanitized_skill():
     prompt = review_prompt("My_App", "origin/main", include_nits=False, agent="claude")
     assert "my-app-review skill" in prompt and f"writing {REPORT}" in prompt
-    assert "final message" in review_prompt("app", "origin/main", include_nits=True, agent="codex")
 
 
 # --- running the agents ------------------------------------------------------
@@ -316,43 +326,6 @@ def test_copilot_resumes_its_own_session_without_a_cap(tmp_path, monkeypatch):
     assert "--allow-all" not in first and "--allow-tool=shell(klaussy)" in first
 
 
-FAKE_CODEX = """echo "$@" >> "$CALLS"
-out=""
-prev=""
-for arg in "$@"; do
-  [ "$prev" = "--output-last-message" ] && out="$arg"
-  prev="$arg"
-done
-echo '{"type": "thread.started", "thread_id": "t-123"}'
-case "$*" in
-  *"exec resume"*) printf '**Verdict:** Approve\\n' > "$out" ;;
-  *) [ -n "$CODEX_WRITES" ] && printf '**Verdict:** Approve\\n' > "$out" ;;
-esac
-echo '{"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 2}}'
-"""
-
-
-def test_codex_hands_back_its_report_as_the_final_message(tmp_path, monkeypatch):
-    monkeypatch.setenv("CODEX_WRITES", "1")
-    work = _fake(tmp_path, monkeypatch, "codex", FAKE_CODEX)
-    result = run_headless_review(
-        work, agent="codex", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
-    )
-    call = _calls(tmp_path)[0]
-    assert result.status == "ok" and (work / REPORT).read_text() == "**Verdict:** Approve\n"
-    assert "--sandbox read-only" in call and "shell_environment_policy.inherit=core" in call
-    assert "--ignore-rules" in call and result.usage == [{"input_tokens": 10, "output_tokens": 2}]
-
-
-def test_codex_resumes_its_thread_when_no_report_came_back(tmp_path, monkeypatch):
-    monkeypatch.delenv("CODEX_WRITES", raising=False)
-    work = _fake(tmp_path, monkeypatch, "codex", FAKE_CODEX)
-    result = run_headless_review(
-        work, agent="codex", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
-    )
-    assert result.status == "ok" and _calls(tmp_path)[1].startswith("exec resume t-123")
-
-
 def test_the_result_serializes_for_the_hosted_runner(tmp_path, monkeypatch):
     work = _fake(tmp_path, monkeypatch, "claude", FAKE_CLAUDE)
     result = run_headless_review(
@@ -393,6 +366,97 @@ def test_a_missing_agent_binary_is_an_error_not_a_crash(tmp_path, monkeypatch):
     work = tmp_path / "repo"
     work.mkdir()
     result = run_headless_review(
-        work, agent="codex", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+        work, agent="copilot", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
     )
-    assert result.status == "error" and "couldn't start codex" in result.error
+    assert result.status == "error" and "couldn't start copilot" in result.error
+
+
+def test_openai_uses_copilots_containment_a_default_model_and_no_credit_cap(tmp_path, monkeypatch):
+    script = 'echo "$@" >> "$CALLS"\necho "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+    work = _fake(tmp_path, monkeypatch, "copilot", script)
+    result = run_headless_review(
+        work,
+        agent="openai",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        max_ai_credits="5",
+    )
+    call = _calls(tmp_path)[0]
+    assert result.status == "ok" and result.agent == "openai"
+    assert "--model gpt-5.4" in call and "--max-ai-credits" not in call
+    assert "--allow-tool=shell(klaussy)" in call and "--allow-all" not in call
+    assert "COPILOT_PROVIDER_API_KEY" in call
+
+
+def test_the_nested_claude_sweep_does_not_follow_symlinks_out_of_the_checkout(tmp_path):
+    outside = tmp_path / "outside"
+    (outside / "keep" / ".claude").mkdir(parents=True)
+    repo = _repo(tmp_path, {"CLAUDE.md": "# Base\n"})
+    (repo / "link").symlink_to(outside)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "pr")
+    prepare_checkout(repo, base="origin/main", agent="claude", diff_out=tmp_path / "pr.diff")
+    assert (outside / "keep" / ".claude").is_dir()
+
+
+@pytest.mark.parametrize(
+    ("args", "code"),
+    [
+        (["branch", "evil", "HEAD"], 1),
+        (["branch", "--list", "ma*"], 0),
+        (["branch", "--contains", "HEAD"], 0),
+    ],
+)
+def test_git_branch_only_reads(guarded, args, code):
+    guard, repo, env = guarded
+    _git(
+        repo,
+        "-c",
+        "user.email=t@e.com",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "x",
+    )
+    result = subprocess.run([str(guard / "git"), *args], cwd=repo, env=env, capture_output=True)
+    assert result.returncode == code, result.stderr
+    assert "evil" not in _branches(repo)
+
+
+def _branches(repo: Path) -> str:
+    return subprocess.run(["git", "-C", str(repo), "branch"], capture_output=True, text=True).stdout
+
+
+def test_guards_work_from_a_relative_work_dir(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    env = install_guards(Path("rel") / "guard")
+    assert env["PATH"].startswith(str(tmp_path / "rel" / "guard"))
+
+
+def test_a_401_in_a_successful_runs_output_is_not_an_auth_failure(tmp_path, monkeypatch):
+    script = 'echo \'{"session_id": "s1", "total_cost_usd": 19.9, "duration_ms": 401}\'\n'
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    result = run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "no_report"
+
+
+def test_a_timeout_kills_what_the_agent_started(tmp_path, monkeypatch):
+    marker = tmp_path / "survived"
+    script = f"(sleep 3; touch {marker}) &\nsleep 30\n"
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    result = run_headless_review(
+        work,
+        agent="claude",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        timeout_s=1,
+    )
+    time.sleep(4)
+    assert result.status == "timeout" and not marker.exists()
