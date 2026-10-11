@@ -196,7 +196,11 @@ runs:
             status=0
             copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
           fi
-          [ "$status" = 0 ] || echo "::warning::Copilot exited with status $status."
+          if [ "$status" != 0 ]; then
+            echo "::error::Copilot exited with status $status, so the review may be incomplete."
+            tail -c 4000 "$RUNNER_TEMP/klaussy-run.json"
+            exit 1
+          fi
         else
           unset COPILOT_GITHUB_TOKEN
           allowed=(

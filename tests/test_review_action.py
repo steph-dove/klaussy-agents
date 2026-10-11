@@ -143,3 +143,31 @@ def test_setup_drops_the_pull_requests_agent_config_and_keeps_base_conventions(t
         assert not (repo / path).exists(), path
     for path in (".github/agents", "AGENTS.md", "REVIEW_OUTPUT.md"):
         assert not (repo / path).exists(), path
+
+
+@pytest.mark.parametrize(("exit_code", "step_code"), [(0, 0), (3, 1)])
+def test_a_copilot_run_that_fails_midway_fails_the_step(tmp_path, exit_code, step_code):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "copilot"
+    report = 'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md'
+    fake.write_text(f"#!/bin/sh\n{report}\nexit {exit_code}\n")
+    fake.chmod(0o755)
+    work = tmp_path / "repo"
+    work.mkdir()
+    env = {
+        **os.environ,
+        "AGENT": "copilot",
+        "BASE_REF": "main",
+        "GITHUB_REPOSITORY": "me/app",
+        "RUNNER_TEMP": str(tmp_path),
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    }
+    result = subprocess.run(
+        ["bash", "-eo", "pipefail", "-c", _step("Review")["run"]],
+        cwd=work,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == step_code, result.stdout + result.stderr
