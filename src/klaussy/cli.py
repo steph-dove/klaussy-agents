@@ -557,6 +557,9 @@ def review_post(
     inline: bool = typer.Option(
         True, "--inline/--no-inline", help="Attach findings to diff lines where possible."
     ),
+    commit: str | None = typer.Option(
+        None, "--commit", help="Head commit the diff was taken at; the review is pinned to it."
+    ),
 ) -> None:
     """Print a GitHub pull request review payload built from a review report.
 
@@ -572,6 +575,7 @@ def review_post(
         event=event,
         inline=inline,
         secrets=[os.environ[name] for name in CREDENTIAL_ENV if os.environ.get(name)],
+        commit=commit,
     )
     sys.stdout.write(json.dumps(payload, indent=2) + "\n")
 

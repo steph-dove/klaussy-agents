@@ -53,7 +53,7 @@ On a Claude Pro or Max plan, use `claude-code-oauth-token: ${{ secrets.CLAUDE_CO
 | `model` | | Model the review runs on. Defaults to `claude-opus-5-5` for Claude and to Copilot's default for Copilot. |
 | `include-nits` | `false` | Also report Warn and Nit findings. Blocker through Low are always reported. |
 | `event` | `COMMENT` | `COMMENT`, or `REQUEST_CHANGES` to block merging on findings. |
-| `enrich` | `true` | When the repo has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). |
+| `enrich` | `false` | When the base branch has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). This runs Claude over the pull request's code a second time, without the review's restrictions. |
 | `max-budget-usd` | `10` | Spending cap for one review (Claude). |
 | `max-ai-credits` | | AI credit cap for one review (Copilot). Empty means no cap. |
 | `github-token` | `github.token` | Token used to post the review. |
@@ -72,7 +72,7 @@ A review typically costs $1 to $4 in API usage on Opus, and about a third of tha
 ## Security
 
 - **Fork and Dependabot pull requests are skipped.** With the `pull_request` trigger, GitHub gives fork and Dependabot workflows no Actions secrets, so the review finds no credential and exits with a notice. Don't switch to `pull_request_target` to get around this: that runs with your secrets on code anyone can submit.
-- **The reviewer is read-only.** The agent runs with an allowlist: read-only `git` commands, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory. `git` refuses options that write files, run commands or read outside the repo (`--output`, `-c`, `--no-index`, `--ext-diff` and similar), and the pull request's diff is taken before the reviewer runs, so nothing it does can change what gets posted against.
+- **The reviewer is read-only.** The agent runs with an allowlist: the `git` commands it needs to read the pull request, `klaussy base` and `klaussy review-prep`, and writing `REVIEW_OUTPUT.md`. It has no shell commands that print files, no web access, no MCP servers and no hooks. Claude Code can't read `/proc`; Copilot is held to the working directory. `git` refuses options that write files, run commands or read outside the repo (`--output`, `-c`, `-C`, `--contents`, `--no-index`, `--ext-diff` and similar), and the pull request's diff is taken before the reviewer runs, so nothing it does can change what gets posted against.
 - **The reviewer never holds a token that can write.** The GitHub token is unset in the review step; only the final step, which posts the review, has it. Copilot's own token is stripped from the environment of the commands it runs.
 - **A pull request can't configure its own review.** Its `.claude/` skills, agents, settings and hooks, `.github/skills`, `.github/agents`, `.github/hooks` and `.mcp.json` are removed, and `CLAUDE.md`, `.claude/rules`, `AGENTS.md` and Copilot's instructions are taken from the base branch.
 - **Credentials are scrubbed from what gets posted.** Known token shapes, and the values of the Action's credential inputs, are replaced with `[redacted]` in the review and the job summary.

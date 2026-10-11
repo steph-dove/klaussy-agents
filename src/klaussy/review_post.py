@@ -26,7 +26,7 @@ _HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _VERDICT = re.compile(r"^\*\*Verdict:", re.MULTILINE)
-_APPROVED = re.compile(r"^\*\*Verdict:\*\*\s*Approve\b", re.MULTILINE)
+_APPROVED = re.compile(r"^\*\*Verdict:\*\*[\s*_]*Approve\b", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -137,6 +137,7 @@ def build_review(
     event: str = "COMMENT",
     inline: bool = True,
     secrets: Iterable[str] = (),
+    commit: str | None = None,
 ) -> dict:
     """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
     report = redact(report, secrets)
@@ -163,4 +164,7 @@ def build_review(
         parts.append(f"### {heading}\n\n" + "\n\n".join(f.text for f in unplaced))
     parts.append(f"{FOOTER}\n{MARKER}")
     body = "\n\n".join(p for p in parts if p)
-    return {"event": event, "body": body, "comments": comments}
+    review = {"event": event, "body": body, "comments": comments}
+    if commit:
+        review["commit_id"] = commit
+    return review

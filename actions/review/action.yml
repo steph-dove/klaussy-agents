@@ -32,9 +32,9 @@ inputs:
     required: false
     default: COMMENT
   enrich:
-    description: When the repo has no CLAUDE.md, let `klaussy init` enrich the generated one with Claude (agent claude only).
+    description: When the base branch has no CLAUDE.md, let `klaussy init` enrich the generated one with Claude (agent claude only). This runs Claude over the pull request's code a second time, outside the review's restrictions.
     required: false
-    default: "true"
+    default: "false"
   max-budget-usd:
     description: Spending cap for one review, for agent claude.
     required: false
@@ -182,14 +182,25 @@ runs:
         # allowed `git log` can't plant a diff driver; global and system config are ignored.
         guard="$RUNNER_TEMP/klaussy-git-guard"
         mkdir -p "$guard"
-        printf '%s\n' '#!/usr/bin/env bash' \
-          'for arg in "$@"; do' \
-          '  case "$arg" in' \
-          '    -c|-c*|--output|--output=*|--config-env*|--exec-path*|--git-dir*|--work-tree*|--ext-diff|--textconv|--no-index)' \
-          '      echo "git $arg is not allowed during a klaussy review" >&2; exit 1 ;;' \
-          '  esac' \
-          'done' \
-          "exec $(command -v git) --no-replace-objects \"\$@\"" > "$guard/git"
+        cat > "$guard/git" <<'GUARD'
+        #!/usr/bin/env bash
+        sub=""
+        for arg in "$@"; do
+          case "$arg" in
+            -c|-c*|-C|-C*|--output|--output=*|--contents|--contents=*|--config-env*|--exec-path*|--git-dir*|--work-tree*|--ext-diff|--textconv|--no-index)
+              echo "git $arg is not allowed during a klaussy review" >&2; exit 1 ;;
+          esac
+          if [ "$sub" = branch ]; then
+            case "$arg" in
+              -d|-D|--delete|-m|-M|--move|--copy|-f|--force|-u|--set-upstream-to*|--unset-upstream|--edit-description)
+                echo "git branch $arg is not allowed during a klaussy review" >&2; exit 1 ;;
+            esac
+          fi
+          [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
+        done
+        exec REAL_GIT --no-replace-objects "$@"
+        GUARD
+        sed -i.bak "s|REAL_GIT|$(command -v git)|" "$guard/git" && rm -f "$guard/git.bak"
         chmod +x "$guard/git"
         export PATH="$guard:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
         skill="$(python3 -c 'import sys; from klaussy.skills import sanitize_skill_namespace as s; print(s(sys.argv[1]))' "$(basename "$GITHUB_REPOSITORY")")-review"
@@ -197,7 +208,7 @@ runs:
         [ "$INCLUDE_NITS" = "true" ] && nits="Include nits: report Warn and Nit findings too. "
         prompt="Use the ${skill} skill to review this branch (HEAD) against \`origin/${BASE_REF}\`. ${nits}There is no one to answer questions: make reasonable calls yourself and finish by writing REVIEW_OUTPUT.md."
         resume_prompt="REVIEW_OUTPUT.md doesn't exist yet. Finish the review and write it."
-        git_commands=(diff log show status merge-base rev-parse ls-files branch symbolic-ref blame)
+        git_commands=(diff log show status merge-base rev-parse ls-files branch blame)
 
         if [ "$AGENT" = copilot ]; then
           unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
@@ -212,8 +223,7 @@ runs:
           session="$(python3 -c 'import uuid; print(uuid.uuid4())')"
           status=0
           copilot -p "$prompt" --session-id "$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
-          if [ ! -f REVIEW_OUTPUT.md ]; then
-            status=0
+          if [ ! -f REVIEW_OUTPUT.md ] && [ "$status" = 0 ]; then
             copilot -p "$resume_prompt" --resume="$session" "${flags[@]}" > "$RUNNER_TEMP/klaussy-run.json" || status=$?
           fi
         else
@@ -228,9 +238,9 @@ runs:
           )
           for c in "${git_commands[@]}"; do allowed+=("Bash(git $c:*)"); done
           run_claude() {
-            claude -p "$1" "${@:2}" \
+            claude -p "$2" "${@:3}" \
               --model "${MODEL:-claude-opus-5-5}" \
-              --max-budget-usd "$BUDGET" \
+              --max-budget-usd "$1" \
               --allowedTools "${allowed[@]}" \
               --disallowedTools WebFetch WebSearch ScheduleWakeup "Read(//proc/**)" \
               --settings '{"disableAllHooks": true}' \
@@ -238,12 +248,27 @@ runs:
               --output-format json > "$RUNNER_TEMP/klaussy-run.json"
           }
           status=0
-          run_claude "$prompt" || status=$?
-          if [ ! -f REVIEW_OUTPUT.md ]; then
+          run_claude "$BUDGET" "$prompt" || status=$?
+          spent="$(jq -er '.total_cost_usd' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || echo unknown)"
+          if [ ! -f REVIEW_OUTPUT.md ] && [ "$status" = 0 ]; then
             session="$(jq -r '.session_id // empty' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || true)"
-            if [ -n "$session" ]; then
-              status=0
-              run_claude "$resume_prompt" --resume "$session" || status=$?
+            if [ "$spent" = unknown ]; then
+              echo "::error::The first run's cost couldn't be read, so it isn't resumed past an unknown spend."
+            else
+              left="$(python3 -c 'import sys; print(round(float(sys.argv[1]) - float(sys.argv[2]), 2))' "$BUDGET" "$spent")"
+              if [ -z "$session" ]; then
+                echo "::error::The first run left no session to resume."
+              elif python3 -c 'import sys; sys.exit(float(sys.argv[1]) < 0.5)' "$left"; then
+                run_claude "$left" "$resume_prompt" --resume "$session" || status=$?
+                more="$(jq -er '.total_cost_usd' "$RUNNER_TEMP/klaussy-run.json" 2>/dev/null || echo unknown)"
+                if [ "$more" = unknown ]; then
+                  spent="$spent + unknown"
+                else
+                  spent="$(python3 -c 'import sys; print(float(sys.argv[1]) + float(sys.argv[2]))' "$spent" "$more")"
+                fi
+              else
+                echo "::error::Budget used up (\$$spent of \$$BUDGET spent), so the review isn't resumed."
+              fi
             fi
           fi
         fi
@@ -260,7 +285,7 @@ runs:
           exit 1
         fi
         if [ "$AGENT" = claude ]; then
-          jq -r '"Review cost: $\(.total_cost_usd // 0)"' "$RUNNER_TEMP/klaussy-run.json"
+          echo "Review cost: \$$spent"
         elif [ -f "$RUNNER_TEMP/klaussy-usage.json" ]; then
           echo "Review usage:" && cat "$RUNNER_TEMP/klaussy-usage.json"
         fi
@@ -272,16 +297,17 @@ runs:
         BASE_REF: ${{ github.event.pull_request.base.ref }}
         PR: ${{ github.event.pull_request.number }}
         EVENT: ${{ inputs.event }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         GH_TOKEN: ${{ inputs.github-token }}
         # review-post strips these values from anything it posts.
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
       run: |
-        klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" > "$RUNNER_TEMP/review.json"
+        klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
         if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then
-          echo "::warning::Inline comments were rejected; posting the review as one comment instead."
-          klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --no-inline > "$RUNNER_TEMP/review.json"
+          echo "::warning::Posting the review failed; retrying without inline comments."
+          klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" --no-inline > "$RUNNER_TEMP/review.json"
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null
         fi
         klaussy review-post --report REVIEW_OUTPUT.md --diff "$RUNNER_TEMP/pr.diff" --no-inline \

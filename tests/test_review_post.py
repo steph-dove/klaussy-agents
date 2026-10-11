@@ -191,3 +191,13 @@ def test_commentable_lines_only_reads_headers_outside_hunks():
         "café.py": {1},
         "my file.py": {1},
     }
+
+
+def test_the_review_is_pinned_to_the_commit_the_diff_was_taken_at():
+    assert build_review(REPORT, DIFF, commit="abc1234")["commit_id"] == "abc1234"
+    assert "commit_id" not in build_review(REPORT, DIFF)
+
+
+def test_a_bolded_approve_verdict_still_counts_as_approval():
+    clean = "**Verdict:** **Approve** · reviewed at `abc1234`\n"
+    assert build_review(clean, DIFF, event="REQUEST_CHANGES")["event"] == "COMMENT"

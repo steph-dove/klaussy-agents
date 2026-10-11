@@ -200,6 +200,10 @@ def _guarded_git(tmp_path: Path) -> tuple[Path, dict]:
         ["diff", "--no-index", "/dev/null", "/etc/hosts"],
         ["--git-dir=/tmp/elsewhere", "status"],
         ["diff", "--ext-diff"],
+        ["blame", "--contents", "/etc/hosts", "--", "README.md"],
+        ["-C", "/", "status"],
+        ["branch", "-D", "main"],
+        ["branch", "--set-upstream-to=origin/main"],
     ],
 )
 def test_git_guard_refuses_options_that_write_or_run_or_escape(tmp_path, args):
@@ -210,9 +214,12 @@ def test_git_guard_refuses_options_that_write_or_run_or_escape(tmp_path, args):
     assert not (tmp_path / "repo" / ".git" / "config").read_text().count("diff")
 
 
-def test_git_guard_passes_ordinary_commands_through(tmp_path):
+@pytest.mark.parametrize(
+    "args", [["status", "--short"], ["diff", "-M", "--stat"], ["branch", "--show-current"]]
+)
+def test_git_guard_passes_ordinary_reads_through(tmp_path, args):
     git, env = _guarded_git(tmp_path)
-    result = subprocess.run([str(git), "status", "--short"], cwd=tmp_path / "repo", env=env)
+    result = subprocess.run([str(git), *args], cwd=tmp_path / "repo", env=env)
     assert result.returncode == 0
 
 
@@ -280,3 +287,46 @@ def test_conventions_restore_tolerates_a_repo_with_no_conventions_files(tmp_path
         ["bash", "-eo", "pipefail", "-c", loop], cwd=repo, env=env, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+FAKE_CLAUDE = """#!/bin/sh
+echo "$@" >> "$RUNNER_TEMP/claude-calls"
+case "$*" in
+  *--resume*) echo "**Verdict:** Approve" > REVIEW_OUTPUT.md; echo '{"total_cost_usd": 1}' ;;
+  *) echo '{"session_id": "s1", "total_cost_usd": 3}' ;;
+esac
+"""
+
+
+@pytest.mark.parametrize(("budget", "resumed"), [("10", True), ("3.2", False)])
+def test_the_claude_resume_only_gets_the_budget_the_first_run_left(tmp_path, budget, resumed):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "claude").write_text(FAKE_CLAUDE)
+    (bin_dir / "claude").chmod(0o755)
+    work = tmp_path / "repo"
+    work.mkdir()
+    env = {
+        **os.environ,
+        "AGENT": "claude",
+        "BASE_REF": "main",
+        "BUDGET": budget,
+        "GITHUB_REPOSITORY": "me/app",
+        "RUNNER_TEMP": str(tmp_path),
+        "PATH": os.pathsep.join([str(bin_dir), str(PYTHON_BIN), os.environ["PATH"]]),
+    }
+    result = subprocess.run(
+        ["bash", "-eo", "pipefail", "-c", _step("Review")["run"]],
+        cwd=work,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    calls = (tmp_path / "claude-calls").read_text().splitlines()
+    if resumed:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "--max-budget-usd 7.0" in calls[1]
+        assert "Review cost: $4.0" in result.stdout
+    else:
+        assert len(calls) == 1 and result.returncode == 1
+        assert "Budget used up ($3 of $3.2 spent)" in result.stdout
