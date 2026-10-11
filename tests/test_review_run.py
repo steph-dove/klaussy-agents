@@ -204,7 +204,7 @@ def test_openai_runs_copilot_with_openai_as_the_provider(monkeypatch, tmp_path):
 
 
 def test_the_prompt_names_the_sanitized_skill():
-    prompt = review_prompt("My_App", "origin/main", include_nits=False, agent="claude")
+    prompt = review_prompt("My_App", "origin/main", include_nits=False)
     assert "my-app-review skill" in prompt and f"writing {REPORT}" in prompt
 
 
@@ -616,3 +616,30 @@ def test_prepare_renders_only_the_skills_the_review_uses(tmp_path):
         skills = sorted(p.name for p in (repo / root).iterdir() if p.is_dir())
         assert skills == ["app-humanize", "app-review"], (agent, skills)
         assert (repo / "CLAUDE.md").read_text() == "# Base\n"
+
+
+def test_an_agent_on_an_env_credential_gets_a_fresh_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    script = (
+        'echo "$HOME|$CLAUDE_CONFIG_DIR|$XDG_CONFIG_HOME" > "$CALLS"\n'
+        'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+        'echo \'{"session_id": "s", "total_cost_usd": 1}\'\n'
+    )
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    home = str((tmp_path / "w" / "home").resolve())
+    assert _calls(tmp_path) == [f"{home}|{home}/.claude|{home}/.config"]
+
+
+def test_an_agent_on_a_local_login_keeps_its_home(tmp_path, monkeypatch):
+    for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "operator"))
+    script = 'echo "$HOME" > "$CALLS"\necho "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert _calls(tmp_path) == [str(tmp_path / "operator")]

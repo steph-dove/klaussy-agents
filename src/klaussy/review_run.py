@@ -172,9 +172,9 @@ def _klaussy(*args: str, repo: Path, env: dict[str, str]) -> None:
 
 
 @contextmanager
-def scratch_worktree(repo: Path, work_dir: Path) -> Iterator[Path]:
-    """A throwaway worktree of `repo`'s HEAD, so the scrub never touches the caller's files."""
-    path = work_dir / "checkout"
+def scratch_worktree(repo: Path, work_dir: Path, name: str) -> Iterator[Path]:
+    """A throwaway worktree of HEAD named `name`, since skills are named after their folder."""
+    path = work_dir / "checkout" / name
     if path.exists():
         _git(repo, "worktree", "remove", "--force", str(path), check=False)
         _remove(path)
@@ -264,7 +264,7 @@ def install_guards(guard_dir: Path) -> dict[str, str]:
     found = shutil.which("klaussy")
     klaussy = shlex.quote(found) if found else f"{shlex.quote(sys.executable)} -m klaussy"
     real = {"REAL_GIT": shlex.quote(git), "REAL_KLAUSSY": klaussy}
-    guards = resources.files("klaussy").joinpath("templates", "review-guards")
+    guards = resources.files("klaussy").joinpath("templates").joinpath("review-guards")
     for name in ("git", "klaussy"):
         script = guards.joinpath(name).read_text()
         for placeholder, target in real.items():
@@ -284,10 +284,19 @@ def _without_foreign_credentials(agent: str) -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in WRITE_TOKENS and k not in others}
 
 
-def agent_env(agent: str, guard_env: dict[str, str]) -> dict[str, str]:
-    """The environment the agent runs in: no token that writes, no other agent's credential."""
+def agent_env(agent: str, guard_env: dict[str, str], home: Path | None = None) -> dict[str, str]:
+    """The environment the agent runs in: no token that writes, no other agent's credential,
+    and with `home`, none of the operator's skills, plugins, MCP servers or settings."""
     env = _without_foreign_credentials(agent)
     env.update(guard_env)
+    if home is not None:
+        home.mkdir(parents=True, exist_ok=True)
+        env.update(
+            HOME=str(home),
+            XDG_CONFIG_HOME=str(home / ".config"),
+            CLAUDE_CONFIG_DIR=str(home / ".claude"),
+            COPILOT_HOME=str(home / ".copilot"),
+        )
     if agent == "claude":
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
     if agent == "openai":
@@ -295,7 +304,7 @@ def agent_env(agent: str, guard_env: dict[str, str]) -> dict[str, str]:
     return env
 
 
-def review_prompt(repo_name: str, base: str, *, include_nits: bool, agent: str) -> str:
+def review_prompt(repo_name: str, base: str, *, include_nits: bool) -> str:
     skill = f"{sanitize_skill_namespace(repo_name)}-review"
     nits = "Include nits: report Warn and Nit findings too. " if include_nits else ""
     return (
@@ -538,10 +547,14 @@ def run_headless_review(
 ) -> ReviewResult:
     """Run the prepared review once, and resume once with whatever budget and time are left."""
     runner = make_agent(agent, max_ai_credits=max_ai_credits)
-    env = agent_env(agent, install_guards(work_dir / "guard"))
+    # An agent that authenticates from the environment needs nothing from the operator's home;
+    # one on a local login keeps it, since that's where the login lives.
+    from_env = any(os.environ.get(name) for name in CREDENTIALS[agent])
+    home = (work_dir / "home").resolve() if from_env else None
+    env = agent_env(agent, install_guards(work_dir / "guard"), home)
     report = repo / REPORT
     deadline = time.monotonic() + timeout_s
-    prompt = review_prompt(repo_name, base, include_nits=include_nits, agent=agent)
+    prompt = review_prompt(repo_name, base, include_nits=include_nits)
     session = None if agent == "claude" else str(uuid.uuid4())
     model = model or DEFAULT_MODEL.get(agent)
     spent: float | None = 0.0
@@ -549,6 +562,7 @@ def run_headless_review(
     runs = 0
     last: AgentRun | None = None
     log = ""
+    auth_text = ""
     skipped = ""
     notes: list[str] = []
 

@@ -208,6 +208,7 @@ def test_a_headless_review_never_touches_the_callers_checkout(tmp_path, monkeypa
     bin_dir.mkdir()
     (bin_dir / "claude").write_text(
         "#!/bin/sh\n"
+        f"ls .claude/skills > {tmp_path}/skills.txt\n"
         'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
         'echo \'{"session_id": "s", "total_cost_usd": 1}\'\n'
     )
@@ -229,10 +230,13 @@ def test_a_headless_review_never_touches_the_callers_checkout(tmp_path, monkeypa
             str(tmp_path / "pr.diff"),
             "--work-dir",
             str(tmp_path / "w"),
+            "--repo-name",
+            "My_App",
         ],
     )
     assert result.exit_code == 0, result.output
     assert (tmp_path / "w" / "REVIEW_OUTPUT.md").read_text() == "**Verdict:** Approve\n"
+    assert "my-app-review" in (tmp_path / "skills.txt").read_text().split()
     assert (repo / ".claude/skills/mine/SKILL.md").read_text() == "my own skill\n"
     assert (repo / "notes.md").read_text() == "uncommitted work\n"
     assert not (repo / "REVIEW_OUTPUT.md").exists()

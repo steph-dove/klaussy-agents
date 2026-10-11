@@ -611,7 +611,7 @@ def review(
     for directory in (work_dir, out.parent, diff_out.parent, report_out.parent):
         directory.mkdir(parents=True, exist_ok=True)
     try:
-        with scratch_worktree(repo, work_dir) as checkout:
+        with scratch_worktree(repo, work_dir, repo_name or repo.name) as checkout:
             prepare_checkout(checkout, base=base, agent=agent, diff_out=diff_out, enrich=enrich)
             result = run_headless_review(
                 checkout,
