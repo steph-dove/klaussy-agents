@@ -43,3 +43,22 @@ jobs:
         with:
           agent: copilot
           copilot-github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+  # Preview: OpenAI models through Copilot CLI. Runs once OPENAI_API_KEY exists; never fails the PR.
+  review-openai:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.HAS_OPENAI_KEY == 'true'
+        with:
+          persist-credentials: false
+      - uses: ./actions/review
+        if: env.HAS_OPENAI_KEY == 'true'
+        with:
+          agent: openai
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
