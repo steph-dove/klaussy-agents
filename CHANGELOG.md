@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Changed
+
+- **License: MIT to FSL-1.1-MIT.** klaussy is now source-available under the
+  Functional Source License. You can use, modify and self-host it for any
+  purpose except a competing commercial product or service, and each release
+  becomes MIT two years after it ships. 0.37.0 and every earlier release stay
+  MIT.
+
 ## [0.33.0] - 2026-09-23
 
 ### Added

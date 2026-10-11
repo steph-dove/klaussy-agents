@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/steph-dove/klaussy-agents",
   "repository": "https://github.com/steph-dove/klaussy-agents",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "keywords": ["boilerplate", "scaffold", "skills", "conventions", "ai"],
   "mcpServers": {
     "klaussy": {
