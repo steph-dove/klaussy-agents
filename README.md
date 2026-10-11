@@ -4,7 +4,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
 [![PyPI downloads](https://static.pepy.tech/personalized-badge/klaussy-agents?period=total&units=international_system&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/klaussy-agents)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/steph-dove/klaussy-agents?style=flat&logo=github&label=Stars&color=blue)](https://github.com/steph-dove/klaussy-agents)
 
 Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft App Center engineer, `klaussy` is a multi-agent repository boilerplate generator. One command scaffolds conventions, repo-namespaced skills, settings that fit your stack, and guardrails for Claude, Gemini, Cursor, Copilot, Codex (OpenAI), Google Antigravity, Cline, Aider, OpenCode, and Kimi across GitHub, GitLab, and Bitbucket, matching each agent's native file formats and capability profiles.
@@ -343,5 +343,5 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history, including what's 
 ---
 
 ## License and governance
-- **License:** MIT
-- **Governance:** `klaussy` is an open-source project owned and maintained by Dovatech LLC (founded and owned by Stephanie Dover).
+- **License:** [FSL-1.1-MIT](LICENSE) (Functional Source License). Use, modify and self-host klaussy for anything except a competing commercial product or service. Each release becomes MIT two years after it ships. Releases up to and including 0.37.0 remain MIT.
+- **Governance:** `klaussy` is a source-available project owned and maintained by Dovatech LLC (founded and owned by Stephanie Dover).
