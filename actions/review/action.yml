@@ -200,8 +200,18 @@ runs:
         done
         exec REAL_GIT --no-replace-objects "$@"
         GUARD
-        sed -i.bak "s|REAL_GIT|$(command -v git)|" "$guard/git" && rm -f "$guard/git.bak"
-        chmod +x "$guard/git"
+        # Copilot can only allow `klaussy` as a whole, so the subcommands are limited here.
+        cat > "$guard/klaussy" <<'GUARD'
+        #!/usr/bin/env bash
+        case "${1:-}" in
+          base|review-prep) exec REAL_KLAUSSY "$@" ;;
+        esac
+        echo "klaussy ${1:-} is not allowed during a klaussy review" >&2
+        exit 1
+        GUARD
+        sed -i.bak -e "s|REAL_GIT|$(command -v git)|" -e "s|REAL_KLAUSSY|$(command -v klaussy)|" "$guard/git" "$guard/klaussy"
+        rm -f "$guard"/*.bak
+        chmod +x "$guard/git" "$guard/klaussy"
         export PATH="$guard:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
         skill="$(python3 -c 'import sys; from klaussy.skills import sanitize_skill_namespace as s; print(s(sys.argv[1]))' "$(basename "$GITHUB_REPOSITORY")")-review"
         nits=""
@@ -212,7 +222,7 @@ runs:
 
         if [ "$AGENT" = copilot ]; then
           unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
-          allowed=("write(REVIEW_OUTPUT.md)" "shell(klaussy base)" "shell(klaussy review-prep)" "shell(ls)" "shell(wc)")
+          allowed=("write(REVIEW_OUTPUT.md)" "shell(klaussy)" "shell(ls)" "shell(wc)")
           for c in "${git_commands[@]}"; do allowed+=("shell(git $c)"); done
           flags=(--deny-tool=url --disable-builtin-mcps --no-ask-user --disallow-temp-dir
             --secret-env-vars=COPILOT_GITHUB_TOKEN --add-dir "$PWD" --no-auto-update

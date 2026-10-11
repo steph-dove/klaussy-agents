@@ -330,3 +330,19 @@ def test_the_claude_resume_only_gets_the_budget_the_first_run_left(tmp_path, bud
     else:
         assert len(calls) == 1 and result.returncode == 1
         assert "Budget used up ($3 of $3.2 spent)" in result.stdout
+
+
+@pytest.mark.parametrize(("args", "code"), [(["init", "--force"], 1), (["review-post"], 1)])
+def test_klaussy_guard_only_runs_base_and_review_prep(tmp_path, args, code):
+    _, env = _guarded_git(tmp_path)
+    klaussy = tmp_path / "klaussy-git-guard" / "klaussy"
+    result = subprocess.run([str(klaussy), *args], env=env, capture_output=True)
+    assert result.returncode == code
+    assert b"not allowed during a klaussy review" in result.stderr
+
+
+def test_klaussy_guard_passes_base_through(tmp_path):
+    _, env = _guarded_git(tmp_path)
+    klaussy = tmp_path / "klaussy-git-guard" / "klaussy"
+    result = subprocess.run([str(klaussy), "base", "--help"], env=env, capture_output=True)
+    assert result.returncode == 0, result.stderr
