@@ -55,6 +55,7 @@ def test_gate_checks_the_chosen_agents_credential_and_skips_forks(
     env = {
         **os.environ,
         "AGENT": agent,
+        "EVENT": "COMMENT",
         "HAS_CLAUDE_KEY": claude_key,
         "HAS_COPILOT_KEY": copilot_key,
         "PR": "7",
@@ -83,7 +84,7 @@ def test_the_reviewer_never_gets_the_github_token_or_a_permission_bypass():
 
 def test_the_reviewer_cannot_read_files_through_the_shell():
     run = _step("Review")["run"]
-    for reader in ("cat", "head", "tail", "grep", "rg", "sed"):
+    for reader in ("cat", "head", "tail", "grep", "rg", "sed", "wc"):
         assert f"Bash({reader}" not in run and f"shell({reader}" not in run, reader
     assert "Bash(klaussy:*)" not in run and "Bash(python3 -m klaussy:*)" not in run
 
@@ -204,6 +205,10 @@ def _guarded_git(tmp_path: Path) -> tuple[Path, dict]:
         ["-C", "/", "status"],
         ["branch", "-D", "main"],
         ["branch", "--set-upstream-to=origin/main"],
+        ["blame", "--conten=/etc/hosts", "--", "README.md"],
+        ["log", "--outp=.git/config"],
+        ["branch", "--delet", "main"],
+        ["blame", "-S", "/etc/hosts", "README.md"],
     ],
 )
 def test_git_guard_refuses_options_that_write_or_run_or_escape(tmp_path, args):
@@ -215,7 +220,13 @@ def test_git_guard_refuses_options_that_write_or_run_or_escape(tmp_path, args):
 
 
 @pytest.mark.parametrize(
-    "args", [["status", "--short"], ["diff", "-M", "--stat"], ["branch", "--show-current"]]
+    "args",
+    [
+        ["status", "--short"],
+        ["diff", "-M", "--stat"],
+        ["branch", "--show-current"],
+        ["diff", "--stat", "--", "--output"],
+    ],
 )
 def test_git_guard_passes_ordinary_reads_through(tmp_path, args):
     git, env = _guarded_git(tmp_path)
@@ -230,6 +241,7 @@ def test_dependabot_prs_without_a_credential_are_skipped(tmp_path):
     env = {
         **os.environ,
         "AGENT": "claude",
+        "EVENT": "COMMENT",
         "HAS_CLAUDE_KEY": "false",
         "HAS_COPILOT_KEY": "false",
         "PR": "9",
@@ -346,3 +358,19 @@ def test_klaussy_guard_passes_base_through(tmp_path):
     klaussy = tmp_path / "klaussy-git-guard" / "klaussy"
     result = subprocess.run([str(klaussy), "base", "--help"], env=env, capture_output=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_gate_rejects_an_unknown_event_before_the_review_runs(tmp_path):
+    gate = _step("Check the event and credentials")
+    output = tmp_path / "out"
+    output.touch()
+    env = {
+        **os.environ,
+        "AGENT": "claude",
+        "EVENT": "request_changes",
+        "PR": "7",
+        "HAS_CLAUDE_KEY": "true",
+        "GITHUB_OUTPUT": str(output),
+    }
+    result = subprocess.run(["bash", "-c", gate["run"]], env=env, capture_output=True, text=True)
+    assert result.returncode == 1 and "event must be" in result.stdout

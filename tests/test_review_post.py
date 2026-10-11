@@ -201,3 +201,22 @@ def test_the_review_is_pinned_to_the_commit_the_diff_was_taken_at():
 def test_a_bolded_approve_verdict_still_counts_as_approval():
     clean = "**Verdict:** **Approve** · reviewed at `abc1234`\n"
     assert build_review(clean, DIFF, event="REQUEST_CHANGES")["event"] == "COMMENT"
+
+
+def test_a_one_span_bold_verdict_is_neither_a_finding_nor_a_block():
+    report = "**Verdict: Approve · reviewed at abc1234**\n"
+    assert parse_findings(report) == []
+    assert build_review(report, DIFF, event="REQUEST_CHANGES")["event"] == "COMMENT"
+
+
+def test_an_extensionless_location_is_placed_on_its_own_file():
+    report = "**Medium · Build · `Makefile:2`**\n\nSame bug as `src/pool.py:11`.\n"
+    assert parse_findings(report)[0].place() == ("Makefile", 2, 2)
+
+
+def test_review_post_cli_survives_a_non_utf8_diff(tmp_path):
+    (tmp_path / "REVIEW_OUTPUT.md").write_text(REPORT)
+    (tmp_path / "pr.diff").write_bytes(DIFF.encode() + b"+caf\xe9 = 1\n")
+    args = ["review-post", "--report", str(tmp_path / "REVIEW_OUTPUT.md")]
+    result = CliRunner().invoke(app, [*args, "--diff", str(tmp_path / "pr.diff")])
+    assert result.exit_code == 0, result.output

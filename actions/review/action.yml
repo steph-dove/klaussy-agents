@@ -28,7 +28,7 @@ inputs:
     required: false
     default: "false"
   event:
-    description: Review event to post, COMMENT or REQUEST_CHANGES.
+    description: Review event to post, COMMENT, REQUEST_CHANGES or APPROVE.
     required: false
     default: COMMENT
   enrich:
@@ -64,6 +64,7 @@ runs:
       shell: bash
       env:
         AGENT: ${{ inputs.agent }}
+        EVENT: ${{ inputs.event }}
         HAS_CLAUDE_KEY: ${{ inputs.anthropic-api-key != '' || inputs.claude-code-oauth-token != '' }}
         HAS_COPILOT_KEY: ${{ inputs.copilot-github-token != '' }}
         PR: ${{ github.event.pull_request.number }}
@@ -75,6 +76,10 @@ runs:
           echo "::error::klaussy review runs on pull_request events."
           exit 1
         fi
+        case "$EVENT" in
+          COMMENT|REQUEST_CHANGES|APPROVE) ;;
+          *) echo "::error::event must be COMMENT, REQUEST_CHANGES or APPROVE, not '$EVENT'."; exit 1 ;;
+        esac
         case "$AGENT" in
           claude) has_key="$HAS_CLAUDE_KEY"; needed="anthropic-api-key or claude-code-oauth-token" ;;
           copilot) has_key="$HAS_COPILOT_KEY"; needed="copilot-github-token" ;;
@@ -143,7 +148,7 @@ runs:
         rm -rf REVIEW_OUTPUT.md .claude/skills .claude/agents .claude/commands .claude/hooks \
           .claude/settings.json .claude/settings.local.json .mcp.json \
           .github/skills .github/agents .github/hooks .copilot
-        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md)$|^\.claude/rules/|^\.github/copilot-instructions\.md$|^\.github/instructions/'
+        conventions='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md)$|^\.claude/rules/|^\.github/copilot-instructions\.md$|^\.github/instructions/'
         { git ls-files -z; git ls-tree -r -z --name-only "origin/${BASE_REF}"; } |
           { grep -zE "$conventions" || true; } | sort -zu |
           while IFS= read -r -d '' path; do
@@ -158,6 +163,9 @@ runs:
           klaussy init --repo . -b "$BASE_REF" --agents "$AGENT" --force $flags
         fi
         klaussy skills --repo . -b "$BASE_REF" --agents "$AGENT" --force
+        # init can regenerate instruction files the base branch already has; the base's win.
+        git ls-tree -r -z --name-only "origin/${BASE_REF}" | { grep -zE "$conventions" || true; } |
+          while IFS= read -r -d '' path; do git checkout -q "origin/${BASE_REF}" -- "$path"; done
         # init writes a broad allow-list and hooks that would widen the reviewer's tools.
         rm -rf .claude/settings.json .claude/settings.local.json .claude/hooks .github/hooks
 
@@ -184,18 +192,25 @@ runs:
         mkdir -p "$guard"
         cat > "$guard/git" <<'GUARD'
         #!/usr/bin/env bash
+        # git takes any unambiguous prefix of a long option, so a prefix of a blocked one is refused too.
+        blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
+        branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description"
+        refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }
         sub=""
         for arg in "$@"; do
-          case "$arg" in
-            -c|-c*|-C|-C*|--output|--output=*|--contents|--contents=*|--config-env*|--exec-path*|--git-dir*|--work-tree*|--ext-diff|--textconv|--no-index)
-              echo "git $arg is not allowed during a klaussy review" >&2; exit 1 ;;
+          [ "$arg" = "--" ] && break
+          name="${arg%%=*}"
+          case "$name" in
+            --?*)
+              list="$blocked"
+              [ "$sub" = branch ] && list="$list $branch_blocked"
+              for b in $list; do
+                case "$b" in "${name#--}"*) refuse "$arg" ;; esac
+              done ;;
+            -c*|-C*) refuse "$arg" ;;
+            -S*) [ "$sub" = blame ] && refuse "$arg" ;;
+            -d*|-D*|-m*|-M*|-f*|-u*) [ "$sub" = branch ] && refuse "$arg" ;;
           esac
-          if [ "$sub" = branch ]; then
-            case "$arg" in
-              -d|-D|--delete|-m|-M|--move|--copy|-f|--force|-u|--set-upstream-to*|--unset-upstream|--edit-description)
-                echo "git branch $arg is not allowed during a klaussy review" >&2; exit 1 ;;
-            esac
-          fi
           [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
         done
         exec REAL_GIT --no-replace-objects "$@"
@@ -222,7 +237,7 @@ runs:
 
         if [ "$AGENT" = copilot ]; then
           unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
-          allowed=("write(REVIEW_OUTPUT.md)" "shell(klaussy)" "shell(ls)" "shell(wc)")
+          allowed=("write(REVIEW_OUTPUT.md)" "shell(klaussy)" "shell(ls)")
           for c in "${git_commands[@]}"; do allowed+=("shell(git $c)"); done
           flags=(--deny-tool=url --disable-builtin-mcps --no-ask-user --disallow-temp-dir
             --secret-env-vars=COPILOT_GITHUB_TOKEN --add-dir "$PWD" --no-auto-update
@@ -244,7 +259,7 @@ runs:
             "Bash(klaussy base:*)" "Bash(klaussy review-prep:*)"
             "Bash(python3 -m klaussy base:*)" "Bash(python3 -m klaussy review-prep:*)"
             "Bash(python -m klaussy base:*)" "Bash(python -m klaussy review-prep:*)"
-            "Bash(ls:*)" "Bash(wc:*)"
+            "Bash(ls:*)"
           )
           for c in "${git_commands[@]}"; do allowed+=("Bash(git $c:*)"); done
           run_claude() {

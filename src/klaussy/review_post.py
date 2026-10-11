@@ -20,13 +20,13 @@ CREDENTIAL_ENV = (
 )
 FOOTER = "Reviewed by [klaussy](https://klaussy.com)."
 
-_FINDING = re.compile(r"^\*\*(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
-_LOCATION = re.compile(r"([\w./-]+\.\w+|[\w./-]*/[\w.-]+):(\d+)(?:\s*[-–]\s*(\d+))?")
+_FINDING = re.compile(r"^\*\*(?!Verdict)(?P<meta>[^*\n]*·[^*\n]*)\*\*\s*$", re.MULTILINE)
+_LOCATION = re.compile(r"([\w.-][\w./-]*):(\d+)(?:\s*[-–]\s*(\d+))?")
 _HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _BODY_END = re.compile(r"^(\*\*Verdict:|#{1,3} |---\s*$)")
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _VERDICT = re.compile(r"^\*\*Verdict:", re.MULTILINE)
-_APPROVED = re.compile(r"^\*\*Verdict:\*\*[\s*_]*Approve\b", re.MULTILINE)
+_APPROVED = re.compile(r"^\*\*Verdict:[\s*_]*Approve\b", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -98,7 +98,7 @@ def commentable_lines(diff: str) -> dict[str, set[int]]:
     """Head-side line numbers a review comment can attach to, per file in a unified diff."""
     lines: dict[str, set[int]] = {}
     path, line, old_left, new_left = None, 0, 0, 0
-    for row in diff.splitlines():
+    for row in diff.split("\n"):
         if old_left > 0 or new_left > 0:
             if row.startswith("\\"):
                 continue
@@ -123,7 +123,7 @@ def commentable_lines(diff: str) -> dict[str, set[int]]:
 
 
 def summary(report: str) -> str:
-    """The verdict section the skill closes with, or the whole report if it has none."""
+    """The verdict section, else the whole report when no findings parse, else nothing."""
     m = _VERDICT.search(report)
     if m:
         return report[m.start() :].strip()

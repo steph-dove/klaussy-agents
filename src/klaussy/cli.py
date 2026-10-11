@@ -571,7 +571,7 @@ def review_post(
         )
     payload = build_review(
         report.read_text(encoding="utf-8"),
-        diff.read_text(encoding="utf-8"),
+        diff.read_bytes().decode("utf-8", "replace"),
         event=event,
         inline=inline,
         secrets=[os.environ[name] for name in CREDENTIAL_ENV if os.environ.get(name)],
