@@ -56,7 +56,7 @@ class Finding:
 
     @property
     def text(self) -> str:
-        meta = " · ".join(p for p in (self.severity, self.category, f"`{self.location}`") if p)
+        meta = " · ".join(p for p in (self.severity, self.category, _code(self.location)) if p)
         return f"**{meta}**\n\n{self.body}"
 
     @property
@@ -108,6 +108,18 @@ def _humanize_prose(text: str) -> str:
     return "\n\n".join(p.strip("\n") for p in parts if p and p.strip())
 
 
+def _unwrap(text: str) -> str:
+    """Drop the backticks around a location that is one code span, and only then."""
+    if len(text) > 1 and text[0] == text[-1] == "`" and text.count("`") == 2:
+        return text[1:-1]
+    return text
+
+
+def _code(text: str) -> str:
+    """`text` as inline code, unless it already carries its own backticks."""
+    return text if "`" in text else f"`{text}`"
+
+
 def _squash(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
@@ -129,6 +141,7 @@ def parse_findings(report: str) -> list[Finding]:
         end = marks[i + 1].start() if i + 1 < len(marks) else len(report)
         body = _finding_body(report[m.end() : end])
         parts = [p.strip(" `") for p in m.group("meta").split("·")]
+        parts[-1] = _unwrap(m.group("meta").split("·")[-1].strip())
         findings.append(
             Finding(
                 severity=parts[0],
@@ -231,7 +244,9 @@ def build_review(
     parts = [summary(report)]
     if unplaced:
         heading = "Findings" if not comments else "Findings outside the diff"
-        placed = (f"`{f.location}`\n\n{f.comment}" if f.location else f.comment for f in unplaced)
+        placed = (
+            f"{_code(f.location)}\n\n{f.comment}" if f.location else f.comment for f in unplaced
+        )
         parts.append(f"### {heading}\n\n" + "\n\n---\n\n".join(placed))
     parts.append(f"{FOOTER}\n{MARKER}")
     body = "\n\n".join(p for p in parts if p)

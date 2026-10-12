@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# git takes any unambiguous prefix of a long option, so a prefix of a blocked one is refused too.
+blocked="output contents config-env exec-path git-dir work-tree ext-diff textconv no-index ignore-revs-file"
+# no-list: `--list --no-list NAME` turns listing back off, and NAME then creates a ref.
+branch_blocked="delete move copy force set-upstream-to unset-upstream edit-description no-list"
+# `git branch NAME` creates a ref, so branch takes a bare name only in list mode or as the
+# value of a flag that reads. A flag's value (`--format -l`) never switches list mode on.
+branch_values=" --format --sort --contains --no-contains --merged --no-merged --points-at "
+refuse() { echo "git $1 is not allowed during a klaussy review" >&2; exit 1; }
+sub=""
+listing=""
+value_next=""
+for arg in "$@"; do
+  if [ "$arg" = "--" ]; then
+    # Anything after `--` is a name, and `git branch -- NAME` creates that ref.
+    [ "$sub" = branch ] && refuse "branch --"
+    break
+  fi
+  # Global options come before the subcommand; `--namespace x branch NAME` would hide `branch`
+  # from the checks below, so only harmless ones pass.
+  if [ -z "$sub" ] && [ "${arg#-}" != "$arg" ]; then
+    case "$arg" in --no-pager|-P|--no-optional-locks) ;; *) refuse "$arg" ;; esac
+  fi
+  if [ "$sub" = branch ]; then
+    if [ -n "$value_next" ]; then
+      value_next=""
+    else
+      case "$arg" in
+        --list|-l) listing=1 ;;
+        -*) case "$branch_values" in *" $arg "*) value_next=1 ;; esac ;;
+        *) [ -z "$listing" ] && refuse "branch $arg" ;;
+      esac
+    fi
+  fi
+  name="${arg%%=*}"
+  case "$name" in
+    --text|--ignore-rev) ;;  # real options that happen to be prefixes of blocked ones
+    --?*)
+      list="$blocked"
+      [ "$sub" = branch ] && list="$list $branch_blocked"
+      for b in $list; do
+        case "$b" in "${name#--}"*) refuse "$arg" ;; esac
+      done ;;
+    -c*|-C*) refuse "$arg" ;;
+    -*S*) [ "$sub" = blame ] && refuse "$arg" ;;
+    -*[dDmMfu]*) [ "$sub" = branch ] && refuse "$arg" ;;
+  esac
+  [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
+done
+# A PR can commit a bare repo as a folder; after `cd` into it, git would run its config's
+# core.fsmonitor. Only an explicitly named bare repo is used, and the env can't redirect git.
+unset GIT_DIR GIT_WORK_TREE GIT_EXEC_PATH GIT_CONFIG_PARAMETERS
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=explicit
+exec REAL_GIT --no-replace-objects "$@"

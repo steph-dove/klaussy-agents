@@ -550,7 +550,7 @@ def test_reviewbench_run_task_writes_a_contract_findings_file(tmp_path, monkeypa
     for sub in ("findings", "reviews"):
         (tmp_path / sub).mkdir()
     args = argparse.Namespace(
-        out=tmp_path, work_dir=tmp_path, model=None, budget_usd=1.0, instruction=""
+        out=tmp_path, work_dir=tmp_path, model=None, budget_usd=1.0, instruction="", headless=False
     )
     reviewbench.run_task(task, args)
     record = json.loads(
@@ -559,3 +559,72 @@ def test_reviewbench_run_task_writes_a_contract_findings_file(tmp_path, monkeypa
     assert record["pr"]["head"] == task["head"] and record["pr"]["pr_number"] == 3650
     assert record["findings"][0]["file"] == "lib/client.js"
     assert record["findings"][0]["end_line"] == 12
+
+
+def test_reviewbench_headless_mode_scores_the_shared_runners_report(tmp_path, monkeypatch):
+    task = {
+        "nwo": "brianc/node-postgres",
+        "pr_number": 3650,
+        "base": "c" * 40,
+        "head": "b922f0dd" + "0" * 32,
+        "title": "t",
+        "body": None,
+    }
+    report = "**High · Correctness · `lib/client.js:10-12`**\n\nLeaks the connection.\n"
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text(report)
+        (work / "result.json").write_text(json.dumps({"status": "ok", "cost_usd": 2.5, "runs": 1}))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(runner, "merge_base", lambda *a: "base")
+    prepared = {}
+    monkeypatch.setattr(
+        runner, "prepare_repo", lambda *a, **kw: prepared.update(kw) or tmp_path / "repo"
+    )
+    monkeypatch.setattr(reviewbench.subprocess, "run", fake_run)
+    for sub in ("findings", "reviews"):
+        (tmp_path / sub).mkdir()
+    args = argparse.Namespace(
+        out=tmp_path,
+        work_dir=tmp_path,
+        model=None,
+        budget_usd=1.0,
+        instruction="",
+        headless=True,
+        agent="claude",
+    )
+    line = reviewbench.run_task(task, args)
+    assert prepared == {"enrich": False}
+    record = json.loads(
+        (tmp_path / "findings" / "brianc_node-postgres_3650-b922f0dd.json").read_text()
+    )
+    assert record["findings"][0]["file"] == "lib/client.js"
+    assert "review $2.50" in line
+    assert seen["cmd"][seen["cmd"].index("--agent") + 1] == "claude" and "--enrich" in seen["cmd"]
+
+
+def test_reviewbench_headless_failure_always_has_a_reason(tmp_path, monkeypatch):
+    stale = tmp_path / "k-headless"
+    stale.mkdir()
+    (stale / "REVIEW_OUTPUT.md").write_text("**Verdict:** Approve\n")
+    monkeypatch.setattr(
+        reviewbench.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 3, "", "")
+    )
+    args = argparse.Namespace(work_dir=tmp_path, model=None, budget_usd=1.0, agent="claude")
+    review = reviewbench.headless_review(tmp_path / "repo", "repo", "k", args)
+    assert not review["report_written"]
+    assert runner.review_failed(review) == "headless review exited 3 with status None"
+
+
+def test_reviewbench_refuses_an_instruction_it_cant_pass_to_headless(monkeypatch):
+    monkeypatch.setattr(
+        sys, "argv", ["reviewbench.py", "--headless", "--instruction", "check auth"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        reviewbench.main()
+    assert exc.value.code == 2

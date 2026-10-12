@@ -16,6 +16,7 @@ from klaussy.secret_scan import REDACTED, analyze, redact, scan_paths
         ('stripe = "sk_live_' + "c" * 24 + '"', "Stripe secret key"),
         ('tok = "github_pat_' + "d" * 40 + '"', "GitHub fine-grained token"),
         ('key = "sk-ant-api03-' + "e" * 30 + '"', "Anthropic key"),
+        ('key = "sk-proj-' + "f" * 30 + '"', "OpenAI project key"),
     ],
 )
 def test_high_confidence_tokens_flagged(line, kind):

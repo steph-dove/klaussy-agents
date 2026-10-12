@@ -330,3 +330,9 @@ def test_a_bold_suggested_change_label_is_recognized():
 def test_a_sentence_ending_on_a_lowercase_letter_still_ends():
     report = "**Low · Bug · `app.py:3`**\n\nThe loop sets i. Then it reads j too early.\n"
     assert parse_findings(report)[0].comment.startswith("The loop sets i.\n\n<details>")
+
+
+def test_a_location_with_its_own_backticks_is_not_wrapped_again():
+    report = "**Low · Design · `src/a.py` (`helper`)**\n\nSplit it.\n"
+    body = build_review(report, DIFF)["body"]
+    assert "`src/a.py` (`helper`)\n\nSplit it." in body and "``" not in body

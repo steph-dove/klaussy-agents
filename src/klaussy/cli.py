@@ -3,7 +3,9 @@
 import dataclasses
 import json
 import os
+import shutil
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -26,8 +28,11 @@ from klaussy.pr_template import scaffold_pr_template
 from klaussy.repo import git_root, resolve_repo
 from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
+from klaussy.review_run import AGENTS as REVIEW_AGENTS
+from klaussy.review_run import REPORT as REVIEW_REPORT
+from klaussy.review_run import prepare_checkout, run_headless_review, scratch_worktree
 from klaussy.secret_scan import scan_paths as scan_secrets
-from klaussy.skills import HUMANIZE_BLOCK
+from klaussy.skills import HUMANIZE_BLOCK, SKILL_NAMES
 from klaussy.split_prep import prepare_split
 from klaussy.split_prep import render_dict as render_split_dict
 from klaussy.split_prep import render_markdown as render_split_markdown
@@ -224,11 +229,21 @@ def skills(
     all_agents: bool = typer.Option(
         False, "--all", help="Scaffold skills for every supported agent."
     ),
+    only: str | None = typer.Option(
+        None, "--only", help="Comma-separated skills to write (e.g. review). Defaults to all."
+    ),
     here: bool = _HERE_OPT,
 ) -> None:
     """Scaffold each bundled skill into every selected agent's skills directory."""
     repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
+    chosen = [name.strip() for name in only.split(",") if name.strip()] if only else None
+    unknown = [name for name in chosen or () if name not in SKILL_NAMES]
+    if unknown:
+        raise typer.BadParameter(
+            f"unknown skill(s): {', '.join(unknown)}; choose from {', '.join(SKILL_NAMES)}",
+            param_hint="--only",
+        )
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
     for key in selected:
@@ -238,6 +253,7 @@ def skills(
                 force=force,
                 base_branch=base_branch,
                 review_template=review_template,
+                only=chosen,
             )
         except SystemExit:
             console.print(f"[yellow]⚠ Skipped {key} skills[/yellow]")
@@ -545,6 +561,93 @@ def review_prep(
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
         sys.stdout.write(render_markdown(payload, summary_only=summary))
+
+
+@app.command()
+def review(
+    headless: bool = typer.Option(False, "--headless", help="Run the review unattended."),
+    repo: Path = typer.Option(
+        Path("."), "--repo", "-r", help="Repo whose HEAD is reviewed; its files aren't touched."
+    ),
+    agent: str = typer.Option(
+        "claude", "--agent", help="claude, copilot, or openai (Copilot CLI on your OpenAI key)."
+    ),
+    base: str = typer.Option(
+        ..., "--base", help="Ref the PR is compared against, e.g. origin/main."
+    ),
+    out: Path = typer.Option(..., "--out", help="Where to write the result JSON."),
+    diff_out: Path = typer.Option(..., "--diff-out", help="Where to write the PR diff."),
+    report_out: Path | None = typer.Option(
+        None, "--report-out", help="Where to write the report. Default: WORK_DIR/REVIEW_OUTPUT.md."
+    ),
+    work_dir: Path = typer.Option(
+        ..., "--work-dir", help="Scratch directory outside the checkout."
+    ),
+    repo_name: str | None = typer.Option(
+        None, "--repo-name", help="Repo name the skill is named after."
+    ),
+    budget_usd: float = typer.Option(20.0, "--budget-usd", help="Spending cap (Claude)."),
+    max_ai_credits: str | None = typer.Option(
+        None, "--max-ai-credits", help="Credit cap (Copilot)."
+    ),
+    model: str | None = typer.Option(None, "--model", help="Model for the agent."),
+    timeout: float = typer.Option(
+        3600,
+        "--timeout",
+        help="Seconds for the whole review: checkout prep plus both agent attempts.",
+    ),
+    include_nits: bool = typer.Option(False, "--include-nits", help="Also report Warn and Nit."),
+    enrich: bool = typer.Option(False, "--enrich", help="Let init enrich a generated CLAUDE.md."),
+) -> None:
+    """Review HEAD headless in a throwaway worktree, and write the report plus a result JSON.
+
+    Exits 0 only when the review finished; the JSON says why it didn't otherwise.
+    """
+    if not headless:
+        console.print("Run the review skill from your agent, or pass --headless.")
+        raise typer.Exit(2)
+    if agent not in REVIEW_AGENTS:
+        raise typer.BadParameter(f"must be one of {', '.join(REVIEW_AGENTS)}", param_hint="--agent")
+    repo = repo.resolve()
+    work_dir = work_dir.resolve()
+    report_out = (report_out or work_dir / REVIEW_REPORT).resolve()
+    for directory in (work_dir, out.parent, diff_out.parent, report_out.parent):
+        directory.mkdir(parents=True, exist_ok=True)
+    try:
+        report_out.unlink(missing_ok=True)
+        started = time.monotonic()
+        with scratch_worktree(repo, work_dir, repo_name or repo.name) as checkout:
+            prepare_checkout(
+                checkout,
+                base=base,
+                agent=agent,
+                diff_out=diff_out,
+                enrich=enrich,
+                timeout_s=timeout,
+            )
+            result = run_headless_review(
+                checkout,
+                agent=agent,
+                base=base,
+                repo_name=repo_name or repo.name,
+                work_dir=work_dir,
+                budget_usd=budget_usd,
+                timeout_s=max(timeout - (time.monotonic() - started), 1),
+                model=model,
+                max_ai_credits=max_ai_credits,
+                include_nits=include_nits,
+            )
+            if (checkout / REVIEW_REPORT).is_file():
+                shutil.copyfile(checkout / REVIEW_REPORT, report_out)
+    except Exception as exc:
+        # Every failure still writes the result, so the caller can say why.
+        out.write_text(json.dumps({"status": "error", "agent": agent, "error": str(exc)}, indent=2))
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(1) from exc
+    out.write_text(result.to_json())
+    if result.status != "ok":
+        console.print(f"[red]✗ review {result.status}: {result.error}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command(name="review-post")

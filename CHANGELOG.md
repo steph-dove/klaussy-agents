@@ -9,6 +9,24 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ### Added
 
+- **`klaussy skills --only review,humanize`** writes just the named skills (and leaves the
+  version marker alone, so a later full run still writes the rest). The headless review uses it
+  to give the agent only the review and humanize skills, which cut a Copilot review's input
+  tokens by about a fifth.
+- **`klaussy review --headless`** runs the review skill unattended on a pull request checkout
+  with Claude Code, Copilot CLI, or OpenAI models through Copilot CLI (`--agent`), and writes
+  `REVIEW_OUTPUT.md` plus a result JSON with the status, cost or usage, and the reason a
+  review didn't finish. It works in a throwaway worktree of HEAD, so the caller's checkout and
+  uncommitted work are never touched. It does the
+  checkout scrub, the `git` and `klaussy` command guards and the resume-within-budget that the
+  review Action used to do in bash, so the Action and the hosted review App share one runner.
+  Tool calls the agent was refused are listed in the result's `notes`, so a review that ran
+  without its commands doesn't pass as a normal one.
+- **The review Action reviews with OpenAI models** (`agent: openai`, `openai-api-key`), in
+  preview. It runs Copilot CLI with OpenAI as the model provider, under the same restrictions
+  as `agent: copilot`.
+- **`klaussy secret-scan` catches OpenAI project and service-account keys** (`sk-proj-`,
+  `sk-svcacct-`, `sk-admin-`), so they're redacted from posted reviews too.
 - **A GitHub Action that reviews pull requests** (`actions/review`). It runs the review skill
   headless in Claude Code or GitHub Copilot CLI (`agent: copilot`) and posts the result as a
   pull request review, with each finding on the diff line it's about. The reviewer gets
