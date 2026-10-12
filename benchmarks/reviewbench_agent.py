@@ -55,7 +55,7 @@ DEFAULT_MODEL = "claude-sonnet-5-5"
 DEFAULT_TIMEOUT_S = 780
 
 
-def review(repo: Path, work: Path, *, model: str, timeout_s: int, enrich: bool) -> dict:
+def review(repo: Path, work: Path, *, model: str, timeout_s: int, enrich: bool, head: str) -> dict:
     """Run `klaussy review --headless`, the runner the Action and hosted App use; the result JSON
     plus the report text."""
     cmd = [
@@ -72,6 +72,8 @@ def review(repo: Path, work: Path, *, model: str, timeout_s: int, enrich: bool) 
         model,
         "--base",
         "main",
+        "--head-sha",
+        head,
         "--repo-name",
         repo.name,
         "--budget-usd",
@@ -102,6 +104,8 @@ def main() -> None:
     for name in ("RB_NWO", "RB_PR_NUMBER", "RB_BASE", "RB_HEAD", "RB_OUT"):
         if not env.get(name):
             sys.exit(f"agent: missing {name}")
+    if env.get("RB_CONFIG_INSTRUCTION"):
+        sys.exit("agent: RB_CONFIG_INSTRUCTION isn't passed through klaussy review --headless")
     agent = env.get("RB_AGENT", "klaussy-review")
     model = env.get("RB_CONFIG_MODEL", DEFAULT_MODEL)
     timeout_s = int(env.get("RB_CONFIG_TIMEOUT", DEFAULT_TIMEOUT_S))
@@ -110,7 +114,14 @@ def main() -> None:
 
     repo = Path("/tmp/review") / env["RB_NWO"].split("/")[1]
     prepare(Path(env.get("RB_REPO", "/work/repo")), repo, env["RB_BASE"], env["RB_HEAD"])
-    result = review(repo, Path("/tmp/review-work"), model=model, timeout_s=timeout_s, enrich=enrich)
+    result = review(
+        repo,
+        Path("/tmp/review-work"),
+        model=model,
+        timeout_s=timeout_s,
+        enrich=enrich,
+        head=env["RB_HEAD"],
+    )
     # A review stopped by its time or budget limit still counts for the findings it wrote.
     if result.get("status") not in ("ok", "timeout", "budget") or not result["report"]:
         sys.exit(f"agent: review failed: {result.get('status')}: {result.get('error', '')[:500]}")

@@ -661,6 +661,7 @@ def test_reviewbench_agent_reviews_through_the_headless_runner(tmp_path, monkeyp
     cmd = seen["cmd"]
     assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
     assert cmd[cmd.index("--timeout") + 1] == "780" and "--enrich" in cmd
+    assert cmd[cmd.index("--head-sha") + 1] == "b" * 40
     record = json.loads((tmp_path / "out" / "findings.json").read_text())
     assert record["pr"]["pr_number"] == 3650 and record["pr"]["head"] == "b" * 40
     assert record["findings"][0]["file"] == "lib/client.js"
@@ -689,3 +690,11 @@ def test_reviewbench_agent_rejects_a_failed_review_even_with_a_report(tmp_path, 
     with pytest.raises(SystemExit, match="review failed: error"):
         reviewbench_agent.main()
     assert not (tmp_path / "findings.json").exists()
+
+
+def test_reviewbench_agent_refuses_an_instruction_it_cant_pass_on(monkeypatch):
+    monkeypatch.setenv("RB_CONFIG_INSTRUCTION", "focus on security")
+    for name in ("RB_NWO", "RB_PR_NUMBER", "RB_BASE", "RB_HEAD", "RB_OUT"):
+        monkeypatch.setenv(name, "x")
+    with pytest.raises(SystemExit, match="RB_CONFIG_INSTRUCTION"):
+        reviewbench_agent.main()
