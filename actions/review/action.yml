@@ -47,7 +47,7 @@ inputs:
     required: false
     default: ""
   review-timeout:
-    description: Seconds the agent may run. Keep it under the job's timeout-minutes so a slow review still reports why it stopped.
+    description: Seconds for the whole review, checkout prep included. Keep it under the job's timeout-minutes so a slow review still reports why it stopped.
     required: false
     default: "1500"
   github-token:

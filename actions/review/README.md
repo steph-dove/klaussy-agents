@@ -67,7 +67,7 @@ To review with GitHub Copilot instead, create a fine-grained personal access tok
 | `enrich` | `false` | When the base branch has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). This runs Claude over the pull request's code a second time, without the review's restrictions. |
 | `max-budget-usd` | `20` | Spending cap for one review (Claude). An Opus review averages about $5 and can reach $15. |
 | `max-ai-credits` | | AI credit cap for one review (Copilot). Empty means no cap. |
-| `review-timeout` | `1500` | Seconds the agent may run. Keep it under the job's `timeout-minutes`. For `agent: openai` it's the only spending limit. |
+| `review-timeout` | `1500` | Seconds for the whole review, checkout prep included. Keep it under the job's `timeout-minutes`. For `agent: openai` it's the only spending limit. |
 | `github-token` | `github.token` | Token used to post the review. |
 | `claude-code-version` | `2.1.296` | Claude Code CLI version to install. |
 | `copilot-version` | `1.0.95` | GitHub Copilot CLI version to install. |

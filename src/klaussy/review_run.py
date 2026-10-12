@@ -175,19 +175,26 @@ def _resolves_inside(link: Path, root: Path) -> bool:
 
 
 def _klaussy(*args: str, repo: Path, env: dict[str, str], timeout: float | None = None) -> None:
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "klaussy", *args],
+        cwd=repo,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
-        proc = subprocess.run(
-            [sys.executable, "-m", "klaussy", *args],
-            cwd=repo,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        _kill_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass  # a grandchild outside the group still holds the pipes
         raise ReviewRunError(f"klaussy {args[0]} ran past {int(exc.timeout)}s") from exc
     if proc.returncode != 0:
-        raise ReviewRunError(f"klaussy {args[0]}: {proc.stderr or proc.stdout}")
+        raise ReviewRunError(f"klaussy {args[0]}: {err or out}")
 
 
 @contextmanager
@@ -296,8 +303,7 @@ def install_guards(guard_dir: Path) -> dict[str, str]:
     git = shutil.which("git")
     if not git:
         raise ReviewRunError("git isn't on PATH")
-    found = shutil.which("klaussy")
-    klaussy = shlex.quote(found) if found else f"{shlex.quote(sys.executable)} -m klaussy"
+    klaussy = f"{shlex.quote(sys.executable)} -m klaussy"
     real = {"REAL_GIT": shlex.quote(git), "REAL_KLAUSSY": klaussy}
     guards = resources.files("klaussy").joinpath("templates").joinpath("review-guards")
     for name in ("git", "klaussy"):

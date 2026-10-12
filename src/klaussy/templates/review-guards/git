@@ -47,4 +47,8 @@ for arg in "$@"; do
   esac
   [ -z "$sub" ] && [ "${arg#-}" = "$arg" ] && sub="$arg"
 done
+# A PR can commit a bare repo as a folder; after `cd` into it, git would run its config's
+# core.fsmonitor. Only an explicitly named bare repo is used, and the env can't redirect git.
+unset GIT_DIR GIT_WORK_TREE GIT_EXEC_PATH GIT_CONFIG_PARAMETERS
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=explicit
 exec REAL_GIT --no-replace-objects "$@"

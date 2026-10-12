@@ -592,7 +592,9 @@ def review(
     ),
     model: str | None = typer.Option(None, "--model", help="Model for the agent."),
     timeout: float = typer.Option(
-        3600, "--timeout", help="Seconds the agent may run, across both attempts."
+        3600,
+        "--timeout",
+        help="Seconds for the whole review: checkout prep plus both agent attempts.",
     ),
     include_nits: bool = typer.Option(False, "--include-nits", help="Also report Warn and Nit."),
     enrich: bool = typer.Option(False, "--enrich", help="Let init enrich a generated CLAUDE.md."),
@@ -612,6 +614,7 @@ def review(
     for directory in (work_dir, out.parent, diff_out.parent, report_out.parent):
         directory.mkdir(parents=True, exist_ok=True)
     try:
+        report_out.unlink(missing_ok=True)
         started = time.monotonic()
         with scratch_worktree(repo, work_dir, repo_name or repo.name) as checkout:
             prepare_checkout(

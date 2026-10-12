@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -350,13 +351,9 @@ def test_an_unreadable_claude_cost_is_noted_and_never_resumed_past(tmp_path, mon
     assert "unknown spend" in result.error and "couldn't be read" in result.notes[0]
 
 
-def test_the_klaussy_guard_falls_back_to_python_m(tmp_path, monkeypatch):
-    real_which = review_run.shutil.which
-    monkeypatch.setattr(
-        review_run.shutil, "which", lambda name: None if name == "klaussy" else real_which(name)
-    )
+def test_the_klaussy_guard_runs_this_interpreters_klaussy(tmp_path):
     env = {**os.environ, **install_guards(tmp_path / "guard")}
-    assert "-m klaussy" in (tmp_path / "guard" / "klaussy").read_text()
+    assert f"{sys.executable} -m klaussy" in (tmp_path / "guard" / "klaussy").read_text()
     result = subprocess.run([str(tmp_path / "guard" / "klaussy"), "base", "--help"], env=env)
     assert result.returncode == 0
 
@@ -728,12 +725,14 @@ def test_symlinks_leading_out_of_the_checkout_are_removed(tmp_path):
 
 
 def test_a_hung_klaussy_step_stops_at_the_timeout(tmp_path, monkeypatch):
-    def hang(*a, **kw):
-        raise subprocess.TimeoutExpired(a[0], kw["timeout"])
-
-    monkeypatch.setattr(review_run.subprocess, "run", hang)
-    with pytest.raises(review_run.ReviewRunError, match="ran past 30s"):
-        review_run._klaussy("init", repo=tmp_path, env={}, timeout=30)
+    hang = tmp_path / "hang"
+    hang.write_text("#!/bin/sh\nsleep 30\n")
+    hang.chmod(0o755)
+    monkeypatch.setattr(review_run.sys, "executable", str(hang))
+    started = time.monotonic()
+    with pytest.raises(review_run.ReviewRunError, match="ran past 1s"):
+        review_run._klaussy("init", repo=tmp_path, env=dict(os.environ), timeout=1)
+    assert time.monotonic() - started < 10
 
 
 def test_an_isolated_home_keeps_the_users_python_packages(tmp_path, monkeypatch):
@@ -778,3 +777,16 @@ def test_a_reused_work_dir_starts_without_the_last_runs_files(tmp_path, monkeypa
         work, agent="copilot", base="origin/main", repo_name="app", work_dir=work_dir
     )
     assert result.usage == []
+
+
+def test_git_wont_use_a_bare_repo_the_pr_committed(guarded):
+    guard, repo, env = guarded
+    bare = repo / "evil"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    marker = repo / "ran"
+    subprocess.run(
+        ["git", "-C", str(bare), "config", "core.fsmonitor", f"touch {marker}; false"], check=True
+    )
+    result = subprocess.run([str(guard / "git"), "status"], cwd=bare, env=env, capture_output=True)
+    assert result.returncode != 0
+    assert not marker.exists()
