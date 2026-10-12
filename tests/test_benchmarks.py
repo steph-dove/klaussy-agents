@@ -582,14 +582,24 @@ def test_reviewbench_headless_mode_scores_the_shared_runners_report(tmp_path, mo
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(runner, "merge_base", lambda *a: "base")
-    monkeypatch.setattr(runner, "prepare_repo", lambda *a, **kw: tmp_path / "repo")
+    prepared = {}
+    monkeypatch.setattr(
+        runner, "prepare_repo", lambda *a, **kw: prepared.update(kw) or tmp_path / "repo"
+    )
     monkeypatch.setattr(reviewbench.subprocess, "run", fake_run)
     for sub in ("findings", "reviews"):
         (tmp_path / sub).mkdir()
     args = argparse.Namespace(
-        out=tmp_path, work_dir=tmp_path, model=None, budget_usd=1.0, instruction="", headless=True
+        out=tmp_path,
+        work_dir=tmp_path,
+        model=None,
+        budget_usd=1.0,
+        instruction="",
+        headless=True,
+        agent="claude",
     )
     line = reviewbench.run_task(task, args)
+    assert prepared == {"enrich": False}
     record = json.loads(
         (tmp_path / "findings" / "brianc_node-postgres_3650-b922f0dd.json").read_text()
     )
@@ -605,7 +615,16 @@ def test_reviewbench_headless_failure_always_has_a_reason(tmp_path, monkeypatch)
     monkeypatch.setattr(
         reviewbench.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 3, "", "")
     )
-    args = argparse.Namespace(work_dir=tmp_path, model=None, budget_usd=1.0)
+    args = argparse.Namespace(work_dir=tmp_path, model=None, budget_usd=1.0, agent="claude")
     review = reviewbench.headless_review(tmp_path / "repo", "repo", "k", args)
     assert not review["report_written"]
     assert runner.review_failed(review) == "headless review exited 3 with status None"
+
+
+def test_reviewbench_refuses_an_instruction_it_cant_pass_to_headless(monkeypatch):
+    monkeypatch.setattr(
+        sys, "argv", ["reviewbench.py", "--headless", "--instruction", "check auth"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        reviewbench.main()
+    assert exc.value.code == 2

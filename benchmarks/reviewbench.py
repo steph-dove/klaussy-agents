@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 import reviewbench_agent  # noqa: E402
 import runner  # noqa: E402
 
+from klaussy.review_run import AGENTS as REVIEW_AGENTS  # noqa: E402
+
 MIRROR_ORG = "review-bench"
 AGENT = "klaussy-review"
 
@@ -46,7 +48,7 @@ def headless_review(path: Path, repo: str, key: str, args: argparse.Namespace) -
         "--repo",
         str(path),
         "--agent",
-        "claude",
+        args.agent,
         "--base",
         "main",
         "--repo-name",
@@ -106,7 +108,7 @@ def run_task(task: dict, args: argparse.Namespace) -> str:
         head=task["head"],
     )
     print(f"[{key}] preparing", flush=True)
-    path = runner.prepare_repo(pr, args.work_dir.resolve() / key, repo)
+    path = runner.prepare_repo(pr, args.work_dir.resolve() / key, repo, enrich=not args.headless)
     print(f"[{key}] reviewing in {path}", flush=True)
     if args.headless:
         review = headless_review(path, repo, key, args)
@@ -148,12 +150,20 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=1, help="Pull requests run at once")
     parser.add_argument("--limit", type=int, help="Only the first N pull requests")
     parser.add_argument(
+        "--agent",
+        default="claude",
+        choices=REVIEW_AGENTS,
+        help="Agent for --headless runs",
+    )
+    parser.add_argument(
         "--headless",
         action="store_true",
         help="Review through `klaussy review --headless` instead of the bench runner",
     )
     args = parser.parse_args()
 
+    if args.headless and args.instruction:
+        parser.error("--instruction isn't passed through --headless")
     if os.environ.get("KLAUSSY_RUN_BENCH") != "1":
         sys.exit("Set KLAUSSY_RUN_BENCH=1: this runs paid agent reviews.")
     manifest = "corpus/test/test.json" if args.set == "test" else "corpus/manifest.json"
