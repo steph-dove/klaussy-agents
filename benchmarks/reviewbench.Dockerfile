@@ -15,8 +15,11 @@ RUN python3 -m venv /opt/klaussy \
     && /opt/klaussy/bin/pip install --no-cache-dir /build/klaussy klaussy-repo-conventions \
     && rm -rf /build
 
-# Runs have no package index; skip klaussy init's conventions upgrade attempt.
-ENV PATH=/opt/klaussy/bin:$PATH PIP_NO_INDEX=1
+# Runs have no package index; skip klaussy init's conventions upgrade attempt. ReviewBench only
+# lets the model host through, so Claude Code's telemetry and update checks stay off everywhere,
+# enrichment included.
+ENV PATH=/opt/klaussy/bin:$PATH PIP_NO_INDEX=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    DISABLE_AUTOUPDATER=1
 
 WORKDIR /agent
 COPY benchmarks/reviewbench_agent.py ./
