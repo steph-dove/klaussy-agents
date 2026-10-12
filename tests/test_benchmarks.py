@@ -728,3 +728,28 @@ def test_reviewbench_agent_hands_the_pr_context_to_klaussy(tmp_path, monkeypatch
     assert cmd[cmd.index("--pr-title") + 1] == "Fix login"
     body = Path(cmd[cmd.index("--pr-body-file") + 1])
     assert body.read_text() == "Retries the refresh."
+
+
+def test_headless_review_passes_the_pr_title_and_body(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 1, "", "")
+
+    monkeypatch.setattr(reviewbench.subprocess, "run", fake_run)
+    pr = runner.PullRequest(
+        url="u",
+        owner="o",
+        repo="r",
+        number=1,
+        title="Fix login",
+        body="Retries.",
+        merge_base="b",
+        head="h",
+    )
+    args = argparse.Namespace(work_dir=tmp_path, model=None, budget_usd=1.0, agent="claude")
+    reviewbench.headless_review(tmp_path / "repo", "repo", "k", args, pr)
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--pr-title") + 1] == "Fix login"
+    assert Path(cmd[cmd.index("--pr-body-file") + 1]).read_text() == "Retries."
