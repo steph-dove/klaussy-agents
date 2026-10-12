@@ -16,6 +16,11 @@ for arg in "$@"; do
     [ "$sub" = branch ] && refuse "branch --"
     break
   fi
+  # Global options come before the subcommand; `--namespace x branch NAME` would hide `branch`
+  # from the checks below, so only harmless ones pass.
+  if [ -z "$sub" ] && [ "${arg#-}" != "$arg" ]; then
+    case "$arg" in --no-pager|-P|--no-optional-locks) ;; *) refuse "$arg" ;; esac
+  fi
   if [ "$sub" = branch ]; then
     if [ -n "$value_next" ]; then
       value_next=""

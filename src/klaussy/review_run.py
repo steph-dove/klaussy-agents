@@ -167,6 +167,13 @@ def _restore_conventions(repo: Path, base: str, *, drop_unknown: bool) -> None:
             _git(repo, "checkout", "-q", base, "--", path)
 
 
+def _resolves_inside(link: Path, root: Path) -> bool:
+    try:
+        return link.resolve().is_relative_to(root)
+    except (OSError, RuntimeError):
+        return False  # a symlink loop
+
+
 def _klaussy(*args: str, repo: Path, env: dict[str, str], timeout: float | None = None) -> None:
     try:
         proc = subprocess.run(
@@ -226,7 +233,7 @@ def prepare_checkout(
             dirs.remove(".git")
         for name in [*dirs, *files]:
             link = Path(root) / name
-            if link.is_symlink() and not link.resolve().is_relative_to(inside):
+            if link.is_symlink() and not _resolves_inside(link, inside):
                 link.unlink()
                 if name in dirs:
                     dirs.remove(name)
@@ -466,6 +473,11 @@ class Claude:
             None,
             timed_out,
             str(data.get("result", "")) if data.get("is_error") else "",
+            denied=tuple(
+                redact(f"{d.get('tool_name')}: {str(d.get('tool_input', ''))[:120]}")
+                for d in data.get("permission_denials") or []
+                if isinstance(d, dict)
+            ),
             stop=str(data.get("subtype", "")),
         )
 
@@ -612,6 +624,9 @@ def run_headless_review(
 ) -> ReviewResult:
     """Run the prepared review once, and resume once with whatever budget and time are left."""
     runner = make_agent(agent, max_ai_credits=max_ai_credits)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    for stale in [*work_dir.glob("agent-run-*"), *work_dir.glob("copilot-usage-*.json")]:
+        stale.unlink()
     # An agent that authenticates from the environment needs nothing from the operator's home;
     # one on a local login keeps it, since that's where the login lives.
     from_env = any(os.environ.get(name) for name in CREDENTIALS[agent])

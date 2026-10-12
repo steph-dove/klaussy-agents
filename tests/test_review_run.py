@@ -144,6 +144,8 @@ def guarded(tmp_path):
         ["blame", "-S", "/etc/hosts", "README.md"],
         ["blame", "-wS", "/etc/hosts", "README.md"],
         ["branch", "-rd", "origin/main"],
+        ["--namespace", "x", "branch", "evil"],
+        ["--literal-pathspecs", "branch", "evil"],
     ],
 )
 def test_git_guard_refuses_options_that_write_or_run_or_escape(guarded, args):
@@ -162,6 +164,7 @@ def test_git_guard_refuses_options_that_write_or_run_or_escape(guarded, args):
         ["diff", "--text", "--stat"],
         ["branch", "--show-current"],
         ["diff", "--stat", "--", "--output"],
+        ["--no-pager", "status", "--short"],
     ],
 )
 def test_git_guard_passes_ordinary_reads_through(guarded, args):
@@ -738,3 +741,40 @@ def test_an_isolated_home_keeps_the_users_python_packages(tmp_path, monkeypatch)
     env = agent_env("claude", {}, tmp_path / "home")
     assert env["HOME"] == str(tmp_path / "home")
     assert env["PYTHONUSERBASE"] == review_run.site.getuserbase()
+
+
+def test_a_symlink_loop_doesnt_stop_the_sweep(tmp_path):
+    repo = _repo(tmp_path, {"CLAUDE.md": "# Base\n"})
+    (repo / "a").symlink_to("b")
+    (repo / "b").symlink_to("a")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "pr")
+    prepare_checkout(repo, base="origin/main", agent="claude", diff_out=tmp_path / "pr.diff")
+    assert not ((repo / "a").is_symlink() and (repo / "b").is_symlink())
+
+
+def test_claudes_permission_denials_are_noted(tmp_path, monkeypatch):
+    line = (
+        '{"session_id": "s1", "total_cost_usd": 1, "permission_denials": '
+        '[{"tool_name": "Bash", "tool_input": {"command": "cat /proc/self/environ"}}]}'
+    )
+    script = f"echo '{line}'\necho report > REVIEW_OUTPUT.md\n"
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    result = run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert result.status == "ok"
+    assert result.notes == [
+        "run 1 was refused 1 tool call(s): Bash: {'command': 'cat /proc/self/environ'}"
+    ]
+
+
+def test_a_reused_work_dir_starts_without_the_last_runs_files(tmp_path, monkeypatch):
+    work_dir = tmp_path / "w"
+    work_dir.mkdir()
+    (work_dir / "copilot-usage-0.json").write_text('{"stale": true}')
+    work = _fake(tmp_path, monkeypatch, "copilot", "exit 1\n")
+    result = run_headless_review(
+        work, agent="copilot", base="origin/main", repo_name="app", work_dir=work_dir
+    )
+    assert result.usage == []
