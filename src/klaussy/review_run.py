@@ -347,11 +347,20 @@ def agent_env(agent: str, guard_env: dict[str, str], home: Path | None = None) -
     return env
 
 
-def review_prompt(repo_name: str, base: str, *, include_nits: bool) -> str:
+def review_prompt(
+    repo_name: str, base: str, *, include_nits: bool, head_sha: str | None = None
+) -> str:
     skill = f"{sanitize_skill_namespace(repo_name)}-review"
     nits = "Include nits: report Warn and Nit findings too. " if include_nits else ""
+    pinned = (
+        f"This checkout is the pull request at commit {head_sha}, built without a remote on "
+        f"purpose: skip the check for a newer push, don't mention remotes or local commits, and "
+        f"give `{head_sha[:7]}` as the reviewed commit. "
+        if head_sha
+        else ""
+    )
     return (
-        f"Use the {skill} skill to review this branch (HEAD) against `{base}`. {nits}"
+        f"Use the {skill} skill to review this branch (HEAD) against `{base}`. {nits}{pinned}"
         f"There is no one to answer questions: make reasonable calls yourself. "
         f"Commands already run from the checkout root, so don't `cd` first, and read files with "
         f"your file-reading tool rather than `cat`. "
@@ -627,6 +636,7 @@ def run_headless_review(
     model: str | None = None,
     max_ai_credits: str | None = None,
     include_nits: bool = False,
+    head_sha: str | None = None,
 ) -> ReviewResult:
     """Run the prepared review once, and resume once with whatever budget and time are left."""
     runner = make_agent(agent, max_ai_credits=max_ai_credits)
@@ -640,7 +650,7 @@ def run_headless_review(
     env = agent_env(agent, install_guards(work_dir / "guard"), home)
     report = repo / REPORT
     deadline = time.monotonic() + timeout_s
-    prompt = review_prompt(repo_name, base, include_nits=include_nits)
+    prompt = review_prompt(repo_name, base, include_nits=include_nits, head_sha=head_sha)
     session = None if agent == "claude" else str(uuid.uuid4())
     model = model or DEFAULT_MODEL.get(agent)
     spent: float | None = 0.0

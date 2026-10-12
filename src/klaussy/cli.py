@@ -598,6 +598,11 @@ def review(
     ),
     include_nits: bool = typer.Option(False, "--include-nits", help="Also report Warn and Nit."),
     enrich: bool = typer.Option(False, "--enrich", help="Let init enrich a generated CLAUDE.md."),
+    head_sha: str | None = typer.Option(
+        None,
+        "--head-sha",
+        help="The pull request's head commit, for a checkout built without a remote.",
+    ),
 ) -> None:
     """Review HEAD headless in a throwaway worktree, and write the report plus a result JSON.
 
@@ -636,6 +641,7 @@ def review(
                 model=model,
                 max_ai_credits=max_ai_credits,
                 include_nits=include_nits,
+                head_sha=head_sha,
             )
             if (checkout / REVIEW_REPORT).is_file():
                 shutil.copyfile(checkout / REVIEW_REPORT, report_out)
