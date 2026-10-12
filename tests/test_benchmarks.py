@@ -698,3 +698,33 @@ def test_reviewbench_agent_refuses_an_instruction_it_cant_pass_on(monkeypatch):
         monkeypatch.setenv(name, "x")
     with pytest.raises(SystemExit, match="RB_CONFIG_INSTRUCTION"):
         reviewbench_agent.main()
+
+
+def test_reviewbench_agent_reads_the_title_and_body_from_pr_json(tmp_path):
+    pr_json = tmp_path / "pr.json"
+    pr_json.write_text(json.dumps({"title": "Fix login", "body": "Retries the refresh."}))
+    assert reviewbench_agent.pr_info(pr_json)["title"] == "Fix login"
+    assert reviewbench_agent.pr_info(tmp_path / "missing.json") == {}
+
+
+def test_reviewbench_agent_hands_the_pr_context_to_klaussy(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    reviewbench_agent.review(
+        tmp_path / "repo",
+        tmp_path / "work",
+        model="m",
+        timeout_s=1,
+        enrich=False,
+        head="h",
+        pr={"title": "Fix login", "body": "Retries the refresh."},
+    )
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--pr-title") + 1] == "Fix login"
+    body = Path(cmd[cmd.index("--pr-body-file") + 1])
+    assert body.read_text() == "Retries the refresh."

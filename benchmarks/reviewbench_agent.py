@@ -51,11 +51,32 @@ def prepare(src: Path, dest: Path, base: str, head: str) -> None:
 
 
 DEFAULT_MODEL = "claude-sonnet-5-5"
+
+
+def pr_info(path: Path) -> dict:
+    """ReviewBench's pr.json (title and body among them); empty when it's missing or unreadable."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        print(f"agent: no PR title or description: {path} unreadable", file=sys.stderr)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 # ReviewBench stops a pull request at 15 minutes; leave room to write findings after a timeout.
 DEFAULT_TIMEOUT_S = 780
 
 
-def review(repo: Path, work: Path, *, model: str, timeout_s: int, enrich: bool, head: str) -> dict:
+def review(
+    repo: Path,
+    work: Path,
+    *,
+    model: str,
+    timeout_s: int,
+    enrich: bool,
+    head: str,
+    pr: dict,
+) -> dict:
     """Run `klaussy review --headless`, the runner the Action and hosted App use; the result JSON
     plus the report text."""
     cmd = [
@@ -91,6 +112,12 @@ def review(repo: Path, work: Path, *, model: str, timeout_s: int, enrich: bool, 
     ]
     if enrich:
         cmd.append("--enrich")
+    if pr.get("title"):
+        cmd += ["--pr-title", str(pr["title"])]
+    if pr.get("body"):
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "pr-body.md").write_text(str(pr["body"]))
+        cmd += ["--pr-body-file", str(work / "pr-body.md")]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     print(f"agent: klaussy review exited {proc.returncode}", proc.stderr[-2000:], file=sys.stderr)
     result_file, report = work / "result.json", work / "REVIEW_OUTPUT.md"
@@ -121,6 +148,7 @@ def main() -> None:
         timeout_s=timeout_s,
         enrich=enrich,
         head=env["RB_HEAD"],
+        pr=pr_info(Path(env.get("RB_PR_JSON", "/work/pr/pr.json"))),
     )
     # A review stopped by its time or budget limit still counts for the findings it wrote.
     if result.get("status") not in ("ok", "timeout", "budget") or not result["report"]:
