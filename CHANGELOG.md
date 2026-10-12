@@ -20,6 +20,8 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
   uncommitted work are never touched. It does the
   checkout scrub, the `git` and `klaussy` command guards and the resume-within-budget that the
   review Action used to do in bash, so the Action and the hosted review App share one runner.
+  Tool calls the agent was refused are listed in the result's `notes`, so a review that ran
+  without its commands doesn't pass as a normal one.
 - **The review Action reviews with OpenAI models** (`agent: openai`, `openai-api-key`), in
   preview. It runs Copilot CLI with OpenAI as the model provider, under the same restrictions
   as `agent: copilot`.

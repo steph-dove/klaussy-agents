@@ -13,6 +13,7 @@ import re
 import shlex
 import shutil
 import signal
+import site
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from importlib import resources
 from pathlib import Path
 
+from klaussy.secret_scan import redact
 from klaussy.skills import sanitize_skill_namespace
 
 REPORT = "REVIEW_OUTPUT.md"
@@ -105,6 +107,8 @@ class AgentRun:
     usage: dict | None = None
     timed_out: bool = False
     error_text: str = ""
+    denied: tuple[str, ...] = ()
+    stop: str = ""
 
 
 @dataclass(frozen=True)
@@ -163,10 +167,18 @@ def _restore_conventions(repo: Path, base: str, *, drop_unknown: bool) -> None:
             _git(repo, "checkout", "-q", base, "--", path)
 
 
-def _klaussy(*args: str, repo: Path, env: dict[str, str]) -> None:
-    proc = subprocess.run(
-        [sys.executable, "-m", "klaussy", *args], cwd=repo, env=env, capture_output=True, text=True
-    )
+def _klaussy(*args: str, repo: Path, env: dict[str, str], timeout: float | None = None) -> None:
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "klaussy", *args],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ReviewRunError(f"klaussy {args[0]} ran past {int(exc.timeout)}s") from exc
     if proc.returncode != 0:
         raise ReviewRunError(f"klaussy {args[0]}: {proc.stderr or proc.stdout}")
 
@@ -174,6 +186,8 @@ def _klaussy(*args: str, repo: Path, env: dict[str, str]) -> None:
 @contextmanager
 def scratch_worktree(repo: Path, work_dir: Path, name: str) -> Iterator[Path]:
     """A throwaway worktree of HEAD named `name`, since skills are named after their folder."""
+    if name in ("", ".", "..") or Path(name).name != name:
+        raise ReviewRunError(f"--repo-name must be the repo's bare name, not {name!r}")
     path = work_dir / "checkout" / name
     if path.exists():
         _git(repo, "worktree", "remove", "--force", str(path), check=False)
@@ -187,7 +201,13 @@ def scratch_worktree(repo: Path, work_dir: Path, name: str) -> Iterator[Path]:
 
 
 def prepare_checkout(
-    repo: Path, *, base: str, agent: str, diff_out: Path, enrich: bool = False
+    repo: Path,
+    *,
+    base: str,
+    agent: str,
+    diff_out: Path,
+    enrich: bool = False,
+    timeout_s: float | None = None,
 ) -> None:
     """Capture the PR diff, strip the PR's agent config, take conventions from `base` and
     render the review skill for `agent`."""
@@ -199,10 +219,17 @@ def prepare_checkout(
         if (repo / top).is_symlink():
             (repo / top).unlink()
     # os.walk doesn't follow symlinked directories, so a PR's symlink can't point the sweep
-    # outside the checkout.
-    for root, dirs, _ in os.walk(repo):
+    # outside the checkout; links that lead outside it go, so the reviewer can't read through one.
+    inside = repo.resolve()
+    for root, dirs, files in os.walk(repo):
         if ".git" in dirs:
             dirs.remove(".git")
+        for name in [*dirs, *files]:
+            link = Path(root) / name
+            if link.is_symlink() and not link.resolve().is_relative_to(inside):
+                link.unlink()
+                if name in dirs:
+                    dirs.remove(name)
         if Path(root) != repo and ".claude" in dirs:
             _remove(Path(root) / ".claude")
             dirs.remove(".claude")
@@ -229,6 +256,7 @@ def prepare_checkout(
             *flags,
             repo=repo,
             env=env,
+            timeout=timeout_s,
         )
     # init can regenerate conventions the base already has; the base's win, and the review
     # skill is built from them afterwards.
@@ -296,6 +324,8 @@ def agent_env(agent: str, guard_env: dict[str, str], home: Path | None = None) -
             XDG_CONFIG_HOME=str(home / ".config"),
             CLAUDE_CONFIG_DIR=str(home / ".claude"),
             COPILOT_HOME=str(home / ".copilot"),
+            # A `pip install --user` klaussy lives under the real home; the guards still need it.
+            PYTHONUSERBASE=env.get("PYTHONUSERBASE") or site.getuserbase(),
         )
     if agent == "claude":
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
@@ -310,6 +340,8 @@ def review_prompt(repo_name: str, base: str, *, include_nits: bool) -> str:
     return (
         f"Use the {skill} skill to review this branch (HEAD) against `{base}`. {nits}"
         f"There is no one to answer questions: make reasonable calls yourself. "
+        f"Commands already run from the checkout root, so don't `cd` first, and read files with "
+        f"your file-reading tool rather than `cat`. "
         f"Finish by writing {REPORT}."
     )
 
@@ -434,6 +466,7 @@ class Claude:
             None,
             timed_out,
             str(data.get("result", "")) if data.get("is_error") else "",
+            stop=str(data.get("subtype", "")),
         )
 
 
@@ -452,10 +485,35 @@ def _session_errors(stdout: str) -> str:
     return "\n".join(errors)
 
 
+def _denied_calls(stdout: str) -> tuple[str, ...]:
+    """Tool calls Copilot refused, as "tool: command"; a headless run gets "denied" for anything
+    off the allow-list instead of a prompt."""
+    started: dict[str, str] = {}
+    denied = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
+            continue
+        data = event["data"]
+        if event.get("type") == "tool.execution_start":
+            args = data.get("arguments") if isinstance(data.get("arguments"), dict) else {}
+            what = args.get("command") or args.get("path") or ""
+            started[str(data.get("toolCallId"))] = f"{data.get('toolName')}: {str(what)[:120]}"
+        elif event.get("type") == "tool.execution_complete":
+            error = data.get("error") if isinstance(data.get("error"), dict) else {}
+            if error.get("code") == "denied":
+                denied.append(started.get(str(data.get("toolCallId")), "unknown tool"))
+    return tuple(redact(call) for call in denied)
+
+
 class Copilot:
     key = "copilot"
     allowed = (
         f"write({REPORT})",
+        "shell(cd)",
         "shell(klaussy)",
         "shell(ls)",
         *(f"shell(git {c})" for c in GIT_COMMANDS),
@@ -513,7 +571,14 @@ class Copilot:
             except json.JSONDecodeError:
                 usage = None
         return AgentRun(
-            returncode, stdout, session, None, usage, timed_out, _session_errors(stdout)
+            returncode,
+            stdout,
+            session,
+            None,
+            usage,
+            timed_out,
+            _session_errors(stdout),
+            _denied_calls(stdout),
         )
 
 
@@ -589,6 +654,10 @@ def run_headless_review(
         session = last.session or session
         if last.usage:
             usage.append(last.usage)
+        if last.denied:
+            shown = "; ".join(last.denied[:5])
+            more = f" (+{len(last.denied) - 5} more)" if len(last.denied) > 5 else ""
+            notes.append(f"run {runs} was refused {len(last.denied)} tool call(s): {shown}{more}")
         if agent == "claude":
             if last.cost_usd is None:
                 notes.append(f"run {runs}'s cost couldn't be read from Claude's output")
@@ -619,7 +688,7 @@ def run_headless_review(
         status, error = "ok", ""
     elif last.timed_out:
         status, error = "timeout", f"the review hit its {int(timeout_s)}s limit"
-    elif agent == "claude" and "error_max_budget" in log:
+    elif last.stop == "error_max_budget_usd":
         status, error = "budget", f"the ${budget_usd} budget ran out"
     elif last.returncode not in (0, None) and _AUTH.search(auth_text):
         status, error = "auth", "the agent's credential was rejected"

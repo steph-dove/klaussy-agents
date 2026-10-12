@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -611,8 +612,16 @@ def review(
     for directory in (work_dir, out.parent, diff_out.parent, report_out.parent):
         directory.mkdir(parents=True, exist_ok=True)
     try:
+        started = time.monotonic()
         with scratch_worktree(repo, work_dir, repo_name or repo.name) as checkout:
-            prepare_checkout(checkout, base=base, agent=agent, diff_out=diff_out, enrich=enrich)
+            prepare_checkout(
+                checkout,
+                base=base,
+                agent=agent,
+                diff_out=diff_out,
+                enrich=enrich,
+                timeout_s=timeout,
+            )
             result = run_headless_review(
                 checkout,
                 agent=agent,
@@ -620,7 +629,7 @@ def review(
                 repo_name=repo_name or repo.name,
                 work_dir=work_dir,
                 budget_usd=budget_usd,
-                timeout_s=timeout,
+                timeout_s=max(timeout - (time.monotonic() - started), 1),
                 model=model,
                 max_ai_credits=max_ai_credits,
                 include_nits=include_nits,
