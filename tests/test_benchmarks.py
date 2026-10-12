@@ -628,3 +628,73 @@ def test_reviewbench_refuses_an_instruction_it_cant_pass_to_headless(monkeypatch
     with pytest.raises(SystemExit) as exc:
         reviewbench.main()
     assert exc.value.code == 2
+
+
+def test_reviewbench_agent_reviews_through_the_headless_runner(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text(
+            "**High · Correctness · `lib/client.js:10-12`**\n\nLeaks the connection.\n"
+        )
+        (work / "result.json").write_text(json.dumps({"status": "timeout", "cost_usd": 1.5}))
+        return subprocess.CompletedProcess(cmd, 1, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    for name, value in {
+        "RB_NWO": "brianc/node-postgres",
+        "RB_PR_NUMBER": "3650",
+        "RB_BASE": "a" * 40,
+        "RB_HEAD": "b" * 40,
+        "RB_OUT": "out/findings.json",
+    }.items():
+        monkeypatch.setenv(name, value)
+    (tmp_path / "out").mkdir()
+
+    reviewbench_agent.main()
+
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
+    assert cmd[cmd.index("--timeout") + 1] == "780" and "--enrich" in cmd
+    assert cmd[cmd.index("--head-sha") + 1] == "b" * 40
+    record = json.loads((tmp_path / "out" / "findings.json").read_text())
+    assert record["pr"]["pr_number"] == 3650 and record["pr"]["head"] == "b" * 40
+    assert record["findings"][0]["file"] == "lib/client.js"
+
+
+def test_reviewbench_agent_rejects_a_failed_review_even_with_a_report(tmp_path, monkeypatch):
+    def fake_run(cmd, **kw):
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text("**High · Correctness · `a.py:1`**\n\nPartial.\n")
+        (work / "result.json").write_text(json.dumps({"status": "error", "error": "crashed"}))
+        return subprocess.CompletedProcess(cmd, 1, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    for name, value in {
+        "RB_NWO": "o/r",
+        "RB_PR_NUMBER": "1",
+        "RB_BASE": "a" * 40,
+        "RB_HEAD": "b" * 40,
+        "RB_OUT": "findings.json",
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(SystemExit, match="review failed: error"):
+        reviewbench_agent.main()
+    assert not (tmp_path / "findings.json").exists()
+
+
+def test_reviewbench_agent_refuses_an_instruction_it_cant_pass_on(monkeypatch):
+    monkeypatch.setenv("RB_CONFIG_INSTRUCTION", "focus on security")
+    for name in ("RB_NWO", "RB_PR_NUMBER", "RB_BASE", "RB_HEAD", "RB_OUT"):
+        monkeypatch.setenv(name, "x")
+    with pytest.raises(SystemExit, match="RB_CONFIG_INSTRUCTION"):
+        reviewbench_agent.main()
