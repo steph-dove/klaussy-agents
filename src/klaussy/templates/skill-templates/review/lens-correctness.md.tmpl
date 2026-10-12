@@ -20,6 +20,14 @@
 - Comments, docstrings and test names near changed code still match it: a docstring that says "returns a list" over a function that now returns a dict, or a test comment that says "allow" over data that denies, is a Medium finding.
 - Translation files hold that locale's language and script: a file for one language doesn't contain another (a German string in the French file), and script variants match the locale (Simplified vs Traditional Chinese, Cyrillic vs Latin Serbian, Brazilian vs European Portuguese). Placeholders and markup match the source string.
 
+### Shell scripts
+When the diff adds or changes a shell script (`.sh`, `.bash`, a `#!/bin/sh` or `#!/usr/bin/env bash` file, or a `run:` block in CI config), check it against each of these:
+- **Portability:** a command or flag that differs between GNU/Linux and BSD/macOS (`sed -i`, `date -d`, `readlink -f`, `stat -c`, `grep -P`, `sha256sum` vs `shasum`), bash-only syntax under `#!/bin/sh`, or bash 4 features (`declare -A`, `mapfile`, `${var,,}`) where macOS's bash 3.2 will run it.
+- **Dependencies:** each external tool (`jq`, `curl`, `python3`) is checked for before first use, with a clear message, and only on the paths that use it: a tool required up front breaks runs that never needed it.
+- **Failure handling:** a failing command, `cd` or pipeline stage can't be silently ignored (`set -euo pipefail`, or an explicit `|| exit`); a `$(...)` whose failure is swallowed into an empty value.
+- **Temporary files and partial writes:** a `mktemp` without a `trap ... EXIT` cleanup, or a real file overwritten in place so a failure halfway leaves it truncated (write to a temp file, then `mv`).
+- **Quoting and input:** unquoted expansions that split or glob on spaces and wildcards, input reaching `eval`, and argument parsing that accepts an unknown flag, a missing value or the same option twice.
+
 ### Concurrency & State
 - Race conditions, shared mutable state.
 - Thread safety, async misuse, ordering assumptions.

@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [Unreleased]
+
+### Added
+
+- **`klaussy review --headless --pr-title … --pr-body-file …`** gives the reviewer the pull
+  request's title and description, so its scope check judges the change against what the author
+  said it's for. They're fenced in the prompt as author-written context, not instructions, and the
+  description is capped at 4,000 characters. The ReviewBench image reads them from `pr.json`.
+
+### Changed
+
+- **The review's correctness lens checks changed shell scripts**: GNU vs BSD/macOS portability,
+  bash-only syntax under `/bin/sh` and bash 4 features on macOS, dependencies required only where
+  they're used, swallowed failures, `mktemp` without a cleanup `trap`, partial writes, quoting, and
+  argument parsing.
+
 ## [0.39.1] - 2026-10-11
 
 ### Added

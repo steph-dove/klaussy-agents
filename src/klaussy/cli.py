@@ -603,6 +603,10 @@ def review(
         "--head-sha",
         help="The pull request's head commit, for a checkout built without a remote.",
     ),
+    pr_title: str | None = typer.Option(None, "--pr-title", help="The pull request's title."),
+    pr_body_file: Path | None = typer.Option(
+        None, "--pr-body-file", help="A file holding the pull request's description."
+    ),
 ) -> None:
     """Review HEAD headless in a throwaway worktree, and write the report plus a result JSON.
 
@@ -642,6 +646,8 @@ def review(
                 max_ai_credits=max_ai_credits,
                 include_nits=include_nits,
                 head_sha=head_sha,
+                pr_title=pr_title,
+                pr_body=pr_body_file.read_text(errors="replace") if pr_body_file else None,
             )
             if (checkout / REVIEW_REPORT).is_file():
                 shutil.copyfile(checkout / REVIEW_REPORT, report_out)

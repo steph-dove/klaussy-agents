@@ -34,7 +34,9 @@ def task_key(task: dict) -> str:
     return f"{task['nwo'].replace('/', '_')}_{task['pr_number']}-{task['head'][:8]}"
 
 
-def headless_review(path: Path, repo: str, key: str, args: argparse.Namespace) -> dict:
+def headless_review(
+    path: Path, repo: str, key: str, args: argparse.Namespace, pr: runner.PullRequest | None = None
+) -> dict:
     """Review through `klaussy review --headless`, the runner the Action and hosted App use,
     in the dict shape run_task reads."""
     work = args.work_dir.resolve() / f"{key}-headless"
@@ -67,6 +69,12 @@ def headless_review(path: Path, repo: str, key: str, args: argparse.Namespace) -
     ]
     if args.model:
         cmd += ["--model", args.model]
+    if pr and pr.title:
+        cmd += ["--pr-title", pr.title]
+    if pr and pr.body:
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "pr-body.md").write_text(pr.body)
+        cmd += ["--pr-body-file", str(work / "pr-body.md")]
     started = time.monotonic()
     proc = subprocess.run(cmd, capture_output=True, text=True)
     result = (
@@ -111,7 +119,7 @@ def run_task(task: dict, args: argparse.Namespace) -> str:
     path = runner.prepare_repo(pr, args.work_dir.resolve() / key, repo, enrich=not args.headless)
     print(f"[{key}] reviewing in {path}", flush=True)
     if args.headless:
-        review = headless_review(path, repo, key, args)
+        review = headless_review(path, repo, key, args, pr)
     else:
         review = runner.run_review(
             path, model=args.model, budget_usd=args.budget_usd, instruction=args.instruction
