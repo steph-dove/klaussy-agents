@@ -795,3 +795,23 @@ def test_git_wont_use_a_bare_repo_the_pr_committed(guarded):
     )
     assert result.returncode != 0
     assert b"safe.bareRepository" in result.stderr
+
+
+def test_a_pinned_head_sha_replaces_the_push_check():
+    prompt = review_prompt("app", "main", include_nits=False, head_sha="91f13e3" + "a" * 33)
+    assert "at commit 91f13e3" in prompt and "`91f13e3`" in prompt
+    assert "don't mention remotes" in prompt
+    assert "remote" not in review_prompt("app", "main", include_nits=False)
+
+
+def test_run_headless_review_passes_the_head_sha_to_the_agent(tmp_path, monkeypatch):
+    work = _fake(tmp_path, monkeypatch, "claude", FAKE_CLAUDE)
+    run_headless_review(
+        work,
+        agent="claude",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        head_sha="91f13e3" + "a" * 33,
+    )
+    assert "at commit 91f13e3" in _calls(tmp_path)[0]
