@@ -783,10 +783,15 @@ def test_git_wont_use_a_bare_repo_the_pr_committed(guarded):
     guard, repo, env = guarded
     bare = repo / "evil"
     subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
-    marker = repo / "ran"
-    subprocess.run(
-        ["git", "-C", str(bare), "config", "core.fsmonitor", f"touch {marker}; false"], check=True
+    plain = subprocess.run(
+        ["git", "rev-parse", "--is-bare-repository"], cwd=bare, capture_output=True
     )
-    result = subprocess.run([str(guard / "git"), "status"], cwd=bare, env=env, capture_output=True)
+    assert plain.returncode == 0  # unguarded git would use it
+    result = subprocess.run(
+        [str(guard / "git"), "rev-parse", "--is-bare-repository"],
+        cwd=bare,
+        env=env,
+        capture_output=True,
+    )
     assert result.returncode != 0
-    assert not marker.exists()
+    assert b"safe.bareRepository" in result.stderr
