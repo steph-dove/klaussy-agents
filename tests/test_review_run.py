@@ -229,6 +229,47 @@ def test_claude_caches_for_five_minutes_and_other_agents_are_untouched(tmp_path)
     assert "FORCE_PROMPT_CACHING_5M" not in agent_env("copilot", guard)
 
 
+def _transcript(path: Path, *entries: tuple[str, int]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps(
+            {"message": {"id": mid, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": n}}}}
+        )
+        for mid, n in entries
+    ]
+    path.write_text("\n".join([*lines, "not json"]) + "\n")
+
+
+def test_one_hour_cache_writes_count_subagents_once_per_message(tmp_path):
+    projects = tmp_path / ".claude" / "projects" / "p"
+    _transcript(projects / "s.jsonl", ("m1", 100), ("m1", 100), ("m2", 0))
+    _transcript(projects / "s" / "subagents" / "agent-a.jsonl", ("m3", 50))
+    assert review_run.one_hour_cache_writes(tmp_path / ".claude", 0) == 150
+
+
+def test_one_hour_cache_writes_skip_transcripts_from_earlier_runs(tmp_path):
+    old = tmp_path / ".claude" / "projects" / "p" / "old.jsonl"
+    _transcript(old, ("m1", 100))
+    os.utime(old, (1, 1))
+    assert review_run.one_hour_cache_writes(tmp_path / ".claude", 2) == 0
+
+
+def test_a_review_that_writes_one_hour_cache_says_so(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    entry = {"message": {"id": "m", "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 7}}}}
+    script = (
+        'mkdir -p "$CLAUDE_CONFIG_DIR/projects/p"\n'
+        f"echo '{json.dumps(entry)}' > \"$CLAUDE_CONFIG_DIR/projects/p/s.jsonl\"\n"
+        'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+        "echo '{\"total_cost_usd\": 1}'\n"
+    )
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    result = run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert any("7 tokens went to the 1-hour prompt cache" in n for n in result.notes)
+
+
 def test_openai_runs_copilot_with_openai_as_the_provider(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-key")
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "copilot")
@@ -1011,6 +1052,31 @@ def test_an_incremental_review_pins_its_starting_commit(tmp_path, monkeypatch):
         since="abc1234",
     )
     assert _calls(tmp_path)[0] == "base=abc1234" and result.since == "abc1234"
+
+
+@pytest.mark.parametrize(
+    ("agent", "binary"), [("claude", "claude"), ("copilot", "copilot"), ("openai", "copilot")]
+)
+def test_every_agent_reviews_incrementally_from_the_pinned_commit(
+    tmp_path, monkeypatch, agent, binary
+):
+    script = (
+        'echo "base=$KLAUSSY_REVIEW_BASE $*" >> "$CALLS"\n'
+        'echo "**Verdict:** Approve" > REVIEW_OUTPUT.md\n'
+        "echo '{\"total_cost_usd\": 1}'\n"
+    )
+    work = _fake(tmp_path, monkeypatch, binary, script)
+    result = run_headless_review(
+        work,
+        agent=agent,
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        since="abc1234",
+    )
+    call = _calls(tmp_path)[0]
+    assert result.status == "ok" and result.since == "abc1234"
+    assert call.startswith("base=abc1234 ") and "already reviewed up to commit abc1234" in call
 
 
 def test_the_cli_notes_why_a_review_fell_back_to_full(tmp_path, monkeypatch):

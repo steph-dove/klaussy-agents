@@ -581,6 +581,26 @@ def _session_errors(stdout: str) -> str:
     return "\n".join(errors)
 
 
+def one_hour_cache_writes(claude_home: Path, since: float) -> int:
+    """Tokens written to the 1-hour prompt cache by Claude transcripts, subagents included,
+    touched after `since`. Each message counts once; Claude Code logs it per content block."""
+    seen: dict[str, int] = {}
+    for path in (claude_home / "projects").rglob("*.jsonl"):
+        if path.stat().st_mtime < since:
+            continue
+        for line in path.read_text(errors="replace").splitlines():
+            try:
+                message = json.loads(line).get("message")
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            usage = message.get("usage") if isinstance(message, dict) else None
+            creation = usage.get("cache_creation") if isinstance(usage, dict) else None
+            if isinstance(creation, dict):
+                key = str(message.get("id") or f"{path}:{len(seen)}")
+                seen[key] = int(creation.get("ephemeral_1h_input_tokens") or 0)
+    return sum(seen.values())
+
+
 def _denied_calls(stdout: str) -> tuple[str, ...]:
     """Tool calls Copilot refused, as "tool: command"; a headless run gets "denied" for anything
     off the allow-list instead of a prompt."""
@@ -725,6 +745,7 @@ def run_headless_review(
     env = agent_env(agent, install_guards(work_dir / "guard"), home)
     env[ENV_BASE] = since or base
     report = repo / REPORT
+    started = time.time()
     deadline = time.monotonic() + timeout_s
     prompt = review_prompt(
         repo_name,
@@ -798,6 +819,13 @@ def run_headless_review(
             break
 
     assert last is not None
+    if agent == "claude" and home is not None:
+        hour = one_hour_cache_writes(home / ".claude", started)
+        if hour:
+            notes.append(
+                f"{hour} tokens went to the 1-hour prompt cache; "
+                "FORCE_PROMPT_CACHING_5M may have stopped working"
+            )
     written = report.is_file()
     if written and not last.timed_out and last.returncode == 0:
         status, error = "ok", ""
