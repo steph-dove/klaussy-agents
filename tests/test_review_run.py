@@ -898,5 +898,5 @@ def test_the_cli_refuses_an_effort_before_preparing_anything(tmp_path, agent, ef
             str(tmp_path / "w"),
         ],
     )
-    assert result.exit_code == 2 and "--effort" in result.output
+    assert result.exit_code == 2 and "Claude-only" in result.output
     assert not out.exists() and not (tmp_path / "w").exists()
