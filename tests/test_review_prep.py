@@ -142,9 +142,18 @@ def _repo_with_stale_local_main(repo: Path) -> None:
 
 def test_a_stale_local_main_leaves_merged_commits_out_of_the_diff(tmp_path: Path):
     _repo_with_stale_local_main(tmp_path)
-    for base in (None, "main"):
-        paths = {d.path for d in prepare_review(repo=tmp_path, base_branch=base).decisions}
-        assert paths == {"src/feature.py"}, base
+    paths = {d.path for d in prepare_review(repo=tmp_path).decisions}
+    assert paths == {"src/feature.py"}
+
+
+def test_a_given_base_is_used_as_is(tmp_path: Path, monkeypatch):
+    """The ReviewBench agent points local main at the fork point on purpose; origin/main may
+    already hold the merged PR, which would empty the diff."""
+    _repo_with_stale_local_main(tmp_path)
+    both = {"src/merged.py", "src/feature.py"}
+    assert {d.path for d in prepare_review(repo=tmp_path, base_branch="main").decisions} == both
+    monkeypatch.setenv("KLAUSSY_REVIEW_BASE", "main")
+    assert {d.path for d in prepare_review(repo=tmp_path).decisions} == both
 
 
 def test_render_markdown_has_manifest_and_summary():
