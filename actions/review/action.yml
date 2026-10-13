@@ -160,7 +160,10 @@ runs:
         # the Review step drops. A lookup failure only means a full review.
         since=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --paginate \
           --jq '.[] | select(.body | contains("<!-- klaussy-review -->")) | .commit_id' \
-          | tail -n 1) || since=""
+          | tail -n 1) || {
+          echo "::warning::Couldn't look up the last klaussy review; reviewing in full."
+          since=""
+        }
         echo "since=${since}" >> "$GITHUB_OUTPUT"
 
     - name: Review

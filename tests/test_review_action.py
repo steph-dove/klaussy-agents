@@ -195,6 +195,7 @@ def test_a_failed_lookup_means_a_full_review_not_a_failed_job(tmp_path):
     result = _run_step(tmp_path, "Find the last klaussy review", bin_dir, PR="7")
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "out").read_text().strip() == "since="
+    assert "::warning::Couldn't look up the last klaussy review" in result.stdout
 
 
 def test_the_review_step_passes_the_last_reviewed_commit(tmp_path):
