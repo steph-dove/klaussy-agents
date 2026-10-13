@@ -17,9 +17,10 @@ RUN python3 -m venv /opt/klaussy \
 
 # Runs have no package index; skip klaussy init's conventions upgrade attempt. ReviewBench only
 # lets the model host through, so Claude Code's telemetry and update checks stay off everywhere,
-# enrichment included.
+# enrichment included. npm, npx and corepack stay offline: a refused registry once drew 1.4M
+# retries in one round.
 ENV PATH=/opt/klaussy/bin:$PATH PIP_NO_INDEX=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-    DISABLE_AUTOUPDATER=1
+    DISABLE_AUTOUPDATER=1 NPM_CONFIG_OFFLINE=true COREPACK_ENABLE_NETWORK=0
 
 WORKDIR /agent
 COPY benchmarks/reviewbench_agent.py ./

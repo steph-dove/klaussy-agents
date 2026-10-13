@@ -6,8 +6,10 @@ import time
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from klaussy import review_run
+from klaussy.cli import app
 from klaussy.review_run import (
     REPORT,
     agent_env,
@@ -848,3 +850,53 @@ def test_the_cli_passes_the_pr_context_to_the_agent(tmp_path, monkeypatch):
     )
     logged = "\n".join(_calls(tmp_path))
     assert "<pr-title>Fix login</pr-title>" in logged and "Retries the refresh." in logged
+
+
+def test_claude_runs_at_the_requested_effort_and_both_runs_keep_it(tmp_path, monkeypatch):
+    work = _fake(tmp_path, monkeypatch, "claude", FAKE_CLAUDE)
+    run_headless_review(
+        work,
+        agent="claude",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        effort="high",
+    )
+    calls = _calls(tmp_path)
+    assert len(calls) == 2 and all("--effort high" in c for c in calls)
+
+
+def test_claude_passes_no_effort_flag_by_default(tmp_path, monkeypatch):
+    work = _fake(tmp_path, monkeypatch, "claude", FAKE_CLAUDE)
+    run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert not any("--effort" in c for c in _calls(tmp_path))
+
+
+@pytest.mark.parametrize(("agent", "effort"), [("claude", "extreme"), ("copilot", "high")])
+def test_the_cli_refuses_an_effort_before_preparing_anything(tmp_path, agent, effort):
+    out = tmp_path / "result.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "review",
+            "--headless",
+            "--repo",
+            str(tmp_path),
+            "--base",
+            "origin/main",
+            "--agent",
+            agent,
+            "--effort",
+            effort,
+            "--out",
+            str(out),
+            "--diff-out",
+            str(tmp_path / "pr.diff"),
+            "--work-dir",
+            str(tmp_path / "w"),
+        ],
+    )
+    assert result.exit_code == 2 and "Claude-only" in result.output
+    assert not out.exists() and not (tmp_path / "w").exists()

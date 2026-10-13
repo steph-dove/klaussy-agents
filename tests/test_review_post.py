@@ -6,7 +6,6 @@ from klaussy.cli import app
 from klaussy.review_post import (
     FOOTER,
     MARKER,
-    WATERMARK,
     build_review,
     commentable_lines,
     parse_findings,
@@ -263,16 +262,24 @@ def test_a_comment_reads_like_klaussy_desktop_posts_it():
         "The lock is released before the write, e.g. on the put path.\n\n```python"
     )
     assert "High" not in lead and "Correctness" not in lead
-    assert details.startswith("\n<summary>Explanation</summary>")
+    assert details.startswith("\n<summary></summary>")
     assert "That corrupts the pool under load." in details
-    assert details.rstrip().endswith(f"<sub>{WATERMARK}</sub>\n\n</details>")
+    assert details.rstrip().endswith("That corrupts the pool under load.\n\n</details>")
 
 
-def test_every_comment_carries_the_watermark_in_its_explanation():
+def test_the_explanation_has_no_label_or_watermark():
     short = "**Low · Docs · `README.md:4`**\n\nThe README still says the pool is unbounded.\n"
     comment = parse_findings(short)[0].comment
     assert comment.startswith("The README still says the pool is unbounded.\n\n<details>")
-    assert f"<sub>{WATERMARK}</sub>" in comment
+    assert "<summary></summary>" in comment
+    assert "Explanation" not in comment and "klaussy" not in comment
+
+
+def test_a_suggestion_with_no_prose_has_no_empty_dropdown():
+    bare = "**Low · Style · `app.py:3`**\n\nSuggested change:\n```python\nx = 1\n```\n"
+    comment = parse_findings(bare)[0].comment
+    assert comment.startswith("```python")
+    assert "<details>" not in comment
 
 
 def test_comments_are_humanized_but_code_is_left_alone():

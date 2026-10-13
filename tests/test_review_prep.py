@@ -126,6 +126,27 @@ def test_prepare_review_keeps_source_drops_noise(tmp_path: Path):
     assert "src/app.py" in payload.trimmed_diff
 
 
+def _repo_with_stale_local_main(repo: Path) -> None:
+    """`main` stays at the first commit; origin/main has a merged change the branch is cut from."""
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "t@t.t")
+    _git(repo, "config", "user.name", "t")
+    _commit_file(repo, "src/app.py", "def run():\n    return 1\n", "init")
+    _git(repo, "checkout", "-b", "upstream")
+    _commit_file(repo, "src/merged.py", "MERGED = 1\n", "merged upstream")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-b", "feature")
+    _git(repo, "branch", "-D", "upstream")
+    _commit_file(repo, "src/feature.py", "FEATURE = 1\n", "work")
+
+
+def test_a_stale_local_main_leaves_merged_commits_out_of_the_diff(tmp_path: Path):
+    _repo_with_stale_local_main(tmp_path)
+    for base in (None, "main"):
+        paths = {d.path for d in prepare_review(repo=tmp_path, base_branch=base).decisions}
+        assert paths == {"src/feature.py"}, base
+
+
 def test_render_markdown_has_manifest_and_summary():
     from klaussy.review_prep import Decision, ReviewPayload
 

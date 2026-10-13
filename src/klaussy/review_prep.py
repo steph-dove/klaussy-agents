@@ -256,7 +256,7 @@ def prepare_review(
     """Produce the trimmed reviewable diff + keep/drop manifest for a branch."""
     repo = Path(repo).resolve()
     base = base_branch or _detect_base(repo)
-    diff_text = _run_git(["diff", f"{base}...HEAD"], repo)
+    diff_text = _run_git(["diff", f"{diff_ref(repo, base)}...HEAD"], repo)
 
     decisions: list[Decision] = []
     kept_bodies: list[str] = []
@@ -277,6 +277,12 @@ def _detect_base(repo: Path) -> str:
     can ask. The skills do that check.
     """
     return base_branch.resolve(Path(repo), detect_stacked=False).branch
+
+
+def diff_ref(repo: Path, base: str) -> str:
+    """What to diff against for `base`: `origin/<base>` when it exists, since a local copy
+    nobody has pulled puts already-merged commits in the diff."""
+    return base_branch.preferred_ref(repo, base) or base
 
 
 def render_markdown(payload: ReviewPayload, *, summary_only: bool = False) -> str:

@@ -662,6 +662,7 @@ def test_reviewbench_agent_reviews_through_the_headless_runner(tmp_path, monkeyp
     assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
     assert cmd[cmd.index("--timeout") + 1] == "780" and "--enrich" in cmd
     assert cmd[cmd.index("--head-sha") + 1] == "b" * 40
+    assert "--effort" not in cmd and "--include-nits" not in cmd
     record = json.loads((tmp_path / "out" / "findings.json").read_text())
     assert record["pr"]["pr_number"] == 3650 and record["pr"]["head"] == "b" * 40
     assert record["findings"][0]["file"] == "lib/client.js"
@@ -697,6 +698,50 @@ def test_reviewbench_agent_refuses_an_instruction_it_cant_pass_on(monkeypatch):
     for name in ("RB_NWO", "RB_PR_NUMBER", "RB_BASE", "RB_HEAD", "RB_OUT"):
         monkeypatch.setenv(name, "x")
     with pytest.raises(SystemExit, match="RB_CONFIG_INSTRUCTION"):
+        reviewbench_agent.main()
+
+
+def _run_agent_with_config(tmp_path, monkeypatch, config: dict) -> list[str]:
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text("**Verdict:** Approve\n")
+        (work / "result.json").write_text(json.dumps({"status": "ok"}))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    env = {"RB_NWO": "o/r", "RB_PR_NUMBER": "1", "RB_BASE": "a", "RB_HEAD": "b"}
+    for name, value in {**env, "RB_OUT": "findings.json", **config}.items():
+        monkeypatch.setenv(name, value)
+    reviewbench_agent.main()
+    return seen["cmd"]
+
+
+def test_reviewbench_agent_passes_effort_and_nits_and_logs_them(tmp_path, monkeypatch, capsys):
+    config = {"RB_CONFIG_EFFORT": "XHigh", "RB_CONFIG_INCLUDE_NITS": "1"}
+    cmd = _run_agent_with_config(tmp_path, monkeypatch, config)
+    assert cmd[cmd.index("--effort") + 1] == "xhigh" and "--include-nits" in cmd
+    assert "effort=xhigh include_nits=True" in capsys.readouterr().err
+
+
+def test_reviewbench_agent_logs_the_default_effort_without_passing_it(
+    tmp_path, monkeypatch, capsys
+):
+    cmd = _run_agent_with_config(tmp_path, monkeypatch, {"RB_CONFIG_EFFORT": "default"})
+    assert "--effort" not in cmd
+    assert "effort=default" in capsys.readouterr().err
+
+
+def test_reviewbench_agent_refuses_an_unknown_effort(monkeypatch):
+    monkeypatch.setenv("RB_CONFIG_EFFORT", "extreme")
+    for name in ("RB_NWO", "RB_PR_NUMBER", "RB_BASE", "RB_HEAD", "RB_OUT"):
+        monkeypatch.setenv(name, "x")
+    with pytest.raises(SystemExit, match="RB_CONFIG_EFFORT"):
         reviewbench_agent.main()
 
 
