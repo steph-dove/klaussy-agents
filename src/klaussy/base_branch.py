@@ -1,16 +1,21 @@
 """Which branch a change should be compared against, resolved at run time.
 
-Ladder, first that applies: an explicit base; `origin/HEAD`; the scaffolded
-default; a name that exists here. The forge rung ("the target of an open
-request") is left to the skills, which sit above the forge adapters and pass
-the answer down as `explicit`.
+Ladder, first that applies: an explicit base (or `$KLAUSSY_REVIEW_BASE`);
+`origin/HEAD`; the scaffolded default; a name that exists here. The forge rung
+("the target of an open request") is left to the skills, which sit above the
+forge adapters and pass the answer down as `explicit`.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+# Set by the headless review runner so the agent's own `klaussy base` / `review-prep` calls use
+# the base it was given instead of resolving one.
+ENV_BASE = "KLAUSSY_REVIEW_BASE"
 
 # How the base was decided, for callers that report it back to a human.
 SOURCE_EXPLICIT = "explicit"
@@ -122,6 +127,7 @@ def resolve(
     `detect_stacked` costs a merge base per branch; off where nobody can be
     asked anyway.
     """
+    explicit = explicit or os.environ.get(ENV_BASE)
     if explicit:
         branch, source = explicit, SOURCE_EXPLICIT
     elif remote := remote_default(repo):

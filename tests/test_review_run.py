@@ -189,6 +189,27 @@ def test_klaussy_guard_passes_base_through(guarded):
     assert result.returncode == 0
 
 
+def test_klaussy_base_inside_a_review_answers_the_pinned_base(guarded):
+    guard, repo, env = guarded
+    result = subprocess.run(
+        [str(guard / "klaussy"), "base"],
+        cwd=repo,
+        env={**env, "KLAUSSY_REVIEW_BASE": "abc1234"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0 and result.stdout.strip() == "abc1234"
+
+
+def test_the_agent_runs_with_the_base_it_was_given_pinned(tmp_path, monkeypatch):
+    script = 'echo "base=$KLAUSSY_REVIEW_BASE" >> "$CALLS"\necho \'{"total_cost_usd": 1}\'\n'
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    run_headless_review(
+        work, agent="claude", base="origin/main", repo_name="app", work_dir=tmp_path / "w"
+    )
+    assert _calls(tmp_path)[0] == "base=origin/main"
+
+
 def test_the_agent_env_has_no_write_token_or_other_agents_credentials(monkeypatch, tmp_path):
     for name in ("GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.setenv(name, "x")

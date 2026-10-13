@@ -286,7 +286,7 @@ class TestPrepareSplitEndToEnd:
         _write(tmp_path, "app/feature.py", "FEATURE = 1\n")
         _git(tmp_path, "add", "-A")
         _git(tmp_path, "commit", "-m", "work")
-        payload = prepare_split(repo=tmp_path, base_branch="main")
+        payload = prepare_split(repo=tmp_path)
         assert [f.path for f in payload.files] == ["app/feature.py"]
         assert payload.base == "main"
 

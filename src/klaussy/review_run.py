@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from importlib import resources
 from pathlib import Path
 
+from klaussy.base_branch import ENV_BASE
 from klaussy.secret_scan import redact
 from klaussy.skills import sanitize_skill_namespace
 
@@ -685,6 +686,7 @@ def run_headless_review(
     from_env = any(os.environ.get(name) for name in CREDENTIALS[agent])
     home = (work_dir / "home").resolve() if from_env else None
     env = agent_env(agent, install_guards(work_dir / "guard"), home)
+    env[ENV_BASE] = base
     report = repo / REPORT
     deadline = time.monotonic() + timeout_s
     prompt = review_prompt(

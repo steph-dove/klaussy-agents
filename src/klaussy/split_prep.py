@@ -19,7 +19,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from klaussy.comment_lint import comment_records, docstring_lines
-from klaussy.review_prep import _detect_base, _run_git, classify, diff_ref, split_file_diffs
+from klaussy.review_prep import _detect_base, _run_git, classify, diff_base, split_file_diffs
 
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
@@ -429,7 +429,7 @@ def prepare_split(
     """Analyse the branch diff and propose stack layers from the import graph."""
     repo = Path(repo).resolve()
     base = base_branch or _detect_base(repo)
-    diff_text = _run_git(["diff", f"{diff_ref(repo, base)}...{ref}"], repo)
+    diff_text = _run_git(["diff", f"{diff_base(repo, base_branch)}...{ref}"], repo)
 
     files: list[FileNode] = []
     for fd in split_file_diffs(diff_text):
