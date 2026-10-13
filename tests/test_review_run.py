@@ -13,6 +13,7 @@ from klaussy.cli import app
 from klaussy.review_run import (
     REPORT,
     agent_env,
+    incremental_base,
     install_guards,
     make_agent,
     prepare_checkout,
@@ -921,3 +922,110 @@ def test_the_cli_refuses_an_effort_before_preparing_anything(tmp_path, agent, ef
     )
     assert result.exit_code == 2 and "Claude-only" in result.output
     assert not out.exists() and not (tmp_path / "w").exists()
+
+
+# --- incremental re-review ---------------------------------------------------
+
+
+def _head(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def _reviewed_pr(tmp_path: Path) -> tuple[Path, str]:
+    """A PR branch whose first commit was reviewed; nothing has happened since."""
+    repo = _repo(tmp_path, {"a.py": "A = 1\n"})
+    _git(repo, "checkout", "-q", "-b", "pr")
+    _commit(repo, {"a.py": "A = 2\n"})
+    return repo, _head(repo)
+
+
+def test_a_push_on_top_of_the_last_review_is_reviewed_incrementally(tmp_path):
+    repo, reviewed = _reviewed_pr(tmp_path)
+    _commit(repo, {"b.py": "B = 1\n"})
+    assert incremental_base(repo, "origin/main", reviewed) == (reviewed, "")
+    assert incremental_base(repo, "origin/main", reviewed[:7]) == (reviewed, "")
+
+
+def test_a_rebased_branch_is_reviewed_in_full(tmp_path):
+    repo, reviewed = _reviewed_pr(tmp_path)
+    _git(repo, "reset", "-q", "--hard", "origin/main")
+    _commit(repo, {"a.py": "A = 3\n"})
+    sha, why = incremental_base(repo, "origin/main", reviewed)
+    assert sha is None and "rebased or force-pushed" in why
+
+
+def test_merging_the_base_in_is_reviewed_in_full(tmp_path):
+    repo, reviewed = _reviewed_pr(tmp_path)
+    _git(repo, "checkout", "-q", "main")
+    _commit(repo, {"main.py": "M = 1\n"})
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-q", "pr")
+    _git(repo, "merge", "-q", "--no-edit", "main")
+    sha, why = incremental_base(repo, "origin/main", reviewed)
+    assert sha is None and "fork point on origin/main moved" in why
+
+
+@pytest.mark.parametrize(
+    ("since", "reason"),
+    [
+        ("deadbeefdeadbeef", "isn't in this checkout"),
+        ("--output=x", "not a commit sha"),
+        ("HEAD", "not a commit sha"),
+    ],
+)
+def test_an_unusable_last_review_commit_means_a_full_review(tmp_path, since, reason):
+    repo, _ = _reviewed_pr(tmp_path)
+    sha, why = incremental_base(repo, "origin/main", since)
+    assert sha is None and reason in why
+
+
+def test_the_commit_under_review_is_not_its_own_starting_point(tmp_path):
+    repo, reviewed = _reviewed_pr(tmp_path)
+    sha, why = incremental_base(repo, "origin/main", reviewed)
+    assert sha is None and "is the commit under review" in why
+
+
+def test_an_incremental_prompt_scopes_findings_to_the_new_commits():
+    prompt = review_prompt("app", "origin/main", include_nits=False, since="abc1234" + "0" * 33)
+    assert "against `abc1234" in prompt and "origin/main" not in prompt
+    assert "already reviewed up to commit abc1234" in prompt
+
+
+def test_an_incremental_review_pins_its_starting_commit(tmp_path, monkeypatch):
+    script = 'echo "base=$KLAUSSY_REVIEW_BASE" >> "$CALLS"\necho \'{"total_cost_usd": 1}\'\n'
+    work = _fake(tmp_path, monkeypatch, "claude", script)
+    result = run_headless_review(
+        work,
+        agent="claude",
+        base="origin/main",
+        repo_name="app",
+        work_dir=tmp_path / "w",
+        since="abc1234",
+    )
+    assert _calls(tmp_path)[0] == "base=abc1234" and result.since == "abc1234"
+
+
+def test_the_cli_notes_why_a_review_fell_back_to_full(tmp_path, monkeypatch):
+    repo, reviewed = _reviewed_pr(tmp_path)
+    _git(repo, "reset", "-q", "--hard", "origin/main")
+    _commit(repo, {"a.py": "A = 3\n"})
+    seen = {}
+
+    def fake_review(checkout, **kw):
+        seen.update(kw)
+        (checkout / REPORT).write_text("**Verdict:** Approve\n")
+        return review_run.ReviewResult(status="ok", agent="claude", report_written=True)
+
+    monkeypatch.setattr("klaussy.cli.prepare_checkout", lambda *a, **kw: None)
+    monkeypatch.setattr("klaussy.cli.run_headless_review", fake_review)
+    out = tmp_path / "result.json"
+    args = ["review", "--headless", "--repo", str(repo), "--base", "origin/main"]
+    args += ["--since", reviewed, "--out", str(out), "--diff-out", str(tmp_path / "pr.diff")]
+    result = CliRunner().invoke(app, [*args, "--work-dir", str(tmp_path / "w")])
+    assert result.exit_code == 0, result.output
+    assert seen["since"] is None
+    saved = json.loads(out.read_text())
+    assert saved["since"] is None
+    assert any("reviewed in full" in n and "rebased" in n for n in saved["notes"])

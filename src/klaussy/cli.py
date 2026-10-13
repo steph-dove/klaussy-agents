@@ -31,7 +31,12 @@ from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.review_run import AGENTS as REVIEW_AGENTS
 from klaussy.review_run import EFFORTS as REVIEW_EFFORTS
 from klaussy.review_run import REPORT as REVIEW_REPORT
-from klaussy.review_run import prepare_checkout, run_headless_review, scratch_worktree
+from klaussy.review_run import (
+    incremental_base,
+    prepare_checkout,
+    run_headless_review,
+    scratch_worktree,
+)
 from klaussy.secret_scan import scan_paths as scan_secrets
 from klaussy.skills import HUMANIZE_BLOCK, SKILL_NAMES
 from klaussy.split_prep import prepare_split
@@ -611,6 +616,11 @@ def review(
     pr_body_file: Path | None = typer.Option(
         None, "--pr-body-file", help="A file holding the pull request's description."
     ),
+    since: str | None = typer.Option(
+        None,
+        "--since",
+        help="The last reviewed commit: review only what changed after it, when that's safe.",
+    ),
 ) -> None:
     """Review HEAD headless in a throwaway worktree, and write the report plus a result JSON.
 
@@ -634,6 +644,7 @@ def review(
         report_out.unlink(missing_ok=True)
         started = time.monotonic()
         with scratch_worktree(repo, work_dir, repo_name or repo.name) as checkout:
+            from_sha, why_full = incremental_base(checkout, base, since) if since else (None, "")
             prepare_checkout(
                 checkout,
                 base=base,
@@ -657,7 +668,12 @@ def review(
                 pr_title=pr_title,
                 pr_body=pr_body_file.read_text(errors="replace") if pr_body_file else None,
                 effort=effort,
+                since=from_sha,
             )
+            if why_full:
+                result = dataclasses.replace(
+                    result, notes=[*result.notes, f"reviewed in full: {why_full}"]
+                )
             if (checkout / REVIEW_REPORT).is_file():
                 shutil.copyfile(checkout / REVIEW_REPORT, report_out)
     except Exception as exc:
@@ -684,6 +700,9 @@ def review_post(
     commit: str | None = typer.Option(
         None, "--commit", help="Head commit the diff was taken at; the review is pinned to it."
     ),
+    since: str | None = typer.Option(
+        None, "--since", help="The commit an incremental review started from, for the summary."
+    ),
 ) -> None:
     """Print a GitHub pull request review payload built from a review report.
 
@@ -700,6 +719,7 @@ def review_post(
         inline=inline,
         secrets=[os.environ[name] for name in CREDENTIAL_ENV if os.environ.get(name)],
         commit=commit,
+        since=since,
     )
     sys.stdout.write(json.dumps(payload, indent=2) + "\n")
 

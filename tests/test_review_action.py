@@ -132,6 +132,7 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
         "MAX_AI_CREDITS": "",
         "INCLUDE_NITS": "true",
         "ENRICH": "false",
+        "SINCE": "",
         "REVIEW_TIMEOUT": "1500",
         "GITHUB_REPOSITORY": "me/My_App",
         "RUNNER_TEMP": str(tmp_path),
@@ -149,8 +150,90 @@ def test_the_review_step_fails_when_the_runner_does(tmp_path, code, step_code):
     assert "review --headless" in args and "--agent openai" in args
     assert "--base origin/main" in args and "--repo-name My_App" in args
     assert "--include-nits" in args and "--enrich" not in args
-    assert "--timeout 1500" in args
+    assert "--timeout 1500" in args and "--since" not in args
     assert '"status": "x"' in result.stdout
+
+
+def _fake_bin(tmp_path: Path, name: str, script: str) -> Path:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / name).write_text("#!/bin/sh\n" + script)
+    (bin_dir / name).chmod(0o755)
+    return bin_dir
+
+
+def _run_step(tmp_path: Path, name: str, bin_dir: Path, **env: str) -> subprocess.CompletedProcess:
+    full = {
+        **os.environ,
+        "GITHUB_REPOSITORY": "me/app",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_OUTPUT": str(tmp_path / "out"),
+        "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        **env,
+    }
+    return subprocess.run(
+        ["bash", "-eo", "pipefail", "-c", _step(name)["run"]],
+        cwd=tmp_path,
+        env=full,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_the_last_review_lookup_takes_the_newest_klaussy_review(tmp_path):
+    step = _step("Find the last klaussy review")
+    assert "inputs.incremental == 'true'" in step["if"] and "GH_TOKEN" in step["env"]
+    bin_dir = _fake_bin(tmp_path, "gh", 'printf "aaa111\\nbbb222\\n"\n')
+    result = _run_step(tmp_path, "Find the last klaussy review", bin_dir, PR="7")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "out").read_text().strip() == "since=bbb222"
+
+
+def test_a_failed_lookup_means_a_full_review_not_a_failed_job(tmp_path):
+    bin_dir = _fake_bin(tmp_path, "gh", "exit 1\n")
+    result = _run_step(tmp_path, "Find the last klaussy review", bin_dir, PR="7")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "out").read_text().strip() == "since="
+
+
+def test_the_review_step_passes_the_last_reviewed_commit(tmp_path):
+    bin_dir = _fake_bin(
+        tmp_path,
+        "klaussy",
+        'echo "$@" > "$RUNNER_TEMP/args"\necho "{}" > "$RUNNER_TEMP/klaussy-result.json"\n',
+    )
+    env = {
+        "AGENT": "claude",
+        "BASE_REF": "main",
+        "BUDGET": "20",
+        "MODEL": "",
+        "MAX_AI_CREDITS": "",
+        "INCLUDE_NITS": "false",
+        "ENRICH": "false",
+        "SINCE": "abc1234",
+        "REVIEW_TIMEOUT": "1500",
+    }
+    result = _run_step(tmp_path, "Review", bin_dir, **env)
+    assert result.returncode == 0, result.stderr
+    assert "--since abc1234" in (tmp_path / "args").read_text()
+
+
+@pytest.mark.parametrize(("since", "flag"), [("abc1234def", "--since abc1234def"), (None, "")])
+def test_posting_names_the_commit_the_review_started_from(tmp_path, since, flag):
+    (tmp_path / "klaussy-result.json").write_text(
+        '{"status": "ok", "since": %s}' % (f'"{since}"' if since else "null")
+    )
+    bin_dir = _fake_bin(
+        tmp_path, "klaussy", 'echo "$@" >> "$RUNNER_TEMP/args"\necho \'{"body": "b"}\'\n'
+    )
+    _fake_bin(tmp_path, "gh", "exit 0\n")
+    env = {"PR": "7", "EVENT": "COMMENT", "HEAD_SHA": "f" * 40}
+    result = _run_step(tmp_path, "Post the review", bin_dir, **env)
+    assert result.returncode == 0, result.stderr
+    calls = (tmp_path / "args").read_text().splitlines()
+    assert len(calls) == 2
+    assert all((flag in c) if flag else ("--since" not in c) for c in calls)
 
 
 def test_the_cli_writes_a_result_even_when_the_out_dir_is_missing(tmp_path):

@@ -343,3 +343,9 @@ def test_a_location_with_its_own_backticks_is_not_wrapped_again():
     report = "**Low · Design · `src/a.py` (`helper`)**\n\nSplit it.\n"
     body = build_review(report, DIFF)["body"]
     assert "`src/a.py` (`helper`)\n\nSplit it." in body and "``" not in body
+
+
+def test_an_incremental_review_says_where_it_started():
+    review = build_review(REPORT, DIFF, since="abc1234" + "0" * 33)
+    assert review["body"].startswith("Reviewed the changes since `abc1234`.")
+    assert "Reviewed the changes since" not in build_review(REPORT, DIFF)["body"]

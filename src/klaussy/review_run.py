@@ -122,6 +122,7 @@ class ReviewResult:
     runs: int = 0
     error: str = ""
     notes: list[str] = field(default_factory=list)
+    since: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2)
@@ -132,6 +133,31 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     if check and proc.returncode != 0:
         raise ReviewRunError(f"git {' '.join(args)}: {proc.stderr.decode(errors='replace')}")
     return proc
+
+
+_SHA = re.compile(r"[0-9a-f]{7,40}")
+
+
+def incremental_base(repo: Path, base: str, since: str) -> tuple[str | None, str]:
+    """The full sha to review from when `since` (the last reviewed commit) is still a safe
+    starting point, else None and why. Unsafe after a rebase or force-push, or when the PR's
+    fork point on `base` moved (main merged in), since the diff would carry others' changes."""
+    if not _SHA.fullmatch(since):
+        return None, f"{since!r} is not a commit sha"
+    found = _git(repo, "rev-parse", "--verify", "--quiet", f"{since}^{{commit}}", check=False)
+    if found.returncode != 0:
+        return None, f"the last reviewed commit {since[:7]} isn't in this checkout"
+    sha = found.stdout.decode().strip()
+    head = _git(repo, "rev-parse", "HEAD").stdout.decode().strip()
+    if sha == head:
+        return None, f"{since[:7]} is the commit under review"
+    if _git(repo, "merge-base", "--is-ancestor", sha, "HEAD", check=False).returncode != 0:
+        return None, f"{since[:7]} is no longer in the branch's history (rebased or force-pushed)"
+    fork_then = _git(repo, "merge-base", base, sha, check=False).stdout.strip()
+    fork_now = _git(repo, "merge-base", base, "HEAD", check=False).stdout.strip()
+    if not fork_now or fork_then != fork_now:
+        return None, f"the branch's fork point on {base} moved since {since[:7]}"
+    return sha, ""
 
 
 def _nul_paths(raw: bytes) -> list[str]:
@@ -378,9 +404,16 @@ def review_prompt(
     head_sha: str | None = None,
     pr_title: str | None = None,
     pr_body: str | None = None,
+    since: str | None = None,
 ) -> str:
     skill = f"{sanitize_skill_namespace(repo_name)}-review"
     nits = "Include nits: report Warn and Nit findings too. " if include_nits else ""
+    if since:
+        base = since
+        nits += (
+            f"The pull request was already reviewed up to commit {since[:7]}: report findings "
+            f"only in what changed after it, reading the rest of the branch for context. "
+        )
     pinned = (
         f"This checkout is the pull request at commit {head_sha}, built without a remote on "
         f"purpose: skip the check for a newer push, don't mention remotes or local commits, and "
@@ -675,8 +708,10 @@ def run_headless_review(
     pr_title: str | None = None,
     pr_body: str | None = None,
     effort: str | None = None,
+    since: str | None = None,
 ) -> ReviewResult:
-    """Run the prepared review once, and resume once with whatever budget and time are left."""
+    """Run the prepared review once, and resume once with whatever budget and time are left.
+    With `since`, a commit `incremental_base` accepted, only what changed after it is reviewed."""
     runner = make_agent(agent, max_ai_credits=max_ai_credits, effort=effort)
     work_dir.mkdir(parents=True, exist_ok=True)
     for stale in [*work_dir.glob("agent-run-*"), *work_dir.glob("copilot-usage-*.json")]:
@@ -686,7 +721,7 @@ def run_headless_review(
     from_env = any(os.environ.get(name) for name in CREDENTIALS[agent])
     home = (work_dir / "home").resolve() if from_env else None
     env = agent_env(agent, install_guards(work_dir / "guard"), home)
-    env[ENV_BASE] = base
+    env[ENV_BASE] = since or base
     report = repo / REPORT
     deadline = time.monotonic() + timeout_s
     prompt = review_prompt(
@@ -696,6 +731,7 @@ def run_headless_review(
         head_sha=head_sha,
         pr_title=pr_title,
         pr_body=pr_body,
+        since=since,
     )
     session = None if agent == "claude" else str(uuid.uuid4())
     model = model or DEFAULT_MODEL.get(agent)
@@ -786,4 +822,5 @@ def run_headless_review(
         runs=runs,
         error=error,
         notes=notes,
+        since=since,
     )

@@ -217,8 +217,10 @@ def build_review(
     inline: bool = True,
     secrets: Iterable[str] = (),
     commit: str | None = None,
+    since: str | None = None,
 ) -> dict:
-    """A PR review payload; findings outside the diff go in the body, which GitHub requires."""
+    """A PR review payload; findings outside the diff go in the body, which GitHub requires.
+    With `since`, the body says the review covered only what changed after that commit."""
     report = redact(report, secrets)
     findings = parse_findings(report)
     approved = bool(_APPROVED.search(report))
@@ -241,7 +243,7 @@ def build_review(
             comment.update(start_line=start, start_side="RIGHT")
         comments.append(comment)
 
-    parts = [summary(report)]
+    parts = [f"Reviewed the changes since {_code(since[:7])}." if since else "", summary(report)]
     if unplaced:
         heading = "Findings" if not comments else "Findings outside the diff"
         placed = (
