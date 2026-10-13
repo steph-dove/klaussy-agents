@@ -43,6 +43,15 @@ def prepare(src: Path, dest: Path, base: str, head: str) -> None:
     """Copy the mounted checkout and give it the `main`/`pr` branches the harness reviews."""
     shutil.copytree(src, dest, symlinks=True)
     git = ["git", "-C", str(dest)]
+    # A Git LFS checkout's hooks and filters fail every checkout without git-lfs installed.
+    for key, value in (
+        ("core.hooksPath", os.devnull),
+        ("filter.lfs.required", "false"),
+        ("filter.lfs.process", ""),
+        ("filter.lfs.smudge", ""),
+        ("filter.lfs.clean", ""),
+    ):
+        subprocess.run([*git, "config", key, value], check=True)
     merge_base = subprocess.run(
         [*git, "merge-base", base, head], capture_output=True, text=True, check=True
     ).stdout.strip()
