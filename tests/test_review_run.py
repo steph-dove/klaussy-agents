@@ -223,6 +223,12 @@ def test_the_agent_env_has_no_write_token_or_other_agents_credentials(monkeypatc
     assert env["GIT_CONFIG_GLOBAL"] == os.devnull and env["PYTHONSAFEPATH"] == "1"
 
 
+def test_claude_caches_for_five_minutes_and_other_agents_are_untouched(tmp_path):
+    guard = install_guards(tmp_path / "guard")
+    assert agent_env("claude", guard)["FORCE_PROMPT_CACHING_5M"] == "1"
+    assert "FORCE_PROMPT_CACHING_5M" not in agent_env("copilot", guard)
+
+
 def test_openai_runs_copilot_with_openai_as_the_provider(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-key")
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "copilot")
