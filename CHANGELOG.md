@@ -5,6 +5,38 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.41.0] - 2026-10-13
+
+### Added
+
+- **Incremental re-review.** On a push to a pull request it already reviewed, the review Action
+  reviews only the commits since that review (`klaussy review --headless --since <sha>`), with the
+  rest of the branch as context, and the summary says where it started. A rebase, a force-push,
+  or a merge from the base branch gets a full review, and the result notes why. The Action's
+  `incremental` input (default `true`) turns it off.
+- **`klaussy review --headless --effort <level>`** sets Claude's effort for the review. The
+  ReviewBench image reads `RB_CONFIG_EFFORT` and `RB_CONFIG_INCLUDE_NITS` and logs both.
+- **A note when a review writes to the 1-hour prompt cache**, so a Claude Code change that undoes
+  the 5-minute cache shows up in the result instead of only in spend.
+
+### Changed
+
+- **Reviews cache prompts for 5 minutes instead of 1 hour.** A review's requests are seconds
+  apart, so the 1-hour cache only doubled the cost of every cache write. Expect about a fifth off
+  a Claude review.
+- **Inline review comments drop the "Explanation" label and the watermark.** The dropdown is just
+  the arrow, and the review summary keeps its klaussy link.
+- **The headless review pins its base** through `KLAUSSY_REVIEW_BASE`, so the agent's own
+  `klaussy base` and `review-prep` calls use the base it was given.
+
+### Fixed
+
+- **`review-prep` and `split-prep` no longer review already-merged commits** when the local base
+  branch is stale. A base they resolve themselves prefers `origin/<base>`; a base you pass is used
+  as-is.
+- **The ReviewBench image keeps npm, npx and corepack offline**, after a refused registry drew
+  1.4M retries in one round.
+
 ## [0.40.0] - 2026-10-12
 
 ### Added
