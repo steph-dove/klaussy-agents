@@ -63,6 +63,7 @@ To review with GitHub Copilot instead, create a fine-grained personal access tok
 | `openai-api-key` | | OpenAI API key. Required with `agent: openai`. |
 | `model` | | Model the review runs on. Defaults to `claude-opus-5-5` for Claude, `gpt-5.4` for OpenAI, and Copilot's own default for Copilot. |
 | `include-nits` | `false` | Also report Warn and Nit findings. Blocker through Low are always reported. |
+| `incremental` | `true` | On a push to a pull request klaussy already reviewed, review only the commits since that review. A rebase, a force-push, or a merge from the base branch gets a full review instead. |
 | `event` | `COMMENT` | `COMMENT`, `REQUEST_CHANGES` to block merging on findings, or `APPROVE`. |
 | `enrich` | `false` | When the base branch has no `CLAUDE.md`, enrich the generated one with Claude (Claude only). This runs Claude over the pull request's code a second time, without the review's restrictions. |
 | `max-budget-usd` | `20` | Spending cap for one review (Claude). An Opus review averages about $5 and can reach $15. |

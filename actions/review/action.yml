@@ -30,6 +30,10 @@ inputs:
     description: Also report Warn and Nit findings.
     required: false
     default: "false"
+  incremental:
+    description: On a push to a pull request klaussy already reviewed, review only what changed since that review. Falls back to a full review after a rebase, a force-push, or a merge from the base branch.
+    required: false
+    default: "true"
   event:
     description: Review event to post, COMMENT, REQUEST_CHANGES or APPROVE.
     required: false
@@ -144,11 +148,30 @@ runs:
           npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
         fi
 
+    - name: Find the last klaussy review
+      id: last
+      if: steps.gate.outputs.run == 'true' && inputs.incremental == 'true'
+      shell: bash
+      env:
+        PR: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # The commit the most recent review was pinned to; reading reviews needs the token, which
+        # the Review step drops. A lookup failure only means a full review.
+        since=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --paginate \
+          --jq '.[] | select(.body | contains("<!-- klaussy-review -->")) | .commit_id' \
+          | tail -n 1) || {
+          echo "::warning::Couldn't look up the last klaussy review; reviewing in full."
+          since=""
+        }
+        echo "since=${since}" >> "$GITHUB_OUTPUT"
+
     - name: Review
       if: steps.gate.outputs.run == 'true'
       shell: bash
       env:
         AGENT: ${{ inputs.agent }}
+        SINCE: ${{ steps.last.outputs.since }}
         BASE_REF: ${{ github.event.pull_request.base.ref }}
         MODEL: ${{ inputs.model }}
         BUDGET: ${{ inputs.max-budget-usd }}
@@ -175,6 +198,7 @@ runs:
         if [ -n "$MAX_AI_CREDITS" ]; then args+=(--max-ai-credits "$MAX_AI_CREDITS"); fi
         if [ "$INCLUDE_NITS" = "true" ]; then args+=(--include-nits); fi
         if [ "$ENRICH" = "true" ]; then args+=(--enrich); fi
+        if [ -n "$SINCE" ]; then args+=(--since "$SINCE"); fi
         status=0
         klaussy review "${args[@]}" || status=$?
         if [ -f "$RUNNER_TEMP/klaussy-result.json" ]; then cat "$RUNNER_TEMP/klaussy-result.json"; fi
@@ -202,11 +226,14 @@ runs:
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-github-token }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
       run: |
-        klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
+        # The commit the review actually started from; empty when it fell back to a full review.
+        since=$(jq -r '.since // empty' "$RUNNER_TEMP/klaussy-result.json")
+        post=(--report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff")
+        if [ -n "$since" ]; then post+=(--since "$since"); fi
+        klaussy review-post "${post[@]}" --event "$EVENT" --commit "$HEAD_SHA" > "$RUNNER_TEMP/review.json"
         if ! gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null; then
           echo "::warning::Posting the review failed; retrying without inline comments."
-          klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --event "$EVENT" --commit "$HEAD_SHA" --no-inline > "$RUNNER_TEMP/review.json"
+          klaussy review-post "${post[@]}" --event "$EVENT" --commit "$HEAD_SHA" --no-inline > "$RUNNER_TEMP/review.json"
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" --input "$RUNNER_TEMP/review.json" > /dev/null
         fi
-        klaussy review-post --report "$RUNNER_TEMP/klaussy/REVIEW_OUTPUT.md" --diff "$RUNNER_TEMP/pr.diff" --no-inline \
-          | jq -r .body >> "$GITHUB_STEP_SUMMARY"
+        klaussy review-post "${post[@]}" --no-inline | jq -r .body >> "$GITHUB_STEP_SUMMARY"
