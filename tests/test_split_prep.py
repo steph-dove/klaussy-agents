@@ -271,6 +271,25 @@ def layered_repo(tmp_path: Path) -> tuple[Path, str]:
 
 
 class TestPrepareSplitEndToEnd:
+    def test_a_stale_local_base_leaves_merged_commits_out(self, tmp_path):
+        _git(tmp_path, "init", "-b", "main")
+        _git(tmp_path, "config", "user.email", "t@t.t")
+        _git(tmp_path, "config", "user.name", "t")
+        _write(tmp_path, "app/base.py", "BASE = 1\n")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-m", "init")
+        _git(tmp_path, "checkout", "-b", "feature")
+        _write(tmp_path, "app/merged.py", "MERGED = 1\n")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-m", "merged upstream")
+        _git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
+        _write(tmp_path, "app/feature.py", "FEATURE = 1\n")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-m", "work")
+        payload = prepare_split(repo=tmp_path, base_branch="main")
+        assert [f.path for f in payload.files] == ["app/feature.py"]
+        assert payload.base == "main"
+
     def test_proposes_layers_in_dependency_order(self, layered_repo):
         repo, base = layered_repo
         payload = prepare_split(repo=repo, base_branch=base)
