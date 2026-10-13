@@ -29,6 +29,7 @@ from klaussy.repo import git_root, resolve_repo
 from klaussy.review_post import CREDENTIAL_ENV, build_review
 from klaussy.review_prep import prepare_review, render_dict, render_markdown
 from klaussy.review_run import AGENTS as REVIEW_AGENTS
+from klaussy.review_run import EFFORTS as REVIEW_EFFORTS
 from klaussy.review_run import REPORT as REVIEW_REPORT
 from klaussy.review_run import prepare_checkout, run_headless_review, scratch_worktree
 from klaussy.secret_scan import scan_paths as scan_secrets
@@ -591,6 +592,9 @@ def review(
         None, "--max-ai-credits", help="Credit cap (Copilot)."
     ),
     model: str | None = typer.Option(None, "--model", help="Model for the agent."),
+    effort: str | None = typer.Option(
+        None, "--effort", help="Claude's effort: low, medium, high, xhigh, or max."
+    ),
     timeout: float = typer.Option(
         3600,
         "--timeout",
@@ -617,6 +621,10 @@ def review(
         raise typer.Exit(2)
     if agent not in REVIEW_AGENTS:
         raise typer.BadParameter(f"must be one of {', '.join(REVIEW_AGENTS)}", param_hint="--agent")
+    if effort and (agent != "claude" or effort not in REVIEW_EFFORTS):
+        raise typer.BadParameter(
+            f"Claude-only, one of {', '.join(REVIEW_EFFORTS)}", param_hint="--effort"
+        )
     repo = repo.resolve()
     work_dir = work_dir.resolve()
     report_out = (report_out or work_dir / REVIEW_REPORT).resolve()
@@ -648,6 +656,7 @@ def review(
                 head_sha=head_sha,
                 pr_title=pr_title,
                 pr_body=pr_body_file.read_text(errors="replace") if pr_body_file else None,
+                effort=effort,
             )
             if (checkout / REVIEW_REPORT).is_file():
                 shutil.copyfile(checkout / REVIEW_REPORT, report_out)

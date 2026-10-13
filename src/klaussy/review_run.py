@@ -460,6 +460,9 @@ class Claude:
     )
     denied = ("WebFetch", "WebSearch", "ScheduleWakeup", "Read(//proc/**)")
 
+    def __init__(self, effort: str | None = None):
+        self.effort = effort
+
     def argv(
         self,
         prompt: str,
@@ -471,6 +474,7 @@ class Claude:
         runs: int,
     ) -> list[str]:
         resume = ["--resume", session] if session else []
+        effort = ["--effort", self.effort] if self.effort else []
         return [
             "claude",
             "-p",
@@ -478,6 +482,7 @@ class Claude:
             *resume,
             "--model",
             model or DEFAULT_MODEL["claude"],
+            *effort,
             "--max-budget-usd",
             str(budget_usd),
             "--allowedTools",
@@ -638,11 +643,12 @@ class Copilot:
 
 
 AGENTS = ("claude", "copilot", "openai")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 
-def make_agent(name: str, *, max_ai_credits: str | None = None):
+def make_agent(name: str, *, max_ai_credits: str | None = None, effort: str | None = None):
     if name == "claude":
-        return Claude()
+        return Claude(effort)
     if name in ("copilot", "openai"):
         # A BYOK OpenAI run isn't billed in Copilot credits, so the credit cap doesn't apply.
         return Copilot(max_ai_credits if name == "copilot" else None)
@@ -667,9 +673,10 @@ def run_headless_review(
     head_sha: str | None = None,
     pr_title: str | None = None,
     pr_body: str | None = None,
+    effort: str | None = None,
 ) -> ReviewResult:
     """Run the prepared review once, and resume once with whatever budget and time are left."""
-    runner = make_agent(agent, max_ai_credits=max_ai_credits)
+    runner = make_agent(agent, max_ai_credits=max_ai_credits, effort=effort)
     work_dir.mkdir(parents=True, exist_ok=True)
     for stale in [*work_dir.glob("agent-run-*"), *work_dir.glob("copilot-usage-*.json")]:
         stale.unlink()

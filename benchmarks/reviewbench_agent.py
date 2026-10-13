@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from klaussy import review_post
+from klaussy.review_run import EFFORTS
 
 
 def to_findings(report: str, producer: str) -> list[dict]:
@@ -85,6 +86,8 @@ def review(
     enrich: bool,
     head: str,
     pr: dict,
+    effort: str | None = None,
+    include_nits: bool = False,
 ) -> dict:
     """Run `klaussy review --headless`, the runner the Action and hosted App use; the result JSON
     plus the report text."""
@@ -121,6 +124,10 @@ def review(
     ]
     if enrich:
         cmd.append("--enrich")
+    if effort:
+        cmd += ["--effort", effort]
+    if include_nits:
+        cmd.append("--include-nits")
     if pr.get("title"):
         cmd += ["--pr-title", str(pr["title"])]
     if pr.get("body"):
@@ -146,7 +153,16 @@ def main() -> None:
     model = env.get("RB_CONFIG_MODEL", DEFAULT_MODEL)
     timeout_s = int(env.get("RB_CONFIG_TIMEOUT", DEFAULT_TIMEOUT_S))
     enrich = env.get("RB_CONFIG_ENRICH", "1") != "0"
-    print(f"agent: model={model} timeout={timeout_s}s enrich={enrich}", file=sys.stderr)
+    include_nits = env.get("RB_CONFIG_INCLUDE_NITS", "0") != "0"
+    # ReviewBench flags a config label whose value never shows up in the agent's output.
+    effort = env.get("RB_CONFIG_EFFORT", "default").strip().lower()
+    if effort not in ("default", *EFFORTS):
+        sys.exit(f"agent: RB_CONFIG_EFFORT must be default or one of {', '.join(EFFORTS)}")
+    print(
+        f"agent: model={model} effort={effort} include_nits={include_nits} "
+        f"timeout={timeout_s}s enrich={enrich}",
+        file=sys.stderr,
+    )
 
     repo = Path("/tmp/review") / env["RB_NWO"].split("/")[1]
     prepare(Path(env.get("RB_REPO", "/work/repo")), repo, env["RB_BASE"], env["RB_HEAD"])
@@ -158,6 +174,8 @@ def main() -> None:
         enrich=enrich,
         head=env["RB_HEAD"],
         pr=pr_info(Path(env.get("RB_PR_JSON", "/work/pr/pr.json"))),
+        effort=None if effort == "default" else effort,
+        include_nits=include_nits,
     )
     # A review stopped by its time or budget limit still counts for the findings it wrote.
     if result.get("status") not in ("ok", "timeout", "budget") or not result["report"]:
