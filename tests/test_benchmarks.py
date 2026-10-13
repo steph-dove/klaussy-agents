@@ -753,3 +753,37 @@ def test_headless_review_passes_the_pr_title_and_body(tmp_path, monkeypatch):
     cmd = seen["cmd"]
     assert cmd[cmd.index("--pr-title") + 1] == "Fix login"
     assert Path(cmd[cmd.index("--pr-body-file") + 1]).read_text() == "Retries."
+
+
+def test_reviewbench_prepare_survives_a_git_lfs_checkout_without_git_lfs(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+
+    def git(*args, cwd=src):
+        subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "a@b")
+    git("config", "user.name", "a")
+    (src / ".gitattributes").write_text("*.bin filter=lfs diff=lfs merge=lfs -text\n")
+    (src / "a.txt").write_text("x\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    (src / "big.bin").write_text("version https://git-lfs.github.com/spec/v1\n")
+    (src / "a.txt").write_text("y\n")
+    git("add", ".")
+    git("commit", "-qm", "head")
+    head = subprocess.run(
+        ["git", "-C", str(src), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    git("checkout", "-q", "--detach", "HEAD~1")
+    hook = src / ".git" / "hooks" / "post-checkout"
+    hook.write_text("#!/bin/sh\necho 'git-lfs was not found' >&2\nexit 2\n")
+    hook.chmod(0o755)
+    git("config", "filter.lfs.required", "true")
+    git("config", "filter.lfs.smudge", "git-lfs-missing smudge -- %f")
+
+    dest = tmp_path / "dest"
+    reviewbench_agent.prepare(src, dest, "main", head)
+    assert (dest / "a.txt").read_text() == "y\n"
+    assert (dest / "big.bin").read_text().startswith("version https://git-lfs")
