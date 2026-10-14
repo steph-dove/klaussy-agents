@@ -1,5 +1,5 @@
 name: klaussy review
-description: Multi-agent code review that knows your repo's own conventions
+description: Multi-agent code review that knows your repo's conventions
 author: Dovatech LLC
 branding:
   icon: check-circle
