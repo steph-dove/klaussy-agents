@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
-## [Unreleased]
+## [0.42.0] - 2026-10-13
 
 ### Added
 
@@ -18,6 +18,7 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 - **`openai` reviews keep a caller's base URL.** `klaussy review --headless --agent openai` now
   leaves `COPILOT_PROVIDER_BASE_URL` alone when the environment already sets it, so a host can put
   a proxy that holds the OpenAI key in front and give the agent only a placeholder.
+- **Security reports go to stephanie@klaussy.com.** `SECURITY.md` lists the klaussy address.
 
 ## [0.41.0] - 2026-10-13
 
