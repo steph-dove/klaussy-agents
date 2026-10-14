@@ -7,6 +7,12 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+### Added
+
+- **`klaussy.injection`.** `scan(text, path)` and `is_test_source(path)` expose the read-injection
+  guard's prompt-injection markers to code that runs outside the agent, such as a host deciding
+  whether to trust a review's verdict. The patterns still live in the guard hook, so there's one list.
+
 ### Changed
 
 - **`openai` reviews keep a caller's base URL.** `klaussy review --headless --agent openai` now
