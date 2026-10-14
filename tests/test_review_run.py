@@ -280,6 +280,14 @@ def test_openai_runs_copilot_with_openai_as_the_provider(monkeypatch, tmp_path):
     assert "OPENAI_API_KEY" not in env and "COPILOT_GITHUB_TOKEN" not in env
 
 
+def test_openai_keeps_a_base_url_the_caller_set(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "placeholder")
+    monkeypatch.setenv("COPILOT_PROVIDER_BASE_URL", "http://127.0.0.1:4567/v1")
+    env = agent_env("openai", install_guards(tmp_path / "guard"))
+    assert env["COPILOT_PROVIDER_BASE_URL"] == "http://127.0.0.1:4567/v1"
+    assert env["COPILOT_PROVIDER_TYPE"] == "openai"
+
+
 def test_the_prompt_names_the_sanitized_skill():
     prompt = review_prompt("My_App", "origin/main", include_nits=False)
     assert "my-app-review skill" in prompt and f"writing {REPORT}" in prompt

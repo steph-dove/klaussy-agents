@@ -372,7 +372,11 @@ def agent_env(agent: str, guard_env: dict[str, str], home: Path | None = None) -
         # A review's requests are seconds apart, so the default 1-hour cache only doubles writes.
         env["FORCE_PROMPT_CACHING_5M"] = "1"
     if agent == "openai":
+        # A base URL set by the caller wins, so a host can put a key-holding proxy in front.
+        base_url = os.environ.get("COPILOT_PROVIDER_BASE_URL")
         env.update(OPENAI_PROVIDER, COPILOT_PROVIDER_API_KEY=env.pop("OPENAI_API_KEY", ""))
+        if base_url:
+            env["COPILOT_PROVIDER_BASE_URL"] = base_url
     return env
 
 

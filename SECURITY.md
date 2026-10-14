@@ -8,7 +8,7 @@ Instead, use one of these private channels:
 
 - **Preferred:** GitHub's private vulnerability reporting — go to the
   **Security** tab of this repo and click **"Report a vulnerability."**
-- **Email:** `doverstephaniem@gmail.com` with the subject line
+- **Email:** `stephanie@klaussy.com` with the subject line
   `[security] klaussy-agents`.
 
 Please include:
