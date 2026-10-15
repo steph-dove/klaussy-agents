@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Wraps klaussy-repo-conventions to generate and enrich CLAUDE.md."""
 
 import shutil

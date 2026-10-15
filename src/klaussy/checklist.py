@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Generate a repo-tailored review skill from CLAUDE.md and .claude/rules/."""
 
 from __future__ import annotations

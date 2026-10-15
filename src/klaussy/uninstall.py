@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Remove klaussy's scaffolding from a repo.
 
 klaussy writes three different kinds of thing, and undoing each one safely means

@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic secret scanner for the pre-commit guard.
 
 Flags high-signal credential patterns on ADDED lines only (scoped via

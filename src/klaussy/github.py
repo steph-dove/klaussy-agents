@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deprecated alias for `klaussy.pr_template`.
 
 The template isn't GitHub-only any more, so the module moved. This shim keeps

@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Which branch a change should be compared against, resolved at run time.
 
 Ladder, first that applies: an explicit base (or `$KLAUSSY_REVIEW_BASE`);

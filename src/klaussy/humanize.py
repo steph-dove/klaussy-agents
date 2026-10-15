@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic, code-preserving humanizer for agent prose output.
 
 This is the canonical Python port of klaussy-desktop's

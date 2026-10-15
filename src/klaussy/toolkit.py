@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """klaussy as a library — a stable, programmatic surface over the same
 operations the CLI runs, without Typer or interactive prompts.
 

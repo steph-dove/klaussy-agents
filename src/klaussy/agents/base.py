@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Shared primitives for multi-agent scaffolding.
 
 klaussy's skills, conventions, and permissions originate in Claude Code's

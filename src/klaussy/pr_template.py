@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Generate the host's pull/merge request template if the repo lacks one.
 
 The body is host-agnostic; only the path differs. GitHub reads
