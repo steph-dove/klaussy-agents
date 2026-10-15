@@ -6,6 +6,8 @@ The paths klaussy created go into `.git/info/exclude`, which works like
 
 What klaussy created is read off `git status` before and after the run rather
 than recorded by each writer, so a new writer can't forget to report itself.
+Untracked files that `klaussy uninstall` would recognize as klaussy's are
+added too, so scaffolding from an earlier plain `init` gets hidden as well.
 
 Git can't exclude changes to a committed file, so a committed file klaussy
 edited is put back. Claude's `.claude/settings.json` is the exception: its
@@ -21,12 +23,15 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from klaussy import pr_template
 from klaussy.gitignore import GITIGNORE_ENTRIES
 
 BLOCK_START = "# >>> klaussy (local): created by `klaussy init --local`"
 BLOCK_END = "# <<< klaussy (local)"
 CLAUDE_SETTINGS = ".claude/settings.json"
 CLAUDE_LOCAL_SETTINGS = ".claude/settings.local.json"
+# Written by klaussy-repo-conventions next to CLAUDE.md, which links to it.
+DIRECTORY_MAP = ".claude/directory-map.md"
 
 # A hook entry is klaussy's when its command mentions one of these.
 HOOK_SIGNATURES = ("klaussy-hook", "klaussy_", "klaussy humanize")
@@ -300,6 +305,37 @@ def remove_block(top: Path) -> bool:
     return True
 
 
+def _owned_untracked(top: Path, status: dict[str, Entry]) -> set[str]:
+    """Untracked files klaussy can prove it wrote, whether or not this run touched them.
+
+    The run only rewrites what's missing, so scaffolding left by an earlier
+    `init` without --local would otherwise stay visible. Ownership uses the
+    same markers `klaussy uninstall` does.
+    """
+    from klaussy import uninstall  # uninstall imports this module
+
+    untracked = {rel for rel, entry in status.items() if not entry.tracked}
+    found = uninstall.plan(top, include_conventions=True)
+    owned: set[str] = set()
+    for removal in found.removals:
+        if removal.is_dir:
+            prefix = removal.path.rstrip("/") + "/"
+            owned.update(rel for rel in untracked if rel.startswith(prefix))
+        elif removal.path in untracked:
+            owned.add(removal.path)
+    owned.update(edit.path for edit in found.edits if edit.path in untracked)
+
+    # Uninstall has no marker for these, so they're matched by path or content.
+    if DIRECTORY_MAP in untracked:
+        owned.add(DIRECTORY_MAP)
+    template = pr_template.bundled_template()
+    for target in pr_template.TARGETS:
+        rel = target.as_posix()
+        if rel in untracked and (top / rel).read_text(errors="replace") == template:
+            owned.add(rel)
+    return owned
+
+
 def apply(top: Path, before: dict[str, Entry]) -> LocalResult:
     """Exclude what the run created and undo its edits to committed files."""
     result = LocalResult()
@@ -318,7 +354,8 @@ def apply(top: Path, before: dict[str, Entry]) -> LocalResult:
         else:
             result.restored.append((rel, why))
 
-    created = set(_changed(before, snapshot(top), tracked=False))
+    final = snapshot(top)
+    created = set(_changed(before, final, tracked=False)) | _owned_untracked(top, final)
     path = exclude_file(top)
     previous, _ = _read_block(path.read_text() if path.is_file() else "")
     for pattern in previous:
