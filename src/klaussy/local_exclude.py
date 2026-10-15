@@ -28,9 +28,20 @@ BLOCK_END = "# <<< klaussy (local)"
 CLAUDE_SETTINGS = ".claude/settings.json"
 CLAUDE_LOCAL_SETTINGS = ".claude/settings.local.json"
 
+# A hook entry is klaussy's when its command mentions one of these.
+HOOK_SIGNATURES = ("klaussy-hook", "klaussy_", "klaussy humanize")
+
 
 class NotAGitRepo(Exception):
-    """`--local` needs a git repository to keep the exclude file in."""
+    """`--local` needs a git repository, and git, to keep the exclude file in."""
+
+
+class MalformedBlock(Exception):
+    """The exclude file has klaussy's start marker but not its end marker.
+
+    Editing it would mean guessing where the block stops, and a wrong guess
+    deletes the user's own patterns below it.
+    """
 
 
 @dataclass(frozen=True)
@@ -48,6 +59,8 @@ class LocalResult:
 
     excluded: list[str] = field(default_factory=list)
     moved_to_local: list[str] = field(default_factory=list)
+    # Things the settings move deliberately didn't carry over, and why.
+    settings_notes: list[str] = field(default_factory=list)
     # Committed files put back, with why klaussy's change couldn't be kept elsewhere.
     restored: list[tuple[str, str | None]] = field(default_factory=list)
     # Committed files that couldn't be put back, with git's reason.
@@ -55,14 +68,17 @@ class LocalResult:
 
 
 def _git(top: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(["git", "-C", str(top), *args], capture_output=True)
+    try:
+        return subprocess.run(["git", "-C", str(top), *args], capture_output=True)
+    except OSError as exc:
+        raise NotAGitRepo(f"couldn't run git ({exc})") from exc
 
 
 def toplevel(repo: Path) -> Path:
     """The work tree root for `repo`, or NotAGitRepo."""
     proc = _git(repo, "rev-parse", "--show-toplevel")
     if proc.returncode != 0 or not proc.stdout.strip():
-        raise NotAGitRepo(str(repo))
+        raise NotAGitRepo(f"{repo} isn't a git repository")
     return Path(proc.stdout.decode().strip()).resolve()
 
 
@@ -128,16 +144,27 @@ def _added(old: object, new: object) -> object:
     return None if old == new else new
 
 
-def _merge(base: object, extra: object) -> object:
-    """`extra` folded into `base` without duplicating list items."""
+def _merge(base: object, extra: object, conflicts: list[str], at: str = "") -> object:
+    """`extra` folded into `base` without duplicating list items.
+
+    Where both set a different scalar, `base` (the user's file) wins and the key
+    path goes into `conflicts`.
+    """
     if isinstance(base, dict) and isinstance(extra, dict):
         out = dict(base)
         for key, val in extra.items():
-            out[key] = _merge(out[key], val) if key in out else val
+            here = f"{at}.{key}" if at else key
+            out[key] = _merge(out[key], val, conflicts, here) if key in out else val
         return out
     if isinstance(base, list) and isinstance(extra, list):
         return base + [item for item in extra if item not in base]
+    if base != extra:
+        conflicts.append(at)
     return base
+
+
+def _mentions_klaussy_hook(value: object) -> bool:
+    return any(sig in json.dumps(value) for sig in HOOK_SIGNATURES)
 
 
 def _restore(top: Path, rel: str, before: dict[str, Entry]) -> str | None:
@@ -153,11 +180,14 @@ def _restore(top: Path, rel: str, before: dict[str, Entry]) -> str | None:
     return None
 
 
-def _move_claude_settings(top: Path, before: dict[str, Entry]) -> str | None:
+def _move_claude_settings(top: Path, before: dict[str, Entry], notes: list[str]) -> str | None:
     """Move klaussy's additions from settings.json to settings.local.json.
 
     Returns None on success, otherwise why it couldn't, and leaves both files untouched.
+    Anything it chose not to carry over goes into `notes`.
     """
+    if _git(top, "ls-files", "--error-unmatch", "--", CLAUDE_LOCAL_SETTINGS).returncode == 0:
+        return f"{CLAUDE_LOCAL_SETTINGS} is committed too, so there's nowhere private to put them"
     settings = top / CLAUDE_SETTINGS
     prior = before.get(CLAUDE_SETTINGS)
     if prior is not None and prior.content is not None:
@@ -168,7 +198,8 @@ def _move_claude_settings(top: Path, before: dict[str, Entry]) -> str | None:
             return f"couldn't read the committed {CLAUDE_SETTINGS}"
         old_text = shown.stdout.decode()
     try:
-        added = _added(json.loads(old_text), json.loads(settings.read_text()))
+        old = json.loads(old_text)
+        added = _added(old, json.loads(settings.read_text()))
     except (json.JSONDecodeError, ValueError):
         return f"{CLAUDE_SETTINGS} isn't valid JSON"
     local = top / CLAUDE_LOCAL_SETTINGS
@@ -176,8 +207,26 @@ def _move_claude_settings(top: Path, before: dict[str, Entry]) -> str | None:
         existing = json.loads(local.read_text()) if local.is_file() else {}
     except (json.JSONDecodeError, ValueError):
         return f"{CLAUDE_LOCAL_SETTINGS} isn't valid JSON; fix it and run init again"
+    if not isinstance(existing, dict):
+        return f"{CLAUDE_LOCAL_SETTINGS} isn't a JSON object; fix it and run init again"
+    if not isinstance(old, dict) or not isinstance(added, dict):
+        return f"{CLAUDE_SETTINGS} isn't a JSON object"
+
+    # The team already commits klaussy's hooks. Copying the rewritten ones into
+    # settings.local.json would run every guard twice, so the committed set stays.
+    if "hooks" in added and _mentions_klaussy_hook(old.get("hooks")):
+        del added["hooks"]
+        notes.append(
+            f"{CLAUDE_SETTINGS} already has klaussy's hooks committed, so those keep "
+            "running as they are"
+        )
+
     if added:
-        local.write_text(json.dumps(_merge(existing, added), indent=2) + "\n")
+        conflicts: list[str] = []
+        merged = _merge(existing, added, conflicts)
+        local.write_text(json.dumps(merged, indent=2) + "\n")
+        for key in conflicts:
+            notes.append(f"{key} was already set in {CLAUDE_LOCAL_SETTINGS}; kept your value")
     settings.write_text(old_text)
     return None
 
@@ -201,12 +250,24 @@ def _read_block(text: str) -> tuple[list[str], list[str]]:
             inside.append(line)
         else:
             outside.append(line)
+    if in_block:
+        raise MalformedBlock(
+            f"the `{BLOCK_END}` line is missing; put it back after klaussy's "
+            "patterns, or delete the whole klaussy block"
+        )
     return inside, outside
 
 
 def has_block(top: Path) -> bool:
     path = exclude_file(top)
     return path.is_file() and BLOCK_START in path.read_text()
+
+
+def check(top: Path) -> None:
+    """Raise MalformedBlock now, before init writes anything, if the block is damaged."""
+    path = exclude_file(top)
+    if path.is_file():
+        _read_block(path.read_text())
 
 
 def write_block(top: Path, patterns: list[str]) -> None:
@@ -247,7 +308,7 @@ def apply(top: Path, before: dict[str, Entry]) -> LocalResult:
     for rel in _changed(before, after, tracked=True):
         why = None
         if rel == CLAUDE_SETTINGS:
-            why = _move_claude_settings(top, before)
+            why = _move_claude_settings(top, before, result.settings_notes)
             if why is None:
                 result.moved_to_local.append(rel)
                 continue

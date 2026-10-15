@@ -166,6 +166,22 @@ def test_a_broken_settings_local_is_named_and_nothing_changes(repo):
     assert local_file.read_text() == "{ not json"
 
 
+def test_a_settings_local_that_isnt_an_object_is_named(repo):
+    settings = repo / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text("{}\n")
+    git(repo, "add", ".claude/settings.json")
+    git(repo, "commit", "-qm", "settings")
+    (repo / ".claude" / "settings.local.json").write_text("[]\n")
+
+    result = run_local(repo, lambda: settings.write_text('{"permissions": {"allow": ["x"]}}'))
+
+    assert result.moved_to_local == []
+    [(_, why)] = result.restored
+    assert "isn't a JSON object" in why
+    assert (repo / ".claude" / "settings.local.json").read_text() == "[]\n"
+
+
 def test_a_restore_git_refuses_is_reported_as_failed(repo, monkeypatch):
     (repo / "AGENTS.md").write_text("team\n")
     git(repo, "add", "AGENTS.md")
@@ -185,6 +201,151 @@ def test_a_restore_git_refuses_is_reported_as_failed(repo, monkeypatch):
 
     assert result.restored == []
     assert result.failed == [("AGENTS.md", "fatal: index.lock exists")]
+
+
+def test_committed_klaussy_hooks_are_not_duplicated_on_upgrade(repo):
+    settings = repo / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    old_hook = {"matcher": "Bash", "hooks": [{"command": "klaussy-hook old_guard.py"}]}
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [old_hook]}}) + "\n")
+    git(repo, "add", ".claude/settings.json")
+    git(repo, "commit", "-qm", "klaussy committed")
+    new_hook = {"matcher": "Bash", "hooks": [{"command": "klaussy-hook new_guard.py"}]}
+
+    def scaffold():
+        data = {"hooks": {"PreToolUse": [new_hook]}, "permissions": {"allow": ["Bash(ls)"]}}
+        settings.write_text(json.dumps(data))
+
+    result = run_local(repo, scaffold)
+
+    local = json.loads((repo / ".claude" / "settings.local.json").read_text())
+    assert "hooks" not in local
+    assert local == {"permissions": {"allow": ["Bash(ls)"]}}
+    assert any("already has klaussy's hooks committed" in n for n in result.settings_notes)
+
+
+def test_a_klaussy_permission_is_not_mistaken_for_committed_hooks(repo):
+    settings = repo / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    team = {"permissions": {"allow": ["mcp__klaussy__klaussy_init"]}}
+    settings.write_text(json.dumps(team) + "\n")
+    git(repo, "add", ".claude/settings.json")
+    git(repo, "commit", "-qm", "settings")
+    hook = {"matcher": "Bash", "hooks": [{"command": "klaussy-hook guard.py"}]}
+
+    def scaffold():
+        settings.write_text(json.dumps({**team, "hooks": {"PreToolUse": [hook]}}))
+
+    result = run_local(repo, scaffold)
+
+    local = json.loads((repo / ".claude" / "settings.local.json").read_text())
+    assert local == {"hooks": {"PreToolUse": [hook]}}
+    assert result.settings_notes == []
+
+
+def test_an_unreadable_exclude_file_stops_init(repo, monkeypatch):
+    def unreadable(_top):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(local_exclude, "has_block", unreadable)
+    monkeypatch.setattr("klaussy.cli.run_init", lambda repo, **_: None)
+    result = runner.invoke(app, ["init", "--repo", str(repo), "-b", "main"])
+    assert result.exit_code == 1
+    assert "Couldn't read .git/info/exclude" in result.output
+    assert not (repo / ".gitignore").exists()
+
+
+def test_a_scalar_settings_local_already_sets_is_reported_not_moved(repo):
+    settings = repo / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text("{}\n")
+    git(repo, "add", ".claude/settings.json")
+    git(repo, "commit", "-qm", "settings")
+    (repo / ".claude" / "settings.local.json").write_text('{"model": "opus"}\n')
+
+    result = run_local(repo, lambda: settings.write_text('{"model": "sonnet"}'))
+
+    local = json.loads((repo / ".claude" / "settings.local.json").read_text())
+    assert local == {"model": "opus"}
+    assert any("model was already set" in n for n in result.settings_notes)
+
+
+def test_a_committed_settings_local_is_never_the_destination(repo):
+    settings = repo / ".claude" / "settings.json"
+    local_file = repo / ".claude" / "settings.local.json"
+    settings.parent.mkdir()
+    settings.write_text("{}\n")
+    local_file.write_text("{}\n")
+    # -f: Claude Code puts settings.local.json in the global git ignore.
+    git(repo, "add", "-f", ".claude/settings.json", ".claude/settings.local.json")
+    git(repo, "commit", "-qm", "both")
+
+    result = run_local(repo, lambda: settings.write_text('{"permissions": {"allow": ["x"]}}'))
+
+    assert result.moved_to_local == []
+    [(rel, why)] = result.restored
+    assert "settings.local.json is committed too" in why
+    assert local_file.read_text() == "{}\n"
+    assert status(repo) == []
+
+
+def test_an_unterminated_block_is_refused_and_user_lines_survive(repo):
+    exclude = local_exclude.exclude_file(repo)
+    damaged = f"{local_exclude.BLOCK_START}\n/CLAUDE.md\n*.mine\n/my-own-dir\n"
+    exclude.write_text(damaged)
+
+    with pytest.raises(local_exclude.MalformedBlock):
+        local_exclude.remove_block(repo)
+    with pytest.raises(local_exclude.MalformedBlock):
+        local_exclude.write_block(repo, ["/x"])
+    assert exclude.read_text() == damaged
+
+
+def test_init_local_with_a_damaged_block_changes_nothing(repo, monkeypatch):
+    local_exclude.exclude_file(repo).write_text(f"{local_exclude.BLOCK_START}\n*.mine\n")
+    monkeypatch.setattr(
+        "klaussy.cli.run_init", lambda repo, **_: (repo / "CLAUDE.md").write_text("x\n")
+    )
+    result = runner.invoke(app, ["init", "--repo", str(repo), "-b", "main", "--local"])
+    assert result.exit_code == 1
+    assert "Nothing was changed" in " ".join(result.output.split())
+    assert not (repo / "CLAUDE.md").exists()
+
+
+def test_uninstall_reports_a_damaged_block_instead_of_editing_it(repo):
+    exclude = local_exclude.exclude_file(repo)
+    exclude.write_text(f"{local_exclude.BLOCK_START}\n*.mine\n")
+    computed = uninstall.plan(repo)
+    assert not any(e.path == uninstall.LOCAL_EXCLUDE_EDIT for e in computed.edits)
+    assert any(path == uninstall.LOCAL_EXCLUDE_EDIT for path, _ in computed.kept)
+
+
+def test_a_missing_git_is_not_a_crash(repo, monkeypatch):
+    def no_git(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(local_exclude.subprocess, "run", no_git)
+    with pytest.raises(local_exclude.NotAGitRepo):
+        local_exclude.toplevel(repo)
+    assert uninstall.plan(repo).kept == []
+
+
+def test_init_still_cleans_up_when_a_step_crashes(repo, monkeypatch):
+    (repo / "AGENTS.md").write_text("team\n")
+    git(repo, "add", "AGENTS.md")
+    git(repo, "commit", "-qm", "agents")
+
+    def crashing_init(repo, **_):
+        (repo / "AGENTS.md").write_text("klaussy's version\n")
+        (repo / "CLAUDE.md").write_text("x\n")
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("klaussy.cli.run_init", crashing_init)
+    result = runner.invoke(app, ["init", "--repo", str(repo), "-b", "main", "--local"])
+
+    assert isinstance(result.exception, RuntimeError)
+    assert (repo / "AGENTS.md").read_text() == "team\n"
+    assert status(repo) == []
 
 
 def test_a_rerun_keeps_earlier_files_and_drops_deleted_ones(repo):

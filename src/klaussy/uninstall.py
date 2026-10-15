@@ -104,8 +104,7 @@ GENERATED_CONFIGS = {
     "opencode.json": frozenset({"$schema", "instructions", "provider", "permission"}),
 }
 
-# A hook entry is klaussy's when its command mentions one of these.
-HOOK_SIGNATURES = ("klaussy-hook", "klaussy_", "klaussy humanize")
+HOOK_SIGNATURES = local_exclude.HOOK_SIGNATURES
 
 
 @dataclass(frozen=True)
@@ -316,9 +315,12 @@ def plan(repo: Path, *, include_conventions: bool = False) -> UninstallPlan:
 
     try:
         if local_exclude.has_block(repo):
+            local_exclude.check(repo)
             result.edits.append(
                 Edit(path=LOCAL_EXCLUDE_EDIT, reason="drop the `klaussy init --local` block")
             )
+    except local_exclude.MalformedBlock as exc:
+        result.kept.append((LOCAL_EXCLUDE_EDIT, f"klaussy's block is damaged: {exc}"))
     except local_exclude.NotAGitRepo:
         pass
 

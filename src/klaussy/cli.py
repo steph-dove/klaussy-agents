@@ -166,7 +166,14 @@ def init(
     selected = _select_agents(agents, all_agents)
 
     if local is None:
-        local = _uses_local(repo)
+        try:
+            local = _uses_local(repo)
+        except OSError as exc:
+            # Guessing "not local" here would edit the committed .gitignore in a local clone.
+            console.print(
+                f"[red]✗ Couldn't read .git/info/exclude: {exc}. Nothing was changed.[/red]"
+            )
+            raise typer.Exit(1) from None
         if local:
             console.print("[dim]This clone uses --local; pass --no-local to change that.[/dim]")
 
@@ -175,10 +182,14 @@ def init(
     if local:
         try:
             top = local_exclude.toplevel(repo)
-        except local_exclude.NotAGitRepo:
-            console.print(f"[red]✗ --local needs a git repository; {repo} isn't one.[/red]")
+            local_exclude.check(top)
+            before = local_exclude.snapshot(top)
+        except local_exclude.NotAGitRepo as exc:
+            console.print(f"[red]✗ --local needs a git repository: {exc}.[/red]")
             raise typer.Exit(1) from None
-        before = local_exclude.snapshot(top)
+        except local_exclude.MalformedBlock as exc:
+            console.print(f"[red]✗ .git/info/exclude: {exc}. Nothing was changed.[/red]")
+            raise typer.Exit(1) from None
 
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
@@ -207,15 +218,19 @@ def init(
     if not local:
         steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
 
-    for name, step in steps:
-        try:
-            step()
-        except SystemExit:
-            console.print(f"[yellow]⚠ Skipped {name}[/yellow]")
+    try:
+        for name, step in steps:
+            try:
+                step()
+            except SystemExit:
+                console.print(f"[yellow]⚠ Skipped {name}[/yellow]")
+    finally:
+        # Even a crash or Ctrl-C halfway through must not leave committed files
+        # edited or the new ones showing; the snapshot doesn't survive the process.
+        if top is not None:
+            _report_local(local_exclude.apply(top, before))
 
-    if top is not None:
-        _report_local(local_exclude.apply(top, before))
-    else:
+    if top is None:
         _drop_local_block(repo)
 
     console.print("\n[bold green]✔ All boilerplate generated![/bold green]")
@@ -232,6 +247,8 @@ def _report_local(result: local_exclude.LocalResult) -> None:
             f"[green]✔ {rel} is committed, so klaussy's entries went to "
             ".claude/settings.local.json instead.[/green]"
         )
+    for note in result.settings_notes:
+        console.print(f"[dim]  {note}[/dim]")
     for rel, why in result.restored:
         reason = f" ({why})" if why else ""
         console.print(
@@ -257,9 +274,13 @@ def _drop_local_block(repo: Path) -> None:
     """`init --no-local` after --local makes the files visible to git again."""
     try:
         top = local_exclude.toplevel(repo)
+        removed = local_exclude.remove_block(top)
     except local_exclude.NotAGitRepo:
         return
-    if local_exclude.remove_block(top):
+    except local_exclude.MalformedBlock as exc:
+        console.print(f"[yellow]⚠ Left .git/info/exclude alone: {exc}.[/yellow]")
+        return
+    if removed:
         console.print(
             "[dim]Removed klaussy's block from .git/info/exclude; "
             "its files show in git again.[/dim]"
