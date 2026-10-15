@@ -7,6 +7,11 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+### Added
+
+- **`klaussy init --local`.** Use klaussy in a repo without committing it. What klaussy creates goes into `.git/info/exclude`, so it's hidden from `git status` in your clone and its worktrees, and nobody else sees it. It's worked out from `git status` before and after the run, so only klaussy's files are hidden, not your own untracked ones. Committed files stay as they were: a committed `.claude/settings.json` gets its hooks and permissions moved to `.claude/settings.local.json`, and any other committed file klaussy would have changed is left alone and reported. Later runs stay local without the flag, `--no-local` undoes it, and `klaussy uninstall` removes the block.
+- **README: how to update.** Upgrade commands for pipx, uv and pip, then `klaussy init --force` to refresh a repo.
+
 ## [0.43.0] - 2026-10-15
 
 ### Changed

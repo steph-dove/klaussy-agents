@@ -13,7 +13,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from klaussy import __version__
+from klaussy import __version__, local_exclude
 from klaussy import base_branch as base_mod
 from klaussy import restack as restack_mod
 from klaussy import split_carve as carve_mod
@@ -151,10 +151,45 @@ def init(
     agents: str | None = typer.Option(None, "--agents", help=_AGENTS_HELP),
     all_agents: bool = typer.Option(False, "--all", help="Scaffold every supported agent."),
     here: bool = _HERE_OPT,
+    local: bool | None = typer.Option(
+        None,
+        "--local/--no-local",
+        help=(
+            "Keep what klaussy creates out of git for this clone only, via .git/info/exclude. "
+            "Committed files are left as they were. A clone set up with --local stays local "
+            "on later runs; --no-local makes the files visible to git again."
+        ),
+    ),
 ) -> None:
     """Generate repo boilerplate for one or more AI coding agents."""
     repo = _resolve_repo(repo, here)
     selected = _select_agents(agents, all_agents)
+
+    if local is None:
+        try:
+            local = _uses_local(repo)
+        except OSError as exc:
+            # Guessing "not local" here would edit the committed .gitignore in a local clone.
+            console.print(
+                f"[red]✗ Couldn't read .git/info/exclude: {exc}. Nothing was changed.[/red]"
+            )
+            raise typer.Exit(1) from None
+        if local:
+            console.print("[dim]This clone uses --local; pass --no-local to change that.[/dim]")
+
+    top: Path | None = None
+    before: dict[str, local_exclude.Entry] = {}
+    if local:
+        try:
+            top = local_exclude.toplevel(repo)
+            local_exclude.check(top)
+            before = local_exclude.snapshot(top)
+        except local_exclude.NotAGitRepo as exc:
+            console.print(f"[red]✗ --local needs a git repository: {exc}.[/red]")
+            raise typer.Exit(1) from None
+        except local_exclude.MalformedBlock as exc:
+            console.print(f"[red]✗ .git/info/exclude: {exc}. Nothing was changed.[/red]")
+            raise typer.Exit(1) from None
 
     if base_branch is None:
         base_branch = _prompt_base_branch(repo)
@@ -180,15 +215,76 @@ def init(
             )
         )
     steps.append(("PR template", lambda: scaffold_pr_template(repo=repo, force=force)))
-    steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
+    if not local:
+        steps.append((".gitignore", lambda: update_gitignore(repo=repo)))
 
-    for name, step in steps:
-        try:
-            step()
-        except SystemExit:
-            console.print(f"[yellow]⚠ Skipped {name}[/yellow]")
+    try:
+        for name, step in steps:
+            try:
+                step()
+            except SystemExit:
+                console.print(f"[yellow]⚠ Skipped {name}[/yellow]")
+    finally:
+        # Even a crash or Ctrl-C halfway through must not leave committed files
+        # edited or the new ones showing; the snapshot doesn't survive the process.
+        if top is not None:
+            _report_local(local_exclude.apply(top, before))
+
+    if top is None:
+        _drop_local_block(repo)
 
     console.print("\n[bold green]✔ All boilerplate generated![/bold green]")
+
+
+def _report_local(result: local_exclude.LocalResult) -> None:
+    """Say what --local hid, moved, and put back."""
+    console.print(
+        f"[green]✔ {len(result.excluded)} file(s) added to .git/info/exclude; "
+        "git won't show them as changes in this clone.[/green]"
+    )
+    for rel in result.moved_to_local:
+        console.print(
+            f"[green]✔ {rel} is committed, so klaussy's entries went to "
+            ".claude/settings.local.json instead.[/green]"
+        )
+    for note in result.settings_notes:
+        console.print(f"[dim]  {note}[/dim]")
+    for rel, why in result.restored:
+        reason = f" ({why})" if why else ""
+        console.print(
+            f"[yellow]⚠ {rel} is committed, so --local left it as it was{reason}. "
+            "Anything klaussy meant to add there isn't set up.[/yellow]"
+        )
+    for rel, error in result.failed:
+        console.print(
+            f"[red]✗ Couldn't put {rel} back, so it still has klaussy's changes and "
+            f"shows in git: {error}[/red]"
+        )
+
+
+def _uses_local(repo: Path) -> bool:
+    """Whether an earlier `init --local` set this clone up."""
+    try:
+        return local_exclude.has_block(local_exclude.toplevel(repo))
+    except local_exclude.NotAGitRepo:
+        return False
+
+
+def _drop_local_block(repo: Path) -> None:
+    """`init --no-local` after --local makes the files visible to git again."""
+    try:
+        top = local_exclude.toplevel(repo)
+        removed = local_exclude.remove_block(top)
+    except local_exclude.NotAGitRepo:
+        return
+    except local_exclude.MalformedBlock as exc:
+        console.print(f"[yellow]⚠ Left .git/info/exclude alone: {exc}.[/yellow]")
+        return
+    if removed:
+        console.print(
+            "[dim]Removed klaussy's block from .git/info/exclude; "
+            "its files show in git again.[/dim]"
+        )
 
 
 @app.command()

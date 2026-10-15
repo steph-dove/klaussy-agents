@@ -21,6 +21,8 @@ Scaffold AI coding-agent boilerplate for the user's project by running klaussy. 
    ```
    If `.claude/skills/` or `./CLAUDE.md` already exists, ask the user whether to pass `--force` rather than assuming. The migration in `klaussy init` removes legacy `.claude/commands/*.md` files only if it owns them (via the `.klaussy-version` marker) — user-authored commands are left alone.
 
+   **Not committing it?** If the user wants klaussy for themselves without adding files to the repo (trying it on a team repo, say), pass `--local`. klaussy puts what it creates in `.git/info/exclude` instead of committing anything, and leaves committed files as they were.
+
    **Agent targets.** By default klaussy scaffolds **every** supported agent from the same conventions; `klaussy init --help` lists them. Each gets its native conventions file (e.g. `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` for Codex/Antigravity, `.github/copilot-instructions.md`, `.cursor/rules/`, `.clinerules/conventions.md`, `CONVENTIONS.md` for Aider), plus the bundled skills in its native skills directory and permissions — except Aider, which is conventions-only (it has no skills or hooks mechanism). To narrow to specific agents, pass `--agents claude,gemini` (any subset). If the user only uses Claude, suggest `--agents claude`.
 
 4. **Verify output.** The paths below are Claude Code's; each *other* selected agent gets the equivalent in its own dir (`.gemini/`, `.cursor/`, `.agents/` for Codex, `.github/` for Copilot) plus its native conventions file. Confirm these landed:
@@ -29,7 +31,7 @@ Scaffold AI coding-agent boilerplate for the user's project by running klaussy. 
    - `.claude/skills/<repo>-<skill>/SKILL.md` — one directory per bundled skill (review, plan, debug, implement, and the rest). Count the directories rather than checking against a number quoted here; the set grows between releases.
    - `.claude/settings.json`
    - `.github/PULL_REQUEST_TEMPLATE.md` (only if the repo didn't already have one)
-   - `.gitignore` updated with klaussy output exclusions
+   - `.gitignore` updated with klaussy output exclusions (with `--local`, `.git/info/exclude` instead, and `git status` shows none of the generated files)
 
 5. **Report.** Tell the user which skills were created (point at `<repo>-plan` and `<repo>-review` as the high-leverage ones), summarize what's in `CLAUDE.md` and any `.claude/rules/*.md` files, and suggest reviewing them before committing.
 

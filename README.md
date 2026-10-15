@@ -224,6 +224,40 @@ pip install klaussy-agents
 klaussy init
 ```
 
+### Updating
+
+Upgrade the package with whatever installed it. The PyPI name is `klaussy-agents`; `klaussy` is just the command.
+
+```bash
+pipx upgrade klaussy-agents                 # installed with pipx
+uv tool upgrade klaussy-agents              # installed with uv
+pip install --upgrade klaussy-agents        # installed with pip
+klaussy --version                           # check it took
+```
+
+Then refresh each repo so it picks up the new skills and prompts:
+
+```bash
+klaussy init --force
+git diff                                    # review what changed before committing
+```
+
+Or ask your agent for the `klaussy-update` skill, which does both steps and summarizes the diff.
+
+### Keeping it out of git
+
+To use klaussy in a repo without committing anything, for example when you're trying it out on a team repo:
+
+```bash
+klaussy init --local
+```
+
+Everything klaussy creates goes into `.git/info/exclude`, which works like `.gitignore` but is never committed. It's only your clone, and every worktree of it, that stops showing those files as changes. Teammates and CI see nothing.
+
+Files that are already committed stay exactly as they were, because git can't exclude changes to a file it already tracks. If `.claude/settings.json` is committed, klaussy's hooks and permissions go to `.claude/settings.local.json` instead, which Claude Code reads and treats as personal. For any other committed file klaussy would have changed, it says what it skipped.
+
+Later runs, `klaussy init --force` included, stay local without the flag. `klaussy init --no-local` makes the files visible to git again, and `klaussy uninstall` removes the exclude block along with everything else.
+
 ### Using the skills
 
 After `klaussy init` the skills live in your repo and you call them by name. The name is always `<your repo name>-<skill>`, lowercased, with anything that isn't a letter or digit turned into a hyphen. So `My_App` gets `my-app-review` and `Payments Service` gets `payments-service-review`.
@@ -313,7 +347,8 @@ klaussy uninstall --dry-run   # show what would go
 klaussy uninstall             # do it, after confirming
 ```
 
-Removes the generated skills, guards, hooks and ignore files. `.gitignore` and
+Removes the generated skills, guards, hooks and ignore files, and the
+`init --local` block in `.git/info/exclude`. `.gitignore` and
 each agent's settings get *edited* rather than deleted, because klaussy merges
 into those and they usually hold your own entries too. Anything klaussy can't
 prove it wrote is reported and left alone. Conventions docs (`CLAUDE.md`,

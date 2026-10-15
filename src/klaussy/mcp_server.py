@@ -48,6 +48,7 @@ def klaussy_init(
     force: bool = False,
     skip_enrich: bool = False,
     agents: str = "all",
+    local: bool | None = None,
 ) -> str:
     """Generate repo boilerplate for one or more AI coding agents.
 
@@ -57,10 +58,17 @@ def klaussy_init(
     comma-separated list from: claude, gemini, cursor, codex, copilot,
     antigravity, cline, aider, opencode, kimi (or "all"). Defaults to all
     agents. Also writes the PR template and .gitignore entries.
+
+    `local=True` keeps everything out of git for this clone only
+    (.git/info/exclude) and leaves committed files alone. Left unset, a clone
+    already set up that way stays local; `local=False` makes its files visible
+    to git again.
     """
     args = ["init", "--repo", repo, "--base-branch", base_branch]
     if force:
         args.append("--force")
+    if local is not None:
+        args.append("--local" if local else "--no-local")
     if skip_enrich:
         args.append("--skip-enrich")
     if agents.strip().lower() == "all":

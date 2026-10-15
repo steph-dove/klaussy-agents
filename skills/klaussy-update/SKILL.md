@@ -29,7 +29,9 @@ Refresh this repository's klaussy-generated boilerplate to match the latest klau
    - Settings or hook changes
    This is the user's chance to review before committing the refresh.
 
-6. **Report.** Tell the user the old marker version → new version, what materially changed in the generated content, and remind them to commit.
+   If `klaussy init` printed "This clone uses --local", the generated files are in `.git/info/exclude` and `git diff` won't show them. Summarize from klaussy's own output instead, and skip the reminder to commit: in a local clone there's nothing to commit.
+
+6. **Report.** Tell the user the old marker version → new version and what materially changed in the generated content. Remind them to commit, unless `klaussy init` printed "This clone uses --local".
 
 ## When NOT to use
 

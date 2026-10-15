@@ -44,3 +44,16 @@ def test_scrub_text_inline_without_subprocess():
 
 def test_scrub_requires_text_or_files():
     assert "Provide" in klaussy_scrub()
+
+
+def test_init_local_maps_to_both_cli_flags(monkeypatch):
+    import klaussy.mcp_server as server
+
+    calls = []
+    monkeypatch.setattr(server, "_run_klaussy", lambda *args, cwd: calls.append(args) or "")
+    server.klaussy_init(local=True)
+    server.klaussy_init(local=False)
+    server.klaussy_init()
+    assert "--local" in calls[0]
+    assert "--no-local" in calls[1]
+    assert not {"--local", "--no-local"} & set(calls[2])
