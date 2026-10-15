@@ -7,6 +7,10 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`init --local` hides scaffolding from an earlier plain `init` too.** `init` only writes what's missing, so files left untracked by a previous run never changed and stayed in `git status`. Local mode now also hides untracked files klaussy can prove are its own: the same markers `klaussy uninstall` uses, plus `.claude/directory-map.md` and a PR template that matches klaussy's word for word. Your own untracked files, including a PR template you wrote yourself, stay visible.
+
 ## [0.44.0] - 2026-10-15
 
 ### Added

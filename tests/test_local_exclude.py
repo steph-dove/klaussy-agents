@@ -73,6 +73,42 @@ def test_output_files_are_ignored_without_touching_gitignore(repo):
     assert not (repo / ".gitignore").exists()
 
 
+def test_scaffolding_from_an_earlier_plain_init_is_hidden_too(repo):
+    # init skips files that already exist, so these don't change during the run.
+    skills = repo / ".claude" / "skills"
+    (skills / "demo-review").mkdir(parents=True)
+    (skills / "demo-review" / "SKILL.md").write_text("x\n")
+    (skills / ".klaussy-version").write_text("0.43.0\n")
+    (skills / "my-own-skill").mkdir()
+    (skills / "my-own-skill" / "SKILL.md").write_text("mine\n")
+    (repo / ".conventions").mkdir()
+    (repo / ".conventions" / "raw.json").write_text("{}\n")
+    (repo / "CLAUDE.md").write_text("# conventions\n")
+    (repo / "notes.txt").write_text("mine\n")
+
+    result = run_local(repo, lambda: None)
+
+    assert ".claude/skills/demo-review/SKILL.md" in result.excluded
+    assert ".conventions/raw.json" in result.excluded
+    assert "CLAUDE.md" in result.excluded
+    assert status(repo) == [".claude/skills/my-own-skill/SKILL.md", "notes.txt"]
+
+
+def test_an_earlier_pr_template_and_directory_map_are_hidden_but_a_custom_template_isnt(repo):
+    from klaussy.pr_template import bundled_template
+
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "directory-map.md").write_text("# Directory Map\n")
+    (repo / ".github").mkdir()
+    (repo / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text(bundled_template())
+    (repo / ".gitlab" / "merge_request_templates").mkdir(parents=True)
+    (repo / ".gitlab" / "merge_request_templates" / "Default.md").write_text("## Ours\n")
+
+    run_local(repo, lambda: None)
+
+    assert status(repo) == [".gitlab/merge_request_templates/Default.md"]
+
+
 def test_a_users_own_untracked_file_stays_visible(repo):
     (repo / "notes.txt").write_text("mine\n")
     run_local(repo, lambda: (repo / "CLAUDE.md").write_text("x\n"))

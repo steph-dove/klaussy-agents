@@ -20,6 +20,14 @@ console = Console()
 
 _GITHUB_TARGET = Path(".github") / "PULL_REQUEST_TEMPLATE.md"
 _GITLAB_TARGET = Path(".gitlab") / "merge_request_templates" / "Default.md"
+TARGETS = (_GITHUB_TARGET, _GITLAB_TARGET)
+
+
+def bundled_template() -> str:
+    """The template body klaussy writes, the same for every host."""
+    return (
+        resources.files("klaussy").joinpath("templates/github/PULL_REQUEST_TEMPLATE.md").read_text()
+    )
 
 
 def _github_has_template(repo: Path) -> bool:
@@ -86,9 +94,7 @@ def scaffold_pr_template(
         console.print("[dim]Request template already exists, skipping.[/dim]")
         return None
 
-    content = (
-        resources.files("klaussy").joinpath("templates/github/PULL_REQUEST_TEMPLATE.md").read_text()
-    )
+    content = bundled_template()
     template_file = repo / target
     template_file.parent.mkdir(parents=True, exist_ok=True)
     template_file.write_text(content)
