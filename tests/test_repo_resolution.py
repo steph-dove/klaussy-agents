@@ -76,7 +76,7 @@ class TestScaffolding:
 
 class TestHereFlag:
     def test_here_scaffolds_the_subdirectory_itself(self, nested):
-        # A subproject inside a bigger repo (or this repo's own examples/).
+        # A subproject inside a bigger repo.
         root, deep = nested
         args = ["skills", "--repo", str(deep), "--here", "-b", "main", "--agents", "claude"]
         result = runner.invoke(app, args)

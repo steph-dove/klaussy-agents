@@ -48,9 +48,8 @@ MAX_DESCRIPTION = 1024
 def _tracked_skill_md() -> list[Path]:
     """Every SKILL.md git tracks, excluding hidden directories.
 
-    gh skips hidden directories unless `--allow-hidden-dirs` is passed, so the
-    per-agent output under `examples/*/.claude/skills/` and this repo's own
-    dogfooded `.claude/skills/` are out of scope.
+    gh skips hidden directories unless `--allow-hidden-dirs` is passed, so this
+    repo's own dogfooded `.claude/skills/` is out of scope.
     """
     import subprocess
 

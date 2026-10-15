@@ -54,12 +54,6 @@ klaussy = ["templates/**/*"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-# examples/ is captured `klaussy init` output, not source. Formatting it would
-# make it stop matching what the generator actually writes, and its baked-in
-# guidance strings trip E501 by construction. force-exclude so the rule holds
-# when the commit guard passes those paths explicitly, not just on traversal.
-extend-exclude = ["examples"]
-force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

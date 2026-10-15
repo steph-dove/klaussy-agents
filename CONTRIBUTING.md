@@ -70,10 +70,6 @@ and the error/edge paths.
 Bump all three version files together, update `CHANGELOG.md`, then tag `vX.Y.Z`
 — `.github/workflows/release.yml` publishes to PyPI on the tag push.
 
-Regenerating `examples/` needs `git add -f`: this repo's `.gitignore` ignores
-`.claude/`, `.cursor/`, `CLAUDE.md` and friends, and those patterns are
-unanchored, so they apply under `examples/` too. A plain `git add` looks like
-it worked while silently dropping every new file.
 - File bugs and feature requests as
   [issues](https://github.com/steph-dove/klaussy-agents/issues).
 
