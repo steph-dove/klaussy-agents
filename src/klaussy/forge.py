@@ -103,8 +103,13 @@ def detect_forge_cli(repo: Path) -> str | None:
 # Each adapter file is cut into these sections by `<!-- forge:<name> -->` lines,
 # so a skill carries only the part it uses: restack never reads review threads,
 # address-review never builds a stack.
-FORGE_SECTIONS = ("core", "feedback", "stacks")
-_SECTION_TOKENS = {"core": "FORGE", "feedback": "FORGE_FEEDBACK", "stacks": "FORGE_STACKS"}
+FORGE_SECTIONS = ("core", "feedback", "stacks", "media")
+_SECTION_TOKENS = {
+    "core": "FORGE",
+    "feedback": "FORGE_FEEDBACK",
+    "stacks": "FORGE_STACKS",
+    "media": "FORGE_MEDIA",
+}
 _SECTION_MARK = re.compile(r"^<!-- forge:(\w+) -->\n", re.MULTILINE)
 
 

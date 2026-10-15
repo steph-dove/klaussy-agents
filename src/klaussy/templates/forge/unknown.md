@@ -10,3 +10,8 @@ Do the git-side work normally. For anything that lives on the hosting provider:
 3. If not, ask the user to paste the ticket or request content, and hand back the exact steps for whatever has to change on their side.
 
 Never invent a command, an endpoint, or a payload shape to fill the gap, and never ask the user to install a hosting CLI to finish work git can already do.
+
+<!-- forge:media -->
+#### Attaching QA media
+
+With no provider detected, there's no upload command to use. List each file still to attach by hand, with its path and what it shows.

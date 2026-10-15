@@ -65,3 +65,22 @@ Arguments run bottom-up, nearest the base first. Two constraints decide whether 
 `link` and `init` are two different entry points and the difference shows up later. `link` stacks requests that already exist and leaves nothing behind locally, so a later `gh stack rebase` needs `gh stack checkout <stack-number>` first to pick the stack back up. `init` registers the branches locally up front and `submit` then opens the requests itself, which means the bodies are its own — write them with `gh pr edit <n> --body-file` afterwards if they have to say something specific.
 
 Without it, chained `--base` targets still give reviewers a per-layer diff, and GitHub often offers to convert an eligible chain into a stack — a banner on the request, or "Add to stack" behind the stack icon. Say which route you took.
+
+<!-- forge:media -->
+#### Attaching QA media (GitHub)
+
+Upload each screenshot and recording to GitHub's attachment store, where a file dragged into a comment box goes, and embed the URL that comes back. Uploading posts nothing; the file only shows up where you embed it.
+
+```
+gh api repos/{owner}/{repo} --jq .id
+
+gh api -X POST "https://uploads.github.com/user-attachments/assets?name=<file-name>&repository_id=<repo-id>" \
+  -H "Content-Type: <mime-type>" --input <path> --jq .url
+```
+
+- **Pass the full `https://uploads.github.com/...` URL.** A bare path goes to `api.github.com` and fails.
+- **Set the real type:** `image/png`, `image/jpeg`, `image/gif`, `video/mp4`, `video/webm` or `video/quicktime`.
+- **Embed images as `<img src="<url>" width="420" alt="<what it shows>">`** so a before/after pair fits side by side in a table. **Put a video's URL on a line of its own**: GitHub renders a bare attachment URL as a player, and a Markdown link or `<video>` tag doesn't get one.
+- **Who can see the files follows the repo.** A private repo's attachments load only for signed-in people with access.
+- **Limits:** 10 MB per image, and 10 MB per video on free plans (100 MB on paid ones). Trim a long recording rather than skipping it.
+- **The endpoint isn't in GitHub's REST docs.** If it returns anything but `201`, don't try another host; list the files still to attach by hand, with their paths.

@@ -23,7 +23,7 @@ QA the current change and capture evidence a reviewer can trust. The point is to
    - **UI / frontend** → **record the full flow, showcase responsive behavior, and capture before/after screenshots.**
      - **Before & After Visuals**: Capture before and after screenshots for visual comparison, formatted as a side-by-side comparison table ready for the PR description.
      - **Responsive Video (.mp4)**: Record a full-flow video showing the complete interaction end-to-end. The video MUST showcase responsive UI behaviors by resizing (growing and shrinking) the window or viewport.
-     - **Programmatic Asset Uploads**: Programmatically upload QA media assets (e.g. using `gh release upload`, `gh api` assets endpoint, or image host) so you have direct asset URLs ready to embed into the PR description without requiring manual drag-and-drop.
+     - **Uploaded, not just saved**: once the artifacts are saved (step 4), upload the screenshots and recordings as described in [Attaching the evidence](#attaching-the-evidence), so the PR body embeds them and nobody has to drag files in.
    - **Backend / API / service** → run the test suite and any integration/e2e that covers the area, then **exercise the changed path for real**: bring the service up, hit the endpoint (curl/httpie/the project's client), and capture the request → response and any relevant log lines. If the change is visible through a UI or a dashboard, record that too.
    - **CLI / tool** → run the representative commands that exercise the change (not just `--help`); capture stdout, stderr, and exit codes. For anything interactive, long-running, or with meaningful terminal output (a TUI, a progress display, a prompt flow), record the terminal — `asciinema rec` if it's installed, otherwise a screen recording — so the reviewer sees the session rather than a transcript.
    - **Library / SDK** → run the unit tests plus a small usage snippet that calls the changed API.
@@ -53,6 +53,12 @@ Work down this list and use the first option that's actually available — don't
 - **Terminal sessions** — `asciinema rec flow.cast`.
 
 Keep recordings short and pointed: the flow the change affects, nothing else. Thirty seconds of the actual interaction beats five minutes of navigation. If none of these is available, say so in the summary and fall back to screenshots plus written repro steps.
+
+## Attaching the evidence
+
+A screenshot sitting in the user's Downloads folder never reaches the reviewer. Upload the screenshots and recordings that made the summary, check each one first (see **Don't record secrets** below), and put the returned URLs in the summary's before/after table so the PR body can use it as is. Upload only what the summary shows, not the whole folder. Uploading doesn't need the request to exist yet. The URLs work in any description written afterwards.
+
+{{FORGE_MEDIA}}
 
 ## Rules
 

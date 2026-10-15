@@ -32,3 +32,8 @@ Two things bite when porting a GitHub habit:
 
 <!-- forge:stacks -->
 **There is no native stack object to register.** A stack on GitLab is exactly a chain of `--target-branch` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the targets right and say plainly that the stack is branch-chained.
+
+<!-- forge:media -->
+#### Attaching QA media (GitLab)
+
+Upload each screenshot and recording as a project upload (`POST /projects/:id/uploads`, multipart field `file`). The response's `markdown` field is ready to paste into the description, and GitLab renders a video embedded that way as a player. Check `glab api --help` for how the installed `glab` sends a file field. If it can't send multipart, use `curl --form "file=@<path>"` with a `PRIVATE-TOKEN` header. If neither works, list the files still to attach by hand, with their paths.
