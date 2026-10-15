@@ -2,7 +2,7 @@
 
 # Klaussy-Agents
 
-> **License: source-available, not open source.** © 2026 Dovatech LLC, licensed under the [Functional Source License (FSL-1.1-MIT)](https://github.com/steph-dove/klaussy-agents/blob/main/LICENSE). You can use and modify it for your own work, but copying it into a commercial product or service that competes with klaussy, or offers the same functionality, is not permitted and is copyright infringement. Releases up to and including 0.37.0 stay MIT, and each later release becomes MIT two years after it ships. For a commercial license, email stephanie@klaussy.com.
+> **License: source-available, not open source.** © 2026 Dovatech LLC. Current releases are licensed under the [Functional Source License (FSL-1.1-MIT)](https://github.com/steph-dove/klaussy-agents/blob/main/LICENSE). You can use and modify it for your own work, but copying it into a commercial product or service that competes with klaussy, or offers the same functionality, is not permitted and is copyright infringement. For a commercial license, email stephanie@klaussy.com.
 
 [![PyPI version](https://img.shields.io/pypi/v/klaussy-agents.svg)](https://pypi.org/project/klaussy-agents/)
 [![PyPI downloads](https://static.pepy.tech/personalized-badge/klaussy-agents?period=total&units=international_system&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/klaussy-agents)
