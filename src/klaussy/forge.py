@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Detect the repo's hosting provider and load the {{FORGE}} adapter block.
 
 Skills need provider-specific commands around an otherwise identical procedure,

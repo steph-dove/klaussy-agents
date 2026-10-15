@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Run the review skill headless on a pull request checkout, with any supported agent.
 
 The GitHub Action and the hosted review App both call this through

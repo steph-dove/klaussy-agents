@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic restack: map a stack of branches from git ancestry, rebase it
 bottom-up with `--onto`, verify, and push with a lease.
 

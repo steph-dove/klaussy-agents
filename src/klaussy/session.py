@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Scaffold a cross-agent shared session-state file.
 
 A task often changes hands mid-flight: a CLI agent makes a quick edit, an IDE

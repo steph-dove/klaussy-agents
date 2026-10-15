@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """MCP server for klaussy — exposes klaussy subcommands as tools."""
 
 import json

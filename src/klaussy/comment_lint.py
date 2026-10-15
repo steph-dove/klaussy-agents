@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic verbose-comment detector — the block-only precommit backstop.
 
 Format, lint, and ruff's ERA rule judge commented-out *code* but never comment

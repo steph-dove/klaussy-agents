@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Per-agent backends. Each turns canonical klaussy output into native files.
 
 The Claude backend delegates to the original generators so its output is

@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic pre-processor for the review skill: trim a branch diff to what's
 actually worth reviewing before it reaches the model.
 

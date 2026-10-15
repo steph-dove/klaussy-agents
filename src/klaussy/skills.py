@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Scaffold .claude/skills/ with namespaced Claude Code skills."""
 
 from __future__ import annotations

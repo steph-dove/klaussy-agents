@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic layer proposal for the split-pr skill: where a large change can
 be cut, from the import graph rather than from filenames.
 

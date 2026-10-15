@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Deterministic function-local import detector — a block-only precommit check.
 
 Same ground as ruff's PLC0415, but scoped to the lines in flight so an unrelated

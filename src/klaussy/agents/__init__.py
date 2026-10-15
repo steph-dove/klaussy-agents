@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Multi-agent scaffolding: target backends + selection helpers.
 
 klaussy generates Claude Code boilerplate and translates it into the native

@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Carve a large change into a stack of whole-file layers, then verify the stack.
 
 The split-pr skill decides the seams; this does the mechanical part it used to

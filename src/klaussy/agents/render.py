@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Adapt canonical (Claude-flavored) skill content to a target agent.
 
 The goal is fidelity of *intent*, not bytes: a skill must capture the same

@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Prompt-injection markers, for code that runs outside the agent.
 
 The patterns live in the read-injection guard hook, which klaussy copies into repos and so has to

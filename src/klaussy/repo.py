@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Resolve whatever directory klaussy was pointed at to the repository it belongs to.
 
 The skill namespace is the repository's folder name (`myapp-review`) and the

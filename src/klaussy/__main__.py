@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Entry point for `python -m klaussy`.
 
 The `klaussy` console script is the normal way in. This exists for the case the

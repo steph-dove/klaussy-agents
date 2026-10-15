@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Per-agent hook emission: install guard scripts + write native hook configs.
 
 Every supported agent has a hooks mechanism, but the config file, event names,

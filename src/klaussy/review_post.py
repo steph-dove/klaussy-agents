@@ -1,3 +1,4 @@
+# Copyright 2026 Dovatech LLC. SPDX-License-Identifier: FSL-1.1-MIT
 """Turn the review skill's REVIEW_OUTPUT.md into a GitHub pull request review."""
 
 from __future__ import annotations
