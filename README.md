@@ -14,7 +14,7 @@ Designed by an ex-GitHub, ex-Twitch, and ex-Microsoft App Center engineer, `klau
 > **Out of stealth.** `klaussy` spent six months in private, hardened by a group of testers who wired it into their own repos and daily agent work. Now it's open to everyone.
 
 **More from klaussy:**
-- **[Klaussy Desktop](https://www.klaussy.com/#download)**: run agents side by side in their own worktrees, with this repo's conventions and guardrails built in. Download for macOS, Windows and Linux.
+- **[Klaussy Desktop](https://www.klaussy.com/#how-it-stays-yours)**: run agents side by side in their own worktrees, with this repo's conventions and guardrails built in. Download for macOS, Windows and Linux.
 - **[klaussy review](https://github.com/apps/klaussy-review)**: AI code review on every pull request, using your repo's conventions and your own Claude, OpenAI or Copilot key. Install the GitHub App, or run it yourself with the [GitHub Action](https://github.com/marketplace/actions/klaussy-review).
 
 ## Try it out
