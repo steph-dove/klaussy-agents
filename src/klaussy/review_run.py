@@ -429,6 +429,7 @@ def review_prompt(
     )
     return (
         f"Use the {skill} skill to review this branch (HEAD) against `{base}`. {nits}{pinned}"
+        f"That base is given, so use it and don't say in the report how the base was chosen. "
         f"There is no one to answer questions: make reasonable calls yourself. "
         f"Commands already run from the checkout root, so don't `cd` first, and read files with "
         f"your file-reading tool rather than `cat`. "

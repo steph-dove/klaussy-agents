@@ -293,6 +293,11 @@ def test_the_prompt_names_the_sanitized_skill():
     assert "my-app-review skill" in prompt and f"writing {REPORT}" in prompt
 
 
+def test_the_prompt_keeps_base_selection_out_of_the_report():
+    prompt = review_prompt("app", "origin/main", include_nits=False)
+    assert "don't say in the report how the base was chosen" in prompt
+
+
 # --- running the agents ------------------------------------------------------
 
 
