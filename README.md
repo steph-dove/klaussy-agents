@@ -73,25 +73,6 @@ Then use the skills. Every one is namespaced to your repo, so in a repo called `
 
 ---
 
-## Example output
-
-Two open-source repos, scaffolded and committed so you can read what `klaussy init`
-writes before you run it on your own code. No install needed:
-
-| Example | Upstream | What to look at |
-|---|---|---|
-| [`examples/fastapi/`](examples/fastapi/) | [fastapi/fastapi](https://github.com/fastapi/fastapi) | [`CLAUDE.md`](examples/fastapi/CLAUDE.md): the discovered conventions, decision log, and pitfalls |
-| [`examples/httpx/`](examples/httpx/) | [encode/httpx](https://github.com/encode/httpx) | [`CONVENTIONS.md`](examples/httpx/CONVENTIONS.md): the same source, flattened for Aider |
-
-Worth opening: a [generated review skill](examples/fastapi/.claude/skills/fastapi-review/SKILL.md)
-with the repo's own rules injected into it, the
-[Copilot instructions](examples/fastapi/.github/copilot-instructions.md) with
-`applyTo` matchers, and the [commit guard](examples/fastapi/.claude/hooks/git_commit_guard.py)
-as it lands in a repo. Every supported agent's directory is in there.
-[`examples/README.md`](examples/README.md) has the full map and how to reproduce it.
-
----
-
 ## Supported agents
 
 `klaussy` writes your conventions (`CLAUDE.md`) and workflows in each agent's native format, puts them where that agent looks, and uses whatever scoping and hooks it supports:
