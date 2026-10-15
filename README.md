@@ -349,5 +349,4 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history, including what's 
 ---
 
 ## License and governance
-- **License:** [FSL-1.1-MIT](LICENSE) (Functional Source License). Use, modify and self-host klaussy for anything except a competing commercial product or service. Each release becomes MIT two years after it ships. Releases up to and including 0.37.0 remain MIT.
-- **Governance:** `klaussy` is a source-available project owned and maintained by Dovatech LLC (founded and owned by Stephanie Dover).
+- **License:** [FSL-1.1-MIT](LICENSE) (Functional Source License). Use, modify and self-host klaussy for anything except a competing commercial product or service. Each release becomes MIT two years after it ships.- **Governance:** `klaussy` is a source-available project owned and maintained by Dovatech LLC (founded and owned by Stephanie Dover).
