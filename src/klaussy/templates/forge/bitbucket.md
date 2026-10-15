@@ -33,3 +33,8 @@ Three things worth knowing before you use these:
 
 <!-- forge:stacks -->
 **There is no native stack object to register.** A stack on Bitbucket is exactly a chain of `destination.branch.name` values, each request aimed at the branch below it, so the chain and the map you write into each description are the only things a reviewer navigates by. Get the destinations right and say plainly that the stack is branch-chained.
+
+<!-- forge:media -->
+#### Attaching QA media (Bitbucket)
+
+Bitbucket Cloud's API has no way to attach a file to a pull request description. Don't use the repository Downloads area as a stand-in, because anyone who can read the repo can see everything there. List each file still to attach by hand, with its path and what it shows.

@@ -208,6 +208,10 @@ class TestSubstitution:
         for skill in ("restack", "split-pr"):
             assert "gh stack submit" in payloads[skill].body, skill
             assert "resolveReviewThread" not in payloads[skill].body, skill
+        # Only QA uploads media; the owl gets the URLs back from it.
+        assert "uploads.github.com/user-attachments/assets" in payloads["qa"].body
+        for skill in ("rest-of-the-owl", "pr", "address-review"):
+            assert "user-attachments" not in payloads[skill].body, skill
         for payload in payloads.values():
             assert "<!-- forge:" not in payload.body, payload.skill
             assert "{{FORGE" not in payload.body, payload.skill
@@ -216,6 +220,8 @@ class TestSubstitution:
     def test_every_forge_has_a_core_section(self, forge: str):
         sections = forge_sections(forge)
         assert sections["core"], forge
+        # QA renders {{FORGE_MEDIA}} for every forge, so none may leave it empty.
+        assert sections["media"], forge
         # The full block is every section, so nothing is lost by the split.
         assert all(s in forge_block(forge) for s in sections.values())
 
