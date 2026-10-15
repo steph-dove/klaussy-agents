@@ -7,9 +7,12 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-15
+
 ### Changed
 
 - **QA uploads its screenshots and recordings.** The `qa` skill used to say "upload programmatically" and suggest `gh release upload` or a `gh api` assets endpoint that doesn't exist. In practice, agents asked whether to upload and then left the files in Downloads. Each forge adapter now has a `media` section (`{{FORGE_MEDIA}}`) that QA carries. On GitHub it's `POST https://uploads.github.com/user-attachments/assets` through `gh api`, the same store a dragged-in file goes to, so images embed and videos get an inline player. GitLab uses project uploads. Bitbucket and undetected hosts list the files to attach by hand.
+- **License terms are up front.** The README now opens with the license: source-available under FSL-1.1-MIT, with competing commercial use not permitted. Every source file in the package carries a one-line copyright and SPDX license header. Files that `klaussy init` writes into your repo don't.
 
 ## [0.42.1] - 2026-10-14
 
