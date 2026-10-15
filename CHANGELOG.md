@@ -5,6 +5,15 @@ All notable changes to this project are documented here. The format is based on
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases
 before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
+## [0.42.1] - 2026-10-14
+
+### Fixed
+
+- **Posted reviews no longer explain the base.** Headless reviews (the GitHub App and the Action)
+  are given their base, but the review skill's base check still led the agent to write lines like
+  "Base: main (klaussy base --explain reported an explicit base ...)" into the posted review. The
+  headless prompt now tells it not to. Interactive reviews still state the base they used.
+
 ## [0.42.0] - 2026-10-13
 
 ### Added
