@@ -668,6 +668,57 @@ def test_reviewbench_agent_reviews_through_the_headless_runner(tmp_path, monkeyp
     assert record["findings"][0]["file"] == "lib/client.js"
 
 
+def _rb_env(monkeypatch, **config):
+    for name, value in {
+        "RB_NWO": "o/r",
+        "RB_PR_NUMBER": "1",
+        "RB_BASE": "a" * 40,
+        "RB_HEAD": "b" * 40,
+        "RB_OUT": "findings.json",
+        **config,
+    }.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_reviewbench_agent_runs_gpt_models_as_openai_without_enrichment(
+    tmp_path, monkeypatch, capsys
+):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text("**High · Correctness · `a.py:1`**\n\nBug.\n")
+        (work / "result.json").write_text(json.dumps({"status": "ok"}))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    _rb_env(monkeypatch, RB_CONFIG_MODEL="gpt-6-sol", RB_CONFIG_INCLUDE_NITS="1")
+
+    reviewbench_agent.main()
+
+    assert "agent: labels include_nits=1 model=gpt-6-sol" in capsys.readouterr().err
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--agent") + 1] == "openai"
+    assert cmd[cmd.index("--model") + 1] == "gpt-6-sol"
+    assert "--enrich" not in cmd and "--include-nits" in cmd
+
+
+def test_reviewbench_agent_keeps_claude_models_on_claude():
+    assert reviewbench_agent.agent_for("claude-opus-5-5") == "claude"
+    assert reviewbench_agent.agent_for("GPT-6-Astra") == "openai"
+
+
+@pytest.mark.parametrize("config", [{"RB_CONFIG_EFFORT": "high"}, {"RB_CONFIG_ENRICH": "1"}])
+def test_reviewbench_agent_refuses_claude_only_labels_on_gpt(monkeypatch, config):
+    _rb_env(monkeypatch, RB_CONFIG_MODEL="gpt-6-sol", **config)
+    with pytest.raises(SystemExit, match="only applies to Claude"):
+        reviewbench_agent.main()
+
+
 def test_reviewbench_agent_rejects_a_failed_review_even_with_a_report(tmp_path, monkeypatch):
     def fake_run(cmd, **kw):
         work = Path(cmd[cmd.index("--work-dir") + 1])

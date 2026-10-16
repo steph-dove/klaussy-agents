@@ -63,6 +63,11 @@ def prepare(src: Path, dest: Path, base: str, head: str) -> None:
 DEFAULT_MODEL = "claude-sonnet-5-5"
 
 
+def agent_for(model: str) -> str:
+    """GPT models run as `openai` (Copilot CLI with OpenAI as its provider); the rest as Claude."""
+    return "openai" if model.lower().startswith("gpt-") else "claude"
+
+
 def pr_info(path: Path) -> dict:
     """ReviewBench's pr.json (title and body among them); empty when it's missing or unreadable."""
     try:
@@ -100,7 +105,7 @@ def review(
         "--repo",
         str(repo),
         "--agent",
-        "claude",
+        agent_for(model),
         "--model",
         model,
         "--base",
@@ -158,8 +163,23 @@ def main() -> None:
     effort = env.get("RB_CONFIG_EFFORT", "default").strip().lower()
     if effort not in ("default", *EFFORTS):
         sys.exit(f"agent: RB_CONFIG_EFFORT must be default or one of {', '.join(EFFORTS)}")
+    backend = agent_for(model)
+    if backend == "openai":
+        # Effort and enrichment are Claude-only in the runner; a label for either would be false.
+        if effort != "default":
+            sys.exit("agent: RB_CONFIG_EFFORT only applies to Claude models")
+        if "RB_CONFIG_ENRICH" in env and enrich:
+            sys.exit("agent: RB_CONFIG_ENRICH only applies to Claude models")
+        enrich = False
+    # The run checks each label's value against this output, so echo them exactly as given.
+    labels = " ".join(
+        f"{k.removeprefix('RB_CONFIG_').lower()}={v}"
+        for k, v in sorted(env.items())
+        if k.startswith("RB_CONFIG_")
+    )
+    print(f"agent: labels {labels or '(none)'}", file=sys.stderr)
     print(
-        f"agent: model={model} effort={effort} include_nits={include_nits} "
+        f"agent: backend={backend} model={model} effort={effort} include_nits={include_nits} "
         f"timeout={timeout_s}s enrich={enrich}",
         file=sys.stderr,
     )
