@@ -171,6 +171,13 @@ def main() -> None:
         if "RB_CONFIG_ENRICH" in env and enrich:
             sys.exit("agent: RB_CONFIG_ENRICH only applies to Claude models")
         enrich = False
+    # The run checks each label's value against this output, so echo them exactly as given.
+    labels = " ".join(
+        f"{k.removeprefix('RB_CONFIG_').lower()}={v}"
+        for k, v in sorted(env.items())
+        if k.startswith("RB_CONFIG_")
+    )
+    print(f"agent: labels {labels or '(none)'}", file=sys.stderr)
     print(
         f"agent: backend={backend} model={model} effort={effort} include_nits={include_nits} "
         f"timeout={timeout_s}s enrich={enrich}",

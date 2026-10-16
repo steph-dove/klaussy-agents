@@ -680,7 +680,9 @@ def _rb_env(monkeypatch, **config):
         monkeypatch.setenv(name, value)
 
 
-def test_reviewbench_agent_runs_gpt_models_as_openai_without_enrichment(tmp_path, monkeypatch):
+def test_reviewbench_agent_runs_gpt_models_as_openai_without_enrichment(
+    tmp_path, monkeypatch, capsys
+):
     seen = {}
 
     def fake_run(cmd, **kw):
@@ -698,6 +700,7 @@ def test_reviewbench_agent_runs_gpt_models_as_openai_without_enrichment(tmp_path
 
     reviewbench_agent.main()
 
+    assert "agent: labels include_nits=1 model=gpt-6-sol" in capsys.readouterr().err
     cmd = seen["cmd"]
     assert cmd[cmd.index("--agent") + 1] == "openai"
     assert cmd[cmd.index("--model") + 1] == "gpt-6-sol"
