@@ -1,12 +1,14 @@
 # ReviewBench image: `klaussy review --headless`, the hosted App's runner; see
 # benchmarks/reviewbench_agent.py. Build with --platform linux/amd64.
-# Credential: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. Egress: api.anthropic.com.
+# Claude models: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY, egress api.anthropic.com.
+# GPT models (model=gpt-*): OPENAI_API_KEY, egress api.openai.com.
 FROM node:22-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates python3 python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.296 \
+        @github/copilot@1.0.95 \
     && npm cache clean --force
 
 COPY pyproject.toml README.md LICENSE /build/klaussy/
