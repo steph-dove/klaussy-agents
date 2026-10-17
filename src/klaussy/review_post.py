@@ -61,17 +61,19 @@ class Finding:
 
     @property
     def comment(self) -> str:
-        """One humanized line of why and the change, then the explanation collapsed behind an
-        unlabeled disclosure, the way klaussy-desktop posts a finding."""
+        """One humanized line of why and the change, then the rest of the explanation collapsed
+        behind an unlabeled disclosure, the way klaussy-desktop posts a finding."""
         label = _SUGGESTED.search(self.body)
         prose = (self.body[: label.start()] if label else self.body).strip()
         suggestion = self.body[label.end() :].strip() if label else ""
         explanation = _humanize_prose(prose)
         # Humanize before picking the first sentence, so a filler opener can't leave it empty.
-        lead = "\n\n".join(p for p in (_first_sentence(explanation), suggestion) if p)
-        if not explanation:
+        why = _first_sentence(explanation)
+        lead = "\n\n".join(p for p in (why, suggestion) if p)
+        rest = _without_lead(explanation, why)
+        if not rest:
             return lead
-        details = f"<details>\n<summary></summary>\n\n{explanation}\n\n</details>"
+        details = f"<details>\n<summary></summary>\n\n{rest}\n\n</details>"
         return f"{lead}\n\n{details}" if lead else details
 
     def place(self) -> tuple[str, int, int] | None:
@@ -132,6 +134,13 @@ def _first_sentence(prose: str) -> str:
         if not _ABBREV_END.search(prose[: brk.start()]):
             return _squash(prose[: brk.start()])
     return _squash(prose)
+
+
+def _without_lead(explanation: str, sentence: str) -> str:
+    """The explanation after its first sentence, which already leads the comment."""
+    words = sentence.split()
+    m = words and re.match(r"\s*" + r"\s+".join(map(re.escape, words)), explanation)
+    return explanation[m.end() :].strip() if m else explanation
 
 
 def parse_findings(report: str) -> list[Finding]:

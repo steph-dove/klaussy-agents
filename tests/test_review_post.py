@@ -133,9 +133,9 @@ def test_build_review_redacts_secrets_from_body_and_comments():
     review = build_review(report, DIFF, secrets=["hunter2hunter2"])
     posted = review["body"] + "".join(c["body"] for c in review["comments"])
     assert leaked not in posted and "hunter2hunter2" not in posted
-    # Finding 1 has both secrets in its explanation; finding 3 has the key in its lead and
-    # its explanation.
-    assert posted.count("[redacted]") == 4
+    # Finding 1 has both secrets in its explanation; finding 3 has the key in its lead only,
+    # since the dropdown doesn't repeat the lead.
+    assert posted.count("[redacted]") == 3
 
 
 def test_review_post_cli_redacts_credentials_from_the_environment(tmp_path, monkeypatch):
@@ -262,17 +262,22 @@ def test_a_comment_reads_like_klaussy_desktop_posts_it():
         "The lock is released before the write, e.g. on the put path.\n\n```python"
     )
     assert "High" not in lead and "Correctness" not in lead
-    assert details.startswith("\n<summary></summary>")
-    assert "That corrupts the pool under load." in details
+    assert details.startswith("\n<summary></summary>\n\nAnother thread can then")
+    assert "The lock is released" not in details
     assert details.rstrip().endswith("That corrupts the pool under load.\n\n</details>")
 
 
 def test_the_explanation_has_no_label_or_watermark():
-    short = "**Low · Docs · `README.md:4`**\n\nThe README still says the pool is unbounded.\n"
+    short = "**Low · Docs · `README.md:4`**\n\nThe README says the pool is unbounded. It isn't.\n"
     comment = parse_findings(short)[0].comment
-    assert comment.startswith("The README still says the pool is unbounded.\n\n<details>")
+    assert comment.startswith("The README says the pool is unbounded.\n\n<details>")
     assert "<summary></summary>" in comment
     assert "Explanation" not in comment and "klaussy" not in comment
+
+
+def test_a_one_sentence_finding_has_no_dropdown():
+    short = "**Low · Docs · `README.md:4`**\n\nThe README still says the pool is\nunbounded.\n"
+    assert parse_findings(short)[0].comment == "The README still says the pool is unbounded."
 
 
 def test_a_suggestion_with_no_prose_has_no_empty_dropdown():
@@ -315,9 +320,9 @@ def test_a_tilde_fence_in_the_explanation_is_left_alone():
         "**Medium · Style · `app.py:3`**\n\nThe loop runs prior to setup.\n\n"
         "~~~python\n    x = a \u2014 b\n~~~\n\nSuggested change:\n```python\nsetup()\n```\n"
     )
-    details = parse_findings(report)[0].comment.split("<details>", 1)[1]
+    lead, details = parse_findings(report)[0].comment.split("<details>", 1)
     assert "~~~python\n    x = a \u2014 b\n~~~" in details
-    assert "runs before setup" in details
+    assert "runs before setup" in lead
 
 
 def test_a_filler_opener_does_not_leave_the_comment_without_a_lead():
