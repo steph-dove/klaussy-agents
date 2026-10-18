@@ -3,7 +3,10 @@ name: klaussy-init
 description: Use when the user wants to make this repository AI-agent-ready. Scaffolds per-agent conventions (CLAUDE.md / GEMINI.md / AGENTS.md / Cursor rules / Copilot instructions, path-scoped via klaussy-repo-conventions), repo-namespaced skills, settings, hooks, and a PR template for every agent klaussy supports — and runs once per repo.
 argument-hint: "[--force] [--skip-enrich] [--base-branch <branch>]"
 allowed-tools: Read Bash(pipx *) Bash(klaussy *) Bash(pip *) Bash(git *)
+license: FSL-1.1-MIT
 ---
+
+<!-- Made with klaussy by Dovatech LLC. Creator: Stephanie Dover. © 2026 Dovatech LLC. Licensed under FSL-1.1-MIT: https://github.com/steph-dove/klaussy-agents/blob/main/LICENSE -->
 
 # Klaussy init
 

@@ -20,6 +20,7 @@ from klaussy.skills import (
     sanitize_skill_namespace,
     template_output_name,
 )
+from klaussy.watermark import watermark_aux, watermark_skill_md
 
 console = Console()
 
@@ -353,7 +354,9 @@ def generate_checklist(
     skill_dir.mkdir(parents=True, exist_ok=True)
     # Third emit path for this one skill, so it needs the alias too — otherwise
     # `klaussy checklist` silently strips what `klaussy skills` just added.
-    rendered = apply_alias_to_frontmatter(_substitute(template), "review", repo_namespace)
+    rendered = watermark_skill_md(
+        apply_alias_to_frontmatter(_substitute(template), "review", repo_namespace)
+    )
     output_file.write_text(rendered)
     console.print(f"[green]✔ Created {output_file.relative_to(repo)}[/green]")
 
@@ -364,6 +367,6 @@ def generate_checklist(
     for template_file in iter_skill_templates(review_templates):
         filename = template_output_name(template_file.name)
         if filename != "SKILL.md":
-            (skill_dir / filename).write_text(_substitute(template_file.read_text()))
+            (skill_dir / filename).write_text(watermark_aux(_substitute(template_file.read_text())))
 
     return output_file

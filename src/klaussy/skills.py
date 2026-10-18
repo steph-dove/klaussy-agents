@@ -12,6 +12,7 @@ from rich.console import Console
 
 from klaussy import __version__
 from klaussy.forge import build_forge_tokens
+from klaussy.watermark import watermark_aux, watermark_skill_md
 
 console = Console()
 
@@ -598,7 +599,11 @@ def scaffold_skills(
 
             content = _substitute(content)
             if filename == "SKILL.md":
-                content = apply_alias_to_frontmatter(content, skill, repo_namespace)
+                content = watermark_skill_md(
+                    apply_alias_to_frontmatter(content, skill, repo_namespace)
+                )
+            else:
+                content = watermark_aux(content)
 
             if target.exists() and target.read_text() == content and not force:
                 console.print(f"[dim]  {target.relative_to(repo)} unchanged, skipping.[/dim]")
