@@ -78,8 +78,10 @@ def pr_info(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-# ReviewBench stops a pull request at 15 minutes; leave room to write findings after a timeout.
-DEFAULT_TIMEOUT_S = 780
+# The GitHub Action's default review time, so the benchmark measures what users get. ReviewBench
+# stops a pull request at 30 minutes unless the registration sets otherwise; this leaves room to
+# write findings after a timeout.
+DEFAULT_TIMEOUT_S = 1500
 
 
 def review(

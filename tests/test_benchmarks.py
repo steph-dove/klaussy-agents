@@ -660,7 +660,7 @@ def test_reviewbench_agent_reviews_through_the_headless_runner(tmp_path, monkeyp
 
     cmd = seen["cmd"]
     assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
-    assert cmd[cmd.index("--timeout") + 1] == "780" and "--enrich" in cmd
+    assert cmd[cmd.index("--timeout") + 1] == "1500" and "--enrich" in cmd
     assert cmd[cmd.index("--head-sha") + 1] == "b" * 40
     assert "--effort" not in cmd and "--include-nits" not in cmd
     record = json.loads((tmp_path / "out" / "findings.json").read_text())
