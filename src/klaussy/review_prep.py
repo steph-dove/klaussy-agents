@@ -186,7 +186,16 @@ def _is_design_doc(fd: FileDiff) -> bool:
 
 
 def _run_git(args: list[str], repo: Path) -> str:
-    out = subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True)
+    # A diff can carry bytes that aren't UTF-8 (images git didn't mark binary, Latin-1
+    # text); replacing them keeps the review going instead of crashing review-prep.
+    out = subprocess.run(
+        ["git", *args],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     if out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
     return out.stdout

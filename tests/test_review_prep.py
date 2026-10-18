@@ -140,6 +140,24 @@ def _repo_with_stale_local_main(repo: Path) -> None:
     _commit_file(repo, "src/feature.py", "FEATURE = 1\n", "work")
 
 
+def test_a_diff_with_non_utf8_bytes_still_prepares(tmp_path: Path):
+    _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.email", "t@t.t")
+    _git(tmp_path, "config", "user.name", "t")
+    _commit_file(tmp_path, "src/app.py", "def run():\n    return 1\n", "init")
+    _git(tmp_path, "branch", "-M", "main")
+    _git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "src/app.py").write_text("def run():\n    return 2\n")
+    # Latin-1 text with no NUL byte, so git diffs it as text rather than binary.
+    (tmp_path / "notes.txt").write_bytes(b"caf\xe9 \x89PNG header-ish\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "work")
+
+    payload = prepare_review(repo=tmp_path, base_branch="main")
+    assert "src/app.py" in {d.path for d in payload.kept}
+    assert "�" in payload.trimmed_diff
+
+
 def test_a_stale_local_main_leaves_merged_commits_out_of_the_diff(tmp_path: Path):
     _repo_with_stale_local_main(tmp_path)
     paths = {d.path for d in prepare_review(repo=tmp_path).decisions}
