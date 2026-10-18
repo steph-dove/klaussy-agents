@@ -1588,6 +1588,10 @@ class TestReviewPrecisionUpgrades:
         assert "Argue the author's side" in validation  # self-refutation in validation
         # A missing test that names its regression survives validation.
         assert "names the untested behavior and the regression" in validation
+        # True small flaws stay; generic advice and attacker-less security claims go.
+        assert "Small is not the same as taste" in validation
+        assert "DROP generic advice" in validation
+        assert "A security claim needs an attacker" in validation
 
     def test_review_scaffolds_the_docs_tests_and_accessibility_lenses(self, repo: Path):
         scaffold_skills(repo=repo)
