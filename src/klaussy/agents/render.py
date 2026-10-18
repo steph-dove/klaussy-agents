@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 
 from klaussy.agents.base import CapabilityProfile, SkillPayload
+from klaussy.watermark import watermark_aux, watermark_skill_md
 
 _PERMISSIONS_TOKEN = "{{PERMISSIONS_TARGET}}"
 
@@ -157,7 +158,7 @@ def adapt_aux(content: str, profile: CapabilityProfile) -> str:
         text = _DYNAMIC_BLOCK.sub(_replace_dynamic_block, text)
     if profile.skills_root != ".claude/skills":
         text = text.replace(".claude/skills/", f"{profile.skills_root}/")
-    return text
+    return watermark_aux(text)
 
 
 def render_skill_md(payload: SkillPayload, profile: CapabilityProfile) -> str:
@@ -169,4 +170,4 @@ def render_skill_md(payload: SkillPayload, profile: CapabilityProfile) -> str:
         lines.append("disable-model-invocation: true")
     lines.append("---")
     frontmatter = "\n".join(lines)
-    return f"{frontmatter}\n\n{adapt_body(payload.body, profile)}"
+    return watermark_skill_md(f"{frontmatter}\n\n{adapt_body(payload.body, profile)}")

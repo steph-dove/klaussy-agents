@@ -3,7 +3,10 @@ name: klaussy-update
 description: Use when the user wants to refresh klaussy-generated boilerplate (per-agent conventions, skills, settings, hooks) across every scaffolded agent after upgrading klaussy itself. Re-runs the scaffold against the latest templates so this repo picks up new skills, prompt revisions, and convention rules.
 argument-hint: "[--skip-enrich]"
 allowed-tools: Read Bash(pipx *) Bash(klaussy *) Bash(pip *) Bash(git *)
+license: FSL-1.1-MIT
 ---
+
+<!-- Made with klaussy by Dovatech LLC. Creator: Stephanie Dover. © 2026 Dovatech LLC. Licensed under FSL-1.1-MIT: https://github.com/steph-dove/klaussy-agents/blob/main/LICENSE -->
 
 # Klaussy update
 

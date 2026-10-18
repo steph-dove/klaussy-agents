@@ -3,7 +3,10 @@ name: klaussy-uninstall
 description: Use when the user wants klaussy's scaffolding out of a repository — removing the generated skills, hooks, settings, and ignore files that `klaussy init` wrote, and optionally the package itself. Previews everything before deleting, keeps hand-edited conventions docs by default, and never touches files klaussy doesn't own.
 argument-hint: "[--all] [--dry-run]"
 allowed-tools: Read Bash(klaussy *) Bash(pipx *) Bash(pip *) Bash(git *)
+license: FSL-1.1-MIT
 ---
+
+<!-- Made with klaussy by Dovatech LLC. Creator: Stephanie Dover. © 2026 Dovatech LLC. Licensed under FSL-1.1-MIT: https://github.com/steph-dove/klaussy-agents/blob/main/LICENSE -->
 
 # Klaussy uninstall
 
