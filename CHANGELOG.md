@@ -7,6 +7,12 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-17
+
+### Added
+
+- **Every generated skill says where it came from.** Each `SKILL.md` that `klaussy init` writes, for all ten agents, now has a `license: FSL-1.1-MIT` frontmatter field and a comment crediting klaussy, Dovatech LLC and creator Stephanie Dover, with a link to the license. The skills' supporting files get the comment too. Earlier, files klaussy wrote into your repo carried no attribution. The comment doesn't show when the Markdown is displayed, and an existing `license` field in a custom review template is kept. Run `klaussy init --force` to add it to skills that are already scaffolded.
+
 ## [0.44.1] - 2026-10-15
 
 ### Fixed
