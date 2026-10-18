@@ -5,6 +5,8 @@ Every lens sub-agent reads this file first, then the `lens-<name>.md` file its p
 ## Get the change yourself
 
 1. Run `klaussy review-prep --base <base>`. It prints the diff trimmed to reviewable files (lockfiles, generated or vendored trees and minified blobs are dropped) and a manifest of what it left out. If `klaussy` isn't on PATH, use `git diff <base>...HEAD`.
+   - **If your prompt names a chunk** ("Review chunk 3 only"), run `klaussy review-prep --base <base> --chunk 3` instead and review only the files it prints. Read any other file a finding depends on, but leave findings outside your chunk to the reviewer that has it.
+   - **If review-prep prints "Too large to read at once"** and a chunk index instead of a diff, and your prompt names no chunk, read the chunks your lens needs one at a time with `--chunk <N>`. Never fall back to a raw `git diff` of the whole change: one read shows only its start.
 2. Run `git log --oneline <base>..HEAD` for the commit log.
 3. Read in full the changed files your lens needs, plus any caller or callee a finding depends on. Skip files in the excluded manifest unless a finding points at one.
 

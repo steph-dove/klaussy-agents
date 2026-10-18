@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from klaussy.cli import app
@@ -13,6 +14,7 @@ from klaussy.review_prep import (
     Decision,
     ReviewPayload,
     classify,
+    plan_chunks,
     prepare_review,
     render_dict,
     render_markdown,
@@ -276,3 +278,71 @@ def test_design_docs_add_the_adr_lens_or_a_small_path_note():
     )
     assert small.lenses == []
     assert "**Design docs changed:** docs/adr/0007-queues.md" in render_markdown(small)
+
+
+def _file_diff(path: str, added_lines: int, width: int = 60) -> str:
+    body = "".join(f"+{'x' * width} {i}\n" for i in range(added_lines))
+    return (
+        f"diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n"
+        f"@@ -0,0 +1,{added_lines} @@\n{body}"
+    )
+
+
+def test_a_small_diff_has_no_chunks():
+    payload = ReviewPayload(decisions=[], trimmed_diff=_file_diff("src/a.py", 10))
+    assert payload.chunk_plan is None
+    assert "## Reviewable diff" in render_markdown(payload)
+
+
+def test_plan_chunks_puts_code_before_tests_and_docs_and_respects_the_limit():
+    files = split_file_diffs(
+        _file_diff("docs/guide.md", 50)
+        + _file_diff("tests/test_a.py", 50)
+        + _file_diff("src/b.py", 50)
+        + _file_diff("src/a.py", 50)
+    )
+    plan = plan_chunks(files, limit=4_000, max_chunks=10)
+    order = [p for c in plan.chunks for p in c.paths]
+    assert order == ["src/a.py", "src/b.py", "tests/test_a.py", "docs/guide.md"]
+    assert all(len(c.text) <= 4_000 for c in plan.chunks)
+    assert not plan.unreviewed
+
+
+def test_plan_chunks_lists_what_the_budget_left_out():
+    files = split_file_diffs(_file_diff("src/a.py", 50) + _file_diff("docs/b.md", 50))
+    plan = plan_chunks(files, limit=4_000, max_chunks=1)
+    assert [p for c in plan.chunks for p in c.paths] == ["src/a.py"]
+    assert plan.unreviewed == ["docs/b.md"]
+
+
+def test_a_hunk_too_big_for_one_chunk_splits_with_matching_line_numbers():
+    [fd] = split_file_diffs(_file_diff("src/big.py", 300))
+    plan = plan_chunks([fd], limit=6_000)
+    headers = [
+        ln for c in plan.chunks for ln in c.text.splitlines() if ln.startswith("@@ ")
+    ]
+    assert len(plan.chunks) > 1 and all(len(c.text) <= 6_000 for c in plan.chunks)
+    starts = [int(h.split("+")[1].split(",")[0]) for h in headers]
+    counts = [int(h.split(",")[-1].split(" ")[0]) for h in headers]
+    assert starts[0] == 1
+    assert all(starts[i + 1] == starts[i] + counts[i] for i in range(len(starts) - 1))
+    assert sum(counts) == 300
+
+
+def test_a_file_with_a_huge_line_is_classified_minified():
+    [fd] = split_file_diffs(_file_diff("lib/mime.js", 2, width=6_000))
+    assert classify(fd)[0] is False
+    assert "minified" in classify(fd)[1]
+
+
+def test_a_chunked_diff_prints_an_index_and_one_chunk_on_request():
+    diff = "".join(_file_diff(f"src/m{i}.py", 200) for i in range(4))
+    payload = ReviewPayload(decisions=[], trimmed_diff=diff, base_ref="origin/main")
+    index = render_markdown(payload)
+    assert "Too large to read at once" in index
+    assert "klaussy review-prep --base origin/main --chunk <N>" in index
+    assert "```diff" not in index
+    first = render_markdown(payload, chunk=1)
+    assert first.startswith("## Chunk 1 of") and "src/m0.py" in first
+    with pytest.raises(ValueError, match="chunk must be"):
+        render_markdown(payload, chunk=99)

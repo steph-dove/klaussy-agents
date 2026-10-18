@@ -16,6 +16,8 @@ The order is fixed: lens sub-agents, then validation sub-agents on their finding
    - system-prompt or skill-body string changes (`SKILL.md`, `*.prompt.md`, `system_prompt = "..."` literals)
 
    **Architecture Decision & Design Doc** is added when the diff changes an ADR, RFC or design doc.
+
+   **A diff too large to read at once** comes back from `review-prep` as a chunk index ("Too large to read at once: N chunks") instead of a diff. Then correctness runs **once per chunk**, with `Review chunk <N> only.` added to each prompt, and there's no separate second correctness pass. Every other lens runs once over the whole change and reads the chunks it needs. If the index has a "Not reviewed" list, say in the review which files it didn't cover.
 2. **Give each sub-agent a short prompt.** Every lens sub-agent reads its own instructions and fetches the diff itself, so its prompt is just:
 
    ```
