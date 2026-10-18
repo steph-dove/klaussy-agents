@@ -10,6 +10,7 @@ from klaussy.review_post import (
     commentable_lines,
     parse_findings,
     summary,
+    unparsed_report,
 )
 
 REPORT = """# Review: `pr` vs `main`
@@ -349,3 +350,16 @@ def test_an_incremental_review_says_where_it_started():
     review = build_review(REPORT, DIFF, since="abc1234" + "0" * 33)
     assert review["body"].startswith("Reviewed the changes since `abc1234`.")
     assert "Reviewed the changes since" not in build_review(REPORT, DIFF)["body"]
+
+
+def test_unparsed_report_flags_findings_the_parser_cant_read():
+    heading_style = (
+        "**Verdict:** Request Changes\n\n### High · Correctness · `src/pool.py:11`\n\nRace.\n"
+    )
+    assert unparsed_report(heading_style)
+    assert unparsed_report("# Review\n\nLooked at it.\n")
+
+
+def test_unparsed_report_accepts_findings_and_clean_approvals():
+    assert not unparsed_report(REPORT)
+    assert not unparsed_report("**Verdict:** Approve · reviewed at `abc1234`\n\nNo findings.\n")
