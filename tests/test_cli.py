@@ -1579,12 +1579,28 @@ class TestReviewPrecisionUpgrades:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         review = (repo / ".claude" / "skills" / f"{ns}-review" / "SKILL.md").read_text()
-        assert "Precision over recall" in review
+        assert "Real findings only, and all of them" in review
         assert "concrete trigger" in review
         assert "Removed-behavior audit" in review
+        assert "Check your coverage" in review
         review_dir = repo / ".claude" / "skills" / f"{ns}-review"
         validation = (review_dir / "lens-validation.md").read_text()
         assert "Argue the author's side" in validation  # self-refutation in validation
+        # A missing test that names its regression survives validation.
+        assert "names the untested behavior and the regression" in validation
+
+    def test_review_scaffolds_the_docs_tests_and_accessibility_lenses(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        review_dir = repo / ".claude" / "skills" / f"{ns}-review"
+        for lens in ("docs", "tests", "accessibility"):
+            assert (review_dir / f"lens-{lens}.md").is_file()
+        scope = (review_dir / "lens-scope.md").read_text()
+        assert "### Completeness" in scope and "### Unexpected additions" in scope
+        sub = (review_dir / "sub-agents.md").read_text()
+        assert "Go deep, then check your coverage" in sub
+        correctness = (review_dir / "lens-correctness.md").read_text()
+        assert "### Stylesheets" in correctness and "### PHP" in correctness
 
     def test_review_comments_are_agreeable_but_detailed(self, repo: Path):
         scaffold_skills(repo=repo)

@@ -8,7 +8,7 @@ The order is fixed: lens sub-agents, then validation sub-agents on their finding
 
 ## Fan out to lens sub-agents
 
-1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness (twice: a normal pass and a second pass), Architecture, Security and Scope always run. The second correctness pass starts with a hunk-by-hunk sweep and finds bugs the first misses on a given run; deduplication in Phase 3 merges what both find. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
+1. **Launch exactly the lenses `review-prep` listed** under "Launch these … lens sub-agents", no fewer. It picked them from the diff by the rules below; apply those rules yourself only on the `git diff` fallback, when there is no list. Correctness (twice: a normal pass and a second pass), Architecture, Security, Scope, Docs and Tests always run. **Accessibility** is added when the diff touches markup, components, templates or styles. The second correctness pass starts with a hunk-by-hunk sweep and finds bugs the first misses on a given run; deduplication in Phase 3 merges what both find. **Agentic & Evals** is added when the diff touches AI, agent or eval code:
    - files under `**/skills/**`, `**/agents/**`, `**/.claude/**`
    - MCP server files: `**/mcp_*.{py,ts,js}`, `**/mcp-server*.*`, `**/.mcp.json`
    - eval suites: `**/evals/**`, `**/eval_*.{py,ts,js}`, `*.eval.{py,ts,js}`
@@ -27,7 +27,7 @@ The order is fixed: lens sub-agents, then validation sub-agents on their finding
    Return only your findings. Do not write any files.
    ```
 
-   The lens files are `lens-correctness.md`, `lens-architecture.md`, `lens-security.md`, `lens-scope.md`, `lens-agentic.md` and `lens-adr.md`. For the design-doc lens, add the doc paths to its prompt. Don't paste the diff, the scaffold or the lens text: each pasted copy is output you pay for once per sub-agent, and the sub-agent reads the files anyway.
+   The lens files are `lens-correctness.md`, `lens-architecture.md`, `lens-security.md`, `lens-scope.md`, `lens-docs.md`, `lens-tests.md`, `lens-accessibility.md`, `lens-agentic.md` and `lens-adr.md`. For the design-doc lens, add the doc paths to its prompt. Don't paste the diff, the scaffold or the lens text: each pasted copy is output you pay for once per sub-agent, and the sub-agent reads the files anyway.
 3. **Launch all selected sub-agents in a single message** with the Agent tool (`subagent_type: general-purpose`), so they run in parallel. If they run in the background, wait until every lens has reported before moving on; a lens you didn't hear back from is not an empty lens.
 
 Every lens runs on the session's model; don't pass a cheaper model to any of them.

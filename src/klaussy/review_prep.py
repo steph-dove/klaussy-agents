@@ -70,7 +70,22 @@ GENERATED_SUFFIXES = (".pb.go", "_pb2.py", "_pb2_grpc.py", ".g.dart", ".freezed.
 PARALLEL_THRESHOLD = 150
 
 # Correctness runs twice: one look finds a given bug only about half the time.
-BASE_LENSES = ("correctness", "correctness-2", "architecture", "security", "scope")
+BASE_LENSES = (
+    "correctness",
+    "correctness-2",
+    "architecture",
+    "security",
+    "scope",
+    "docs",
+    "tests",
+)
+
+# Markup, components, templates and styles: the accessibility lens runs when any changes.
+_UI_PATH = re.compile(
+    r"\.(tsx|jsx|vue|svelte|astro|html?|erb|ejs|hbs|handlebars|njk|liquid|twig|blade\.php"
+    r"|cshtml|razor|css|scss|sass|less|xaml|storyboard|xib)$"
+    r"|(^|/)(templates|components|views|pages|screens)/"
+)
 
 # A diff bigger than this is split into chunks: an agent sees only the start of a tool
 # output much past ~30k characters, so one oversized read leaves most of a big PR unseen.
@@ -316,8 +331,10 @@ class ReviewPayload:
         agentic = any(
             _AGENTIC_PATH.search(fd.path) or _AGENTIC_CODE.search(fd.body) for fd in files
         )
+        ui = any(_UI_PATH.search(fd.path) for fd in files)
         return [
             *BASE_LENSES,
+            *(["accessibility"] if ui else []),
             *(["agentic"] if agentic else []),
             *(["adr"] if self.design_docs else []),
         ]

@@ -1,0 +1,24 @@
+# Lens: Docs & Changed Text
+
+## Look for: docs the change made wrong, and docs that were wrong when written
+
+Code changes leave docs behind more often than they break code. Your job is to find every place where written text no longer matches what the code does after this change.
+
+### Docs the change made stale
+- List every name, flag, environment variable, config key, route, command, default value, file path and output format the diff renames, removes or changes. Search the repository for each one (`git grep`), and read every README, guide, `docs/` page, CHANGELOG, example, sample config, docstring and comment that mentions it.
+- A doc that still describes the old behavior, uses the old name, shows the old default, or points at a file or function the change moved or deleted is a finding, even when the doc file isn't in the diff.
+- Design docs, ADRs and architecture notes that name components, data flows or responsibilities the change altered.
+
+### Docs the change added or edited
+- Check every claim against the code: commands run as written, paths and files exist, defaults and limits match the code, examples use the real API and would work, listed steps are complete and in the right order.
+- A doc that describes a feature the code doesn't have yet, or omits a required step (a new environment variable, a migration, a setup command), is a finding.
+
+### Docs the project expects with a change
+- Only where the project visibly keeps the convention: a CHANGELOG with an entry per change, a reference page listing every config key or flag, an API doc per endpoint. A new key, flag or endpoint missing from that list is a finding.
+
+## Severity
+
+- **Medium:** a user-facing doc, README, help text or example that tells people to do something that now fails or does the wrong thing.
+- **Low:** an internal or contributor doc, comment or docstring that's out of date but wouldn't send a user down the wrong path; a missing entry in a list the project keeps.
+
+Point the finding at the line of the doc that's wrong, and say what the code does instead.

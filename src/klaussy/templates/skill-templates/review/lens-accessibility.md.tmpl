@@ -1,0 +1,30 @@
+# Lens: Accessibility
+
+## Look for: UI the change makes harder or impossible to use with a keyboard, screen reader, zoom or reduced motion
+
+Only UI code is in scope: markup, components, templates and styles. If the change has none, return one line: "No UI changes — nothing to review."
+
+### Names, roles and labels
+- Interactive elements with no accessible name: icon-only buttons and links, inputs without a label or `aria-label`, images that carry meaning without `alt`.
+- Clickable `div`s and `span`s with no role, no `tabindex` and no keyboard handler, where a `button` or `a` belongs.
+- ARIA used wrongly: a role that doesn't match the behavior, `aria-hidden` on something focusable, an `aria-label` that repeats or contradicts the visible text, `aria-*` props a component passes through so callers can override its role or label, references (`aria-labelledby`, `aria-describedby`, `for`) to ids that don't exist.
+- A visible label that isn't associated with its control, or a label element rendered as a sibling a screen reader won't connect.
+
+### Keyboard and focus
+- Elements reachable by mouse but not keyboard; custom widgets without the expected keys (Escape to close, arrows in menus and lists).
+- Dialogs, menus and popovers that don't move focus in, trap it while open, or return it on close.
+- Focus outlines removed (`outline: none`) with no visible replacement.
+
+### Feedback and changes
+- Status, errors and async results that appear on screen but aren't announced (no live region, error not tied to its field).
+- Empty or missing values that leave an element with an empty accessible name.
+- Animation or motion without a `prefers-reduced-motion` path; text or controls sized in a way that breaks at 200% zoom.
+- Color as the only signal, or a new color pairing with too little contrast.
+
+## Severity
+
+- **High:** keyboard or screen reader users can't complete a main task the change touches.
+- **Medium:** they can, but with a wrong or missing announcement, lost focus, or an unlabeled control.
+- **Low:** a minor ARIA or semantics issue with no effect on completing the task.
+
+Point the finding at the element's line and name who it affects.

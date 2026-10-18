@@ -28,6 +28,22 @@ When the diff adds or changes a shell script (`.sh`, `.bash`, a `#!/bin/sh` or `
 - **Temporary files and partial writes:** a `mktemp` without a `trap ... EXIT` cleanup, or a real file overwritten in place so a failure halfway leaves it truncated (write to a temp file, then `mv`).
 - **Quoting and input:** unquoted expansions that split or glob on spaces and wildcards, input reaching `eval`, and argument parsing that accepts an unknown flag, a missing value or the same option twice.
 
+### Stylesheets
+When the diff changes CSS, SCSS, Less, or styles in components (CSS modules, styled-components, Tailwind classes), check:
+- **Selectors still match:** a class, id or element renamed or restructured in markup while the stylesheet still targets the old one, or the reverse; a selector that now matches more than intended.
+- **Removed or moved rules:** a rule other components relied on, deleted or scoped away; a shared variable, mixin or token renamed or removed while other files still use it.
+- **Cascade conflicts:** specificity or `!important` that silently overrides a rule meant to apply, load-order dependence, a `z-index` that puts something under an overlay it should sit above.
+- **Layout and responsiveness:** a breakpoint, fixed size or `overflow` that clips or overflows content on small or large screens; units mixed so a value is off by a factor (`px` vs `rem`).
+- **Themes:** a color or token defined for one theme (light) but not the other (dark), or hardcoded where the codebase uses tokens.
+
+### PHP
+When the diff changes PHP, check:
+- **Loose comparison:** `==` between strings and numbers, `in_array` or `array_search` without the strict flag, a `strpos` result tested for truthiness when `0` is a valid match.
+- **Array semantics:** `array_merge` renumbering integer keys where `+` was meant (or the reverse), `array_filter` keeping original keys where code expects a list.
+- **Unchecked failure values:** `json_decode`, `file_get_contents`, `preg_match` and similar returning `false` or `null` that later code treats as data.
+- **Strings and encoding:** byte functions (`strlen`, `substr`, `strtolower`) on user text that needs `mb_*`; output not escaped in a template (XSS); SQL built by concatenation instead of bound parameters.
+- **Framework rules:** mass assignment without `$fillable`/`$guarded`, input used without the framework's validation, missing CSRF on a state-changing route, a query in a loop (N+1).
+
 ### Concurrency & State
 - Race conditions, shared mutable state.
 - Thread safety, async misuse, ordering assumptions.
