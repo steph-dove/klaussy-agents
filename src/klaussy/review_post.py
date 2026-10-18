@@ -154,12 +154,14 @@ def parse_findings(report: str) -> list[Finding]:
     return findings
 
 
+def approves(report: str) -> bool:
+    return bool(_APPROVED.search(report))
+
+
 def unparsed_report(report: str) -> bool:
     """A report that isn't an approval yet yields no findings: its findings were written in a
     shape the parser doesn't read, or it has no verdict at all."""
-    if parse_findings(report):
-        return False
-    return not _APPROVED.search(report)
+    return not parse_findings(report) and not approves(report)
 
 
 def _finding_body(text: str) -> str:

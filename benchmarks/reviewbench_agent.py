@@ -206,6 +206,9 @@ def main() -> None:
         print(f"agent: report head:\n{result['report'][:1500]}", file=sys.stderr)
         sys.exit("agent: the report isn't an approval but no findings parsed from it")
     findings = to_findings(result["report"], agent)
+    if not findings and not review_post.approves(result["report"]):
+        print(f"agent: report head:\n{result['report'][:1500]}", file=sys.stderr)
+        sys.exit("agent: the report isn't an approval but none of its findings has a file:line")
     if not findings:
         verdict = next((ln for ln in result["report"].splitlines() if "Verdict" in ln), "")
         print(f"agent: no findings; {verdict.strip() or 'no verdict line'}", file=sys.stderr)
