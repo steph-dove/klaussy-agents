@@ -19,7 +19,12 @@ Only UI code is in scope: markup, components, templates and styles. If the chang
 - Status, errors and async results that appear on screen but aren't announced (no live region, error not tied to its field).
 - Empty or missing values that leave an element with an empty accessible name.
 - Animation or motion without a `prefers-reduced-motion` path; text or controls sized in a way that breaks at 200% zoom.
-- Color as the only signal, or a new color pairing with too little contrast.
+- Color as the only signal.
+
+### Contrast: work out the ratio
+For every text or icon color the change adds or changes, find the background it sits on and compute the WCAG contrast ratio from the actual values. Resolve CSS variables and theme tokens to their values first, and check every theme the project has (light and dark), since a pairing that passes in one often fails in the other. Don't eyeball it.
+- Normal text needs at least **4.5:1**. Large text (24px, or 18.66px bold) and UI parts such as icons, borders of inputs and focus rings need at least **3:1**. Placeholder text counts as normal text.
+- Report each failing pairing with both colors, the ratio you computed, the theme, and the element: "`#6b7280` on `#141a22` in dark mode is about 3.6:1, below 4.5:1 for the navbar links."
 
 ## Severity
 

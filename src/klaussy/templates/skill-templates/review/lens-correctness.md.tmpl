@@ -28,6 +28,11 @@ When the diff adds or changes a shell script (`.sh`, `.bash`, a `#!/bin/sh` or `
 - **Temporary files and partial writes:** a `mktemp` without a `trap ... EXIT` cleanup, or a real file overwritten in place so a failure halfway leaves it truncated (write to a temp file, then `mv`).
 - **Quoting and input:** unquoted expansions that split or glob on spaces and wildcards, input reaching `eval`, and argument parsing that accepts an unknown flag, a missing value or the same option twice.
 
+### Supported versions
+Find what the project says it supports: `engines` in `package.json`, `python_requires` or `requires-python`, the Ruby version in a `.gemspec`, `go` in `go.mod`, `rust-version` in `Cargo.toml`, the target framework in a `.csproj`, `minSdk` or deployment targets, CI's version matrix.
+- New syntax, standard-library APIs or language features that don't exist in the oldest supported version are a finding: the code fails to parse or crashes there. Name the feature, the version it arrived in, and the declared minimum.
+- Same for runtime and platform assumptions the change makes: an API missing on a supported OS, a container user or capability the code needs but doesn't have, a command that isn't installed on a supported platform.
+
 ### Stylesheets
 When the diff changes CSS, SCSS, Less, or styles in components (CSS modules, styled-components, Tailwind classes), check:
 - **Selectors still match:** a class, id or element renamed or restructured in markup while the stylesheet still targets the old one, or the reverse; a selector that now matches more than intended.

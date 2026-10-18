@@ -1601,6 +1601,10 @@ class TestReviewPrecisionUpgrades:
         assert "Go deep, then check your coverage" in sub
         correctness = (review_dir / "lens-correctness.md").read_text()
         assert "### Stylesheets" in correctness and "### PHP" in correctness
+        assert "### Supported versions" in correctness
+        a11y = (review_dir / "lens-accessibility.md").read_text()
+        assert "compute the WCAG contrast ratio" in a11y
+        assert "### Spelling and wording" in (review_dir / "lens-docs.md").read_text()
 
     def test_review_comments_are_agreeable_but_detailed(self, repo: Path):
         scaffold_skills(repo=repo)

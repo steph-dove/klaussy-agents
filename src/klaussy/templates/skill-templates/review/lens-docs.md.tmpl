@@ -13,12 +13,18 @@ Code changes leave docs behind more often than they break code. Your job is to f
 - Check every claim against the code: commands run as written, paths and files exist, defaults and limits match the code, examples use the real API and would work, listed steps are complete and in the right order.
 - A doc that describes a feature the code doesn't have yet, or omits a required step (a new environment variable, a migration, a setup command), is a finding.
 
+### Spelling and wording
+In every doc, user-facing string, error message, comment and markup tag the change adds or edits:
+- Misspellings ("seaparate"), the wrong word ("principle" for "principal", "affect" for "effect"), and a name spelled differently from the thing it refers to (`AGENT.md` when the repo uses `AGENTS.md`, a closing tag that doesn't match its opening tag).
+- Report each one with the correct spelling. Group several in one file into one finding.
+
 ### Docs the project expects with a change
 - Only where the project visibly keeps the convention: a CHANGELOG with an entry per change, a reference page listing every config key or flag, an API doc per endpoint. A new key, flag or endpoint missing from that list is a finding.
 
 ## Severity
 
 - **Medium:** a user-facing doc, README, help text or example that tells people to do something that now fails or does the wrong thing.
-- **Low:** an internal or contributor doc, comment or docstring that's out of date but wouldn't send a user down the wrong path; a missing entry in a list the project keeps.
+- **Low:** an internal or contributor doc, comment or docstring that's out of date but wouldn't send a user down the wrong path; a missing entry in a list the project keeps; a misspelling or wrong word in docs, user-facing text or comments.
+- **Nit:** a misspelling only in an identifier, where renaming would be a bigger change than the fix is worth.
 
 Point the finding at the line of the doc that's wrong, and say what the code does instead.
