@@ -660,6 +660,8 @@ def review_prep(
     """
     if path not in (None, "small", "parallel"):
         raise typer.BadParameter("--path must be small or parallel", param_hint="--path")
+    if as_json and chunk is not None:
+        raise typer.BadParameter("--chunk prints markdown; drop --json", param_hint="--chunk")
     payload = prepare_review(repo=_resolve_repo(repo), base_branch=base, path=path)
     if as_json:
         import json

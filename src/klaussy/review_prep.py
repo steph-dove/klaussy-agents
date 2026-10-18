@@ -614,5 +614,6 @@ def render_dict(payload: ReviewPayload) -> dict:
             for c in (payload.chunk_plan.chunks if payload.chunk_plan else [])
         ],
         "unreviewed": payload.chunk_plan.unreviewed if payload.chunk_plan else [],
+        "partial": payload.chunk_plan.partial if payload.chunk_plan else [],
         "trimmed_diff": payload.trimmed_diff,
     }

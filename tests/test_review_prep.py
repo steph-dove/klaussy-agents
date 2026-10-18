@@ -346,3 +346,9 @@ def test_a_chunked_diff_prints_an_index_and_one_chunk_on_request():
     assert first.startswith("## Chunk 1 of") and "src/m0.py" in first
     with pytest.raises(ValueError, match="chunk must be"):
         render_markdown(payload, chunk=99)
+
+
+def test_chunk_with_json_is_refused():
+    result = CliRunner().invoke(app, ["review-prep", "--json", "--chunk", "1"])
+    assert result.exit_code != 0
+    assert "drop --json" in result.output
