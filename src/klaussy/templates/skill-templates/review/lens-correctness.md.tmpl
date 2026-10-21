@@ -31,6 +31,7 @@ When the diff adds or changes a shell script (`.sh`, `.bash`, a `#!/bin/sh` or `
 ### Supported versions
 Find what the project says it supports: `engines` in `package.json`, `python_requires` or `requires-python`, the Ruby version in a `.gemspec`, `go` in `go.mod`, `rust-version` in `Cargo.toml`, the target framework in a `.csproj`, `minSdk` or deployment targets, CI's version matrix.
 - New syntax, standard-library APIs or language features that don't exist in the oldest supported version are a finding: the code fails to parse or crashes there. Name the feature, the version it arrived in, and the declared minimum.
+- Confirm before claiming. Read the declared minimum, and where the project pins a runtime (a Dockerfile base image, `.nvmrc`, `.python-version`, `.tool-versions`, a CI matrix), use that. If the declared or pinned version already has the feature, it's not a finding. Never infer the version from memory of what's "usually" installed.
 - Same for runtime and platform assumptions the change makes: an API missing on a supported OS, a container user or capability the code needs but doesn't have, a command that isn't installed on a supported platform.
 
 ### Stylesheets
