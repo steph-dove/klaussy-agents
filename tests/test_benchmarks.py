@@ -707,6 +707,47 @@ def test_reviewbench_agent_runs_gpt_models_as_openai_without_enrichment(
     assert "--enrich" not in cmd and "--include-nits" in cmd
 
 
+def test_reviewbench_agent_fails_a_report_whose_findings_dont_parse(tmp_path, monkeypatch):
+    def fake_run(cmd, **kw):
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text(
+            "**Verdict:** Request Changes\n\n### High · Correctness · `a.py:1`\n\nBug.\n"
+        )
+        (work / "result.json").write_text(json.dumps({"status": "ok"}))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    _rb_env(monkeypatch)
+
+    with pytest.raises(SystemExit, match="no findings parsed"):
+        reviewbench_agent.main()
+    assert not (tmp_path / "findings.json").exists()
+
+
+def test_reviewbench_agent_fails_a_rejection_whose_findings_have_no_location(
+    tmp_path, monkeypatch
+):
+    def fake_run(cmd, **kw):
+        work = Path(cmd[cmd.index("--work-dir") + 1])
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "REVIEW_OUTPUT.md").write_text(
+            "**Verdict:** Request Changes\n\n**High · Correctness · the pool**\n\nRace.\n"
+        )
+        (work / "result.json").write_text(json.dumps({"status": "ok"}))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(reviewbench_agent, "prepare", lambda *a: None)
+    monkeypatch.setattr(reviewbench_agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(reviewbench_agent, "Path", lambda p: tmp_path / str(p).lstrip("/"))
+    _rb_env(monkeypatch)
+
+    with pytest.raises(SystemExit, match="has a file:line"):
+        reviewbench_agent.main()
+
+
 def test_reviewbench_agent_keeps_claude_models_on_claude():
     assert reviewbench_agent.agent_for("claude-opus-5-5") == "claude"
     assert reviewbench_agent.agent_for("GPT-6-Astra") == "openai"

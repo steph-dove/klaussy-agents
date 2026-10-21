@@ -154,6 +154,16 @@ def parse_findings(report: str) -> list[Finding]:
     return findings
 
 
+def approves(report: str) -> bool:
+    return bool(_APPROVED.search(report))
+
+
+def unparsed_report(report: str) -> bool:
+    """A report that isn't an approval yet yields no findings: its findings were written in a
+    shape the parser doesn't read, or it has no verdict at all."""
+    return not parse_findings(report) and not approves(report)
+
+
 def _finding_body(text: str) -> str:
     """Text up to the next section break; a `#` or `---` inside a code fence isn't one."""
     kept, fenced = [], False
