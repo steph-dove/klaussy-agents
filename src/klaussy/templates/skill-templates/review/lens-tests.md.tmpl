@@ -1,0 +1,30 @@
+# Lens: Tests
+
+## Look for: tests that don't protect what they claim, behavior with no test, and tests that will hurt later
+
+### Tests that can't catch what they claim
+- A test that asserts the wrong thing, passes whether or not the code works, or sets up data that never reaches the code under test. Name the regression it would let through.
+- Mocks or stubs that replace the very behavior under test, so the test only checks the mock.
+- An expected value updated to match new output that is itself wrong: check the new expectation against what the code should do, not just what it now does.
+- Assertions weakened or removed, tests skipped, marked expected-to-fail or deleted, without a reason the change explains.
+
+### Changed behavior with no test
+- Find the tests for the area the change touches (by file layout, imports, or names). For each new or changed behavior in that area, check whether any test exercises it: a new branch, error path, option, rendering path or public function.
+- When the project tests that area and the change adds behavior none of its tests reach, that's a finding. Name the behavior, and the regression that could now land without a test failing.
+- Where the project has no tests for that area at all, don't report the absence.
+
+### Tests that will hurt later
+- State leaking between tests: shared module-level objects, environment variables or global config changed and not restored, singletons, caches.
+- Resources not cleaned up: executors, threads, servers, temp files or directories, database rows, open handles.
+- Order dependence, real network calls, real clocks, sleeps and randomness without a seed, so results vary by run or machine.
+
+### Tests that won't run
+- New test files, packages or projects the test runner or CI config won't pick up: outside the configured paths, missing from a workspace or target list, wrong naming pattern.
+- Test scripts or targets the change added that fail on a clean checkout (missing setup step, dependency or fixture).
+
+## Severity
+
+- **Medium:** a test that passes whether or not the code works; a regression guard that no longer guards; tests that won't run at all.
+- **Low:** changed behavior with no test, named with the regression it would let through; leaked state or resources; flaky timing.
+
+Point the finding at the test line, or for missing coverage, at the untested code.

@@ -1,12 +1,30 @@
 # Lens: Scope, Conventions & Quality
 
-## Look for: Scope, Project Conventions, Readability, Tests
+## Look for: Scope, Completeness, Unexpected Additions, Project Conventions, Readability
 
 ### Scope
-- Identify the primary intent of the PR from the branch name, commit messages, and the bulk of the changes.
+- Identify the primary intent of the PR from its title and description, the branch name, commit messages, and the bulk of the changes.
 - Flag any changes that do not appear related to that primary intent (e.g. drive-by refactors, unrelated formatting, feature creep).
 - Use **Warn** severity for unrelated changes — they may be intentional, but should be called out for the author to confirm.
 - Check that the PR does one thing well rather than bundling unrelated work.
+
+### Completeness
+Check that the change does what its title, description and commits say, all the way through:
+- Stubs, placeholder returns, `TODO`s and code that reports success without doing the work.
+- A capability added in one layer but never reachable: a handler never registered, a route never mounted, an option parsed and then ignored, a new module missing from the exports, package list, build or deploy config.
+- Only some of the places that had to change together did: one implementation of an interface updated but not its siblings, the sync path but not the async one, the CLI but not the API, the code but not its schema, migration or config.
+- A shared default, type or validator loosened for one caller, changing behavior for every other caller.
+
+Rate an incomplete change by what it breaks: a feature that can't be reached is Medium or higher.
+
+### Unexpected additions
+Compare what the change does with what it says it does, and flag what the stated purpose doesn't need:
+- New or bumped dependencies, lockfile churn, install or build scripts, CI workflow changes.
+- New network calls, endpoints, telemetry or data sent outside.
+- Permissions widened, access checks relaxed, validation, lint or type checks switched off, tests skipped or deleted.
+- Debug code, leftover logging, commented-out code, hardcoded credentials, hosts or paths, changed defaults or feature flags.
+
+Use **Warn** when the addition is just unrelated. When it's harmful in itself, rate the harm: a hardcoded credential is High, a disabled check that lets a real bug through is at least Medium.
 
 ### Project Conventions
 {{REPO_SPECIFIC_CHECKS}}
@@ -18,9 +36,7 @@ If no repo-specific checks are listed above, read CLAUDE.md and any matching `.c
 - Comment hygiene: comments that restate what the code plainly does, narrate obvious steps, or read as changelog / "AI-tell" notes ("// Now we handle…", "// Added to fix…"); multi-line blocks where one short line (or none) would do. Fix = delete or condense to a one-line WHY. Do NOT flag docstrings/JSDoc on public APIs, license/file headers, or genuine "why" comments.
 - These are Nit or Low by the severity scale; rate them honestly.
 
-### Tests
-- Only a test in the diff that can't catch what it claims to: it asserts the wrong thing, passes whether or not the code works, or sets up data that never reaches the code under test. Name the regression it would let through. A missing test is not a finding, however risky the branch.
-- Tests that assert nothing meaningful, or mocks that hide the behavior under test.
+Tests are the tests lens's job; leave them to it.
 
 ## Additional rules
 

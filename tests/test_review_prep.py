@@ -249,12 +249,31 @@ def _parallel(*files: str) -> ReviewPayload:
 
 def test_parallel_path_lists_the_base_lenses():
     pl = _parallel(_file("src/app.py", ["x = 1"]))
-    assert pl.lenses == ["correctness", "correctness-2", "architecture", "security", "scope"]
+    assert pl.lenses == [
+        "correctness",
+        "correctness-2",
+        "architecture",
+        "security",
+        "scope",
+        "docs",
+        "tests",
+    ]
     md = render_markdown(pl, summary_only=True)
-    assert "**Launch these 5 lens sub-agents in one message**" in md
+    assert "**Launch these 7 lens sub-agents in one message**" in md
     assert "- security → `lens-security.md`" in md
     assert "This is the second correctness pass." in md
     assert render_dict(pl)["lenses"] == pl.lenses
+
+
+def test_accessibility_lens_runs_only_when_ui_changes():
+    assert "accessibility" in _parallel(_file("web/src/Button.tsx", ["x"])).lenses
+    assert "accessibility" in _parallel(_file("static/site.css", ["a {}"])).lenses
+    assert "accessibility" not in _parallel(_file("src/app.py", ["x = 1"])).lenses
+    assert "accessibility" in _parallel(_file("src/components/Button.js", ["x"])).lenses
+    assert "accessibility" in _parallel(_file("app/templates/home.j2", ["x"])).lenses
+    tmpl = "src/klaussy/templates/skill-templates/review/SKILL.md.tmpl"
+    assert "accessibility" not in _parallel(_file(tmpl, ["x"])).lenses
+    assert "accessibility" not in _parallel(_file("app/views/home.py", ["x"])).lenses
 
 
 def test_agentic_lens_on_skill_paths_and_llm_imports():
