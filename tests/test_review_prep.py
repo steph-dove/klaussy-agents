@@ -13,6 +13,7 @@ from klaussy.review_prep import (
     PARALLEL_THRESHOLD,
     Decision,
     ReviewPayload,
+    _elide_long_lines,
     classify,
     plan_chunks,
     prepare_review,
@@ -347,6 +348,45 @@ def test_a_file_with_a_huge_line_is_classified_minified():
     [fd] = split_file_diffs(_file_diff("lib/mime.js", 2, width=6_000))
     assert classify(fd)[0] is False
     assert "minified" in classify(fd)[1]
+
+
+def test_one_huge_line_is_elided_and_the_rest_of_the_file_kept():
+    diff = (
+        "diff --git a/tests/test_x.py b/tests/test_x.py\n--- a/tests/test_x.py\n"
+        "+++ b/tests/test_x.py\n@@ -0,0 +1,2 @@\n"
+        f"+FIXTURE = '{'x' * 6_000}'\n+assert check(FIXTURE)\n"
+    )
+    [fd] = split_file_diffs(diff)
+    assert classify(fd) == (True, "reviewable")
+    body, elided = _elide_long_lines(fd.body)
+    assert elided == 1
+    assert "+assert check(FIXTURE)\n" in body and "x" * 6_000 not in body
+    assert body.count("\n") == fd.body.count("\n")
+
+
+def test_hunk_splitting_keeps_form_feeds_and_line_separators_inside_their_line():
+    lines = [f"+line {i}\x0c\u2028 tail\n" for i in range(300)]
+    diff = (
+        "diff --git a/src/a.c b/src/a.c\n--- /dev/null\n+++ b/src/a.c\n"
+        f"@@ -0,0 +1,300 @@\n{''.join(lines)}"
+    )
+    [fd] = split_file_diffs(diff)
+    assert fd.added == 300
+    plan = plan_chunks([fd], limit=4_000)
+    headers = [ln for c in plan.chunks for ln in c.text.split("\n") if ln.startswith("@@ ")]
+    assert sum(int(h.split(",")[-1].split(" ")[0]) for h in headers) == 300
+    assert "".join(c.text for c in plan.chunks).count("tail") == 300
+
+
+def test_a_chunked_diff_drops_the_second_correctness_pass_from_json_too():
+    diff = "".join(_file_diff(f"src/m{i}.py", 200) for i in range(4))
+    payload = ReviewPayload(
+        decisions=[Decision("src/m0.py", True, "reviewable", PARALLEL_THRESHOLD, 0)],
+        trimmed_diff=diff,
+    )
+    assert payload.chunk_plan is not None
+    assert "correctness-2" not in payload.lenses
+    assert render_dict(payload)["lenses"] == payload.lenses
 
 
 def test_a_chunked_diff_prints_an_index_and_one_chunk_on_request():
