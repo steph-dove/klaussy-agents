@@ -647,6 +647,9 @@ def review_prep(
         "--path",
         help="Force the review path: small or parallel. Sized from the diff if omitted.",
     ),
+    chunk: int | None = typer.Option(
+        None, "--chunk", help="Print one chunk of a diff too large to read at once."
+    ),
 ) -> None:
     """Trim a branch diff to the reviewable files before the review skill reads it.
 
@@ -657,13 +660,18 @@ def review_prep(
     """
     if path not in (None, "small", "parallel"):
         raise typer.BadParameter("--path must be small or parallel", param_hint="--path")
+    if as_json and chunk is not None:
+        raise typer.BadParameter("--chunk prints markdown; drop --json", param_hint="--chunk")
     payload = prepare_review(repo=_resolve_repo(repo), base_branch=base, path=path)
     if as_json:
         import json
 
         sys.stdout.write(json.dumps(render_dict(payload), indent=2) + "\n")
     else:
-        sys.stdout.write(render_markdown(payload, summary_only=summary))
+        try:
+            sys.stdout.write(render_markdown(payload, summary_only=summary, chunk=chunk))
+        except ValueError as e:
+            raise typer.BadParameter(str(e), param_hint="--chunk") from e
 
 
 @app.command()
