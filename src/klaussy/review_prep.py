@@ -75,8 +75,8 @@ BASE_LENSES = ("correctness", "correctness-2", "architecture", "security", "scop
 # A diff bigger than this is split into chunks: an agent sees only the start of a tool
 # output much past ~30k characters, so one oversized read leaves most of a big PR unseen.
 CHUNK_CHARS = 24_000
-# An added line this long is minified or a data blob, whatever the file's suffix says; it
-# can't be split into chunks and no reviewer reads it.
+# An added line this long can't be split into chunks and no reviewer reads it, so it's
+# elided; a file whose added lines are all this long is minified, whatever its suffix says.
 MINIFIED_LINE_CHARS = 5_000
 # Past this many chunks the lowest-priority files (docs, then tests) aren't reviewed, and
 # the manifest says so.
@@ -182,10 +182,15 @@ def _priority(path: str) -> int:
 _HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$")
 
 
+def _diff_lines(text: str) -> list[str]:
+    """`text` split after each newline only, keeping the newlines."""
+    return [line for line in re.split(r"(?<=\n)", text) if line]
+
+
 def _split_hunk(hunk: str, limit: int) -> list[str]:
     """A hunk bigger than `limit` cut into smaller hunks, each with a header whose line
     numbers match its own lines, so findings in any piece still point at the right line."""
-    lines = hunk.splitlines(keepends=True)
+    lines = _diff_lines(hunk)
     m = _HUNK_HEADER.match(lines[0].rstrip("\n"))
     if not m:
         return [hunk]
@@ -222,7 +227,7 @@ def _split_file(fd: FileDiff, limit: int) -> list[str]:
     that alone is too big), each piece keeping the file header so it reads on its own."""
     if len(fd.body) <= limit:
         return [fd.body]
-    lines = fd.body.splitlines(keepends=True)
+    lines = _diff_lines(fd.body)
     first_hunk = next((i for i, ln in enumerate(lines) if ln.startswith("@@ ")), len(lines))
     header, hunks, current = "".join(lines[:first_hunk]), [], []
     for line in lines[first_hunk:]:
@@ -309,15 +314,17 @@ class ReviewPayload:
 
     @property
     def lenses(self) -> list[str]:
-        """Lens sub-agents the parallel path launches; empty on the small path."""
+        """Lens sub-agents the parallel path launches; empty on the small path. A chunked
+        diff drops the second correctness pass: correctness runs once per chunk instead."""
         if self.path != "parallel":
             return []
         files = split_file_diffs(self.trimmed_diff)
         agentic = any(
             _AGENTIC_PATH.search(fd.path) or _AGENTIC_CODE.search(fd.body) for fd in files
         )
+        base = [lens for lens in BASE_LENSES if not (self.chunk_plan and lens == "correctness-2")]
         return [
-            *BASE_LENSES,
+            *base,
             *(["agentic"] if agentic else []),
             *(["adr"] if self.design_docs else []),
         ]
@@ -378,7 +385,7 @@ def split_file_diffs(diff_text: str) -> list[FileDiff]:
             path = m.group(1)
         added = removed = 0
         has_hunks = False
-        for line in chunk.splitlines():
+        for line in _diff_lines(chunk):
             if line.startswith("@@ "):
                 has_hunks = True
             elif line.startswith("+") and not line.startswith("+++"):
@@ -411,13 +418,26 @@ def classify(fd: FileDiff) -> tuple[bool, str]:
         return False, f"generated/vendored ({next(iter(hit))})"
     if fd.path.endswith(NOISE_SUFFIXES):
         return False, "minified/sourcemap"
-    if any(len(line) > MINIFIED_LINE_CHARS for line in fd.body.splitlines() if line[:1] == "+"):
-        return False, f"minified (a line over {MINIFIED_LINE_CHARS:,} characters)"
+    added = [line for line in _diff_lines(fd.body) if line[:1] == "+" and line[:3] != "+++"]
+    if added and all(len(line) > MINIFIED_LINE_CHARS for line in added):
+        return False, f"minified (every added line over {MINIFIED_LINE_CHARS:,} characters)"
     if fd.path.endswith(GENERATED_SUFFIXES):
         return False, "generated code"
     if not fd.has_hunks:
         return False, "no content change (rename/mode-only)"
     return True, "reviewable"
+
+
+def _elide_long_lines(body: str) -> tuple[str, int]:
+    """`body` with each added line over `MINIFIED_LINE_CHARS` replaced by a placeholder,
+    one line for one so hunk line numbers still hold, and how many were replaced."""
+    out, elided = [], 0
+    for line in _diff_lines(body):
+        if line[:1] == "+" and len(line) > MINIFIED_LINE_CHARS:
+            line = f"+[line of {len(line) - 1:,} characters elided]\n"
+            elided += 1
+        out.append(line)
+    return "".join(out), elided
 
 
 def prepare_review(
@@ -432,11 +452,15 @@ def prepare_review(
     kept_bodies: list[str] = []
     for fd in split_file_diffs(diff_text):
         keep, reason = classify(fd)
+        body = fd.body
+        if keep:
+            body, elided = _elide_long_lines(body)
+            if elided:
+                reason += f" ({elided} line(s) over {MINIFIED_LINE_CHARS:,} characters elided)"
+            kept_bodies.append(body)
         decisions.append(
             Decision(path=fd.path, kept=keep, reason=reason, added=fd.added, removed=fd.removed)
         )
-        if keep:
-            kept_bodies.append(fd.body)
     return ReviewPayload(
         decisions=decisions,
         trimmed_diff="".join(kept_bodies),
@@ -529,8 +553,6 @@ def render_markdown(
                     f"- correctness → `lens-correctness.md`, **once per chunk** "
                     f"({len(plan.chunks)} sub-agents): add `Review chunk <N> only.` to each prompt"
                 )
-                continue
-            if plan and lens == "correctness-2":
                 continue
             if lens == "correctness-2":
                 lines.append(
