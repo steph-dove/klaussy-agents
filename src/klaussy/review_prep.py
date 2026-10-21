@@ -84,7 +84,7 @@ BASE_LENSES = (
 _UI_PATH = re.compile(
     r"\.(tsx|jsx|vue|svelte|astro|html?|erb|ejs|hbs|handlebars|njk|liquid|twig|blade\.php"
     r"|cshtml|razor|css|scss|sass|less|xaml|storyboard|xib)$"
-    r"|(^|/)(templates|components|views|pages|screens)/"
+    r"|(^|/)(templates|components|views|pages|screens)/.*\.(js|ts|mjs|cjs|j2|jinja2?|mustache)$"
 )
 
 # A diff bigger than this is split into chunks: an agent sees only the start of a tool
