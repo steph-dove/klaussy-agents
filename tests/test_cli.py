@@ -199,9 +199,13 @@ class TestScaffoldSkills:
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)
         judge = repo / ".claude" / "skills" / f"{ns}-qa" / "judge.md"
-        assert judge.exists() and "PASS | FAIL" in judge.read_text()
+        assert judge.exists()
+        text = judge.read_text()
+        assert "Verdict: PASS" in text and "NOT JUDGED" in text and "{{" not in text
         skill = (repo / ".claude" / "skills" / f"{ns}-qa" / "SKILL.md").read_text()
         assert f".claude/skills/{ns}-qa/judge.md" in skill
+        owl = (repo / ".claude" / "skills" / f"{ns}-rest-of-the-owl" / "SKILL.md").read_text()
+        assert f".claude/skills/{ns}-qa/judge.md" in owl
 
     def test_repo_substitution(self, repo: Path):
         scaffold_skills(repo=repo)

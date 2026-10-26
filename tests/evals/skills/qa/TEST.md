@@ -69,9 +69,10 @@ The judge just failed your capture of the mode picker because two cards show as 
 Diff: src/components/ModePicker.tsx changed to add a new card. This is the first failed round.
 
 ### expect
-- contains: fix | change the code | ModePicker
+- matches: (?i)\b(fix|change|update|correct)\b[^.]*\b(ModePicker|selection|selected|single)
 - contains: capture again | re-capture | recapture | new capture | record again
 - contains: judge again | judge it again | re-judge | judge the new | judge only the new
+- matches: ^(?![\s\S]*(?i:\b(?:I'll|I will|let me|then) (?:re-?shoot|crop|swap|pick a different)))
 
 ## case: the-third-failed-round-goes-to-the-user
 
@@ -87,3 +88,20 @@ Diff: src/components/ModePicker.tsx. Each round you fixed the code and captured 
 ### expect
 - contains: ask the user | hand back | stop and ask | ask you
 - contains: what the judge | findings | failing capture
+- matches: ^(?![\s\S]*(?i:\b(?:fourth round|another round|try again|one more round)))
+
+## case: a-recording-the-judge-couldnt-see-goes-to-the-user
+
+When the judge can't look at a recording (no ffmpeg), there's nothing in the
+product to fix, so the skill asks the user instead of starting a round.
+
+### instruction
+The judge answered: "C2 · NOT JUDGED · ffmpeg isn't installed" and "Verdict: NOT JUDGED". C1 passed. Output only what you do next, in 2-3 sentences.
+
+### context
+Diff: src/components/ModePicker.tsx. C1 is a screenshot, C2 a recording of the picker flow.
+
+### expect
+- contains: ask the user | ask you | tell the user | let the user
+- contains: ffmpeg
+- matches: ^(?![\s\S]*(?i:\b(?:I'll|I will|let me) (?:fix|change|edit) the (?:code|ModePicker)))
