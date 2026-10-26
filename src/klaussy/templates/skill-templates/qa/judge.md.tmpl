@@ -10,10 +10,11 @@ Your prompt gives you:
 
 ## Look at every capture
 
-Open each screenshot with your file-reading tool. For each recording, pull about six evenly spaced frames, the last one included, and look at those:
+Open each screenshot with your file-reading tool. For each recording, pull about six evenly spaced frames plus the last one, since the end state is usually what the flow is for, and look at those:
 
 ```
-ffmpeg -v error -i flow.webm -vf "fps=6/$(ffprobe -v error -show_entries format=duration -of csv=p=0 flow.webm)" frame-%02d.png
+ffmpeg -v error -i flow.webm -vf "fps=5/$(ffprobe -v error -show_entries format=duration -of csv=p=0 flow.webm)" frame-%02d.png
+ffmpeg -v error -sseof -0.1 -i flow.webm -frames:v 1 frame-last.png
 ```
 
 Put the frames in a temporary folder, never in the repo. If ffmpeg isn't installed, judge the screenshots and give each recording the line `<id> · FAIL · not judged · ffmpeg isn't installed`: a recording nobody looked at can't pass. If you can't view images at all, say that and stop: a verdict on images you didn't see is a made-up verdict. Open each wireframe the same way. A wireframe you can't open (a link that needs a login, a Figma frame with no connected Figma tool) is listed as missing, never guessed at.

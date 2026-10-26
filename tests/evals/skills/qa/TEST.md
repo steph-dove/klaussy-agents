@@ -39,7 +39,7 @@ The judge looks at what the capture shows, not at its caption: two cards
 selected on a single-choice screen is a behavior failure.
 
 ### instruction
-You are the QA judge. Output only your verdict lines for this capture, in the judge's format.
+You are the QA judge. The "What C1 shows" line stands in for the opened image: judge it as if you had viewed it. Output only your verdict lines for this capture, in the judge's format.
 
 ### aux
 - judge.md
@@ -72,7 +72,6 @@ Diff: src/components/ModePicker.tsx changed to add a new card. This is the first
 - contains: fix | change the code | ModePicker
 - contains: capture again | re-capture | recapture | new capture | record again
 - contains: judge again | judge it again | re-judge | judge the new | judge only the new
-- not contains: crop | different screen | caption
 
 ## case: the-third-failed-round-goes-to-the-user
 
