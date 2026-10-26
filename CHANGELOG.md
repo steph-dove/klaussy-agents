@@ -7,6 +7,10 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+### Added
+
+- **QA checks what its captures show, not just that they exist.** The `qa` skill now hands every screenshot and key frames from each recording to an independent judge, a sub-agent that didn't take them, which checks them against the wireframes (repo images, designs on the issue, Figma frames), the behavior the change is meant to have, how the screen looks, and the task. A failed capture means fixing the code and capturing again, not re-shooting it; after three failed rounds QA stops and shows you each failing capture with what the judge found. rest-of-the-owl runs the judge itself after its QA sub-agent returns. Run `klaussy init --force` to get the new `judge.md` in skills that are already scaffolded.
+
 ## [0.45.0] - 2026-10-17
 
 ### Added

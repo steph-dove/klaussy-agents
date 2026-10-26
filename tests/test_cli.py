@@ -195,6 +195,14 @@ class TestScaffoldSkills:
         sub_agents = repo / ".claude" / "skills" / f"{ns}-review" / "sub-agents.md"
         assert sub_agents.exists()
 
+    def test_qa_ships_its_judge(self, repo: Path):
+        scaffold_skills(repo=repo)
+        ns = sanitize_skill_namespace(repo.name)
+        judge = repo / ".claude" / "skills" / f"{ns}-qa" / "judge.md"
+        assert judge.exists() and "PASS | FAIL" in judge.read_text()
+        skill = (repo / ".claude" / "skills" / f"{ns}-qa" / "SKILL.md").read_text()
+        assert f".claude/skills/{ns}-qa/judge.md" in skill
+
     def test_repo_substitution(self, repo: Path):
         scaffold_skills(repo=repo)
         ns = sanitize_skill_namespace(repo.name)

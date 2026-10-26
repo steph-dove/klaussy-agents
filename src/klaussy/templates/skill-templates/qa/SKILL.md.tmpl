@@ -1,7 +1,7 @@
 ---
 name: {{REPO}}-qa
-description: Use when the user wants the current change QA'd and PR-ready evidence captured. Classifies the diff and runs the verification that actually fits it — screen recordings and screenshots for UI/frontend changes, endpoint or e2e runs for backend, command output for a CLI, tests for a library — then saves artifacts and writes a QA summary. Right-sizes QA to the change; it does not write features or fix bugs.
-allowed-tools: Read Grep Glob Bash Edit Write
+description: Use when the user wants the current change QA'd and PR-ready evidence captured. Classifies the diff and runs the verification that actually fits it — screen recordings and screenshots for UI/frontend changes, endpoint or e2e runs for backend, command output for a CLI, tests for a library — has an independent judge check what the captures actually show against the wireframes, the intended behavior, how it looks and the task, then saves artifacts and writes a QA summary. Right-sizes QA to the change; it fixes only what the judge finds, and doesn't write features.
+allowed-tools: Read Grep Glob Bash Edit Write Agent
 ---
 
 QA the current change and capture evidence a reviewer can trust. The point is to run *the QA that's valid for this change* — a UI tweak needs a recording of the interaction plus screenshots, a backend fix needs the endpoint exercised and the suite run, a CLI change needs its commands run. Don't screenshot a database migration; don't run the full browser e2e suite for a one-line helper.
@@ -33,7 +33,13 @@ QA the current change and capture evidence a reviewer can trust. The point is to
    - **Windows**: `%USERPROFILE%\Downloads\klaussy-qa-<branch>\` (PowerShell: `$env:USERPROFILE\Downloads\klaussy-qa-<branch>\`)
 
    Derive `<branch>` from the current branch (`git rev-parse --abbrev-ref HEAD`), replacing any `/` in the branch with `-` so it's one valid folder name. Create the folder if it doesn't exist, then write recordings as MP4 or WebM, screenshots as PNGs, and captured command/HTTP output as text into it — keep artifacts out of the repo tree; they're evidence for a human, not source to commit. Give each file a name that says what it shows (`login-error-state.png`, `checkout-flow.mp4`), and move recordings out of whatever temp directory the test runner dropped them in. Report the absolute folder path so the user can find it.
-5. **Write a QA summary** suited to drop into a PR's Test Plan / QA section: which surfaces changed, what QA ran for each, the evidence (uploaded asset URLs, recording and screenshot paths, before/after table, captured output, test results), pass/fail, and anything you could NOT cover and why. Lead with the result, keep it tight.
+5. **Get an independent verdict on the captures.** Capturing isn't QA until someone checks what the captures show, and the agent that took them is the worst one to judge them: it already decided they're fine. For every UI capture you're keeping:
+   - **Gather the wireframes** the task points at: images in the repo, designs on the issue or ticket (paste the link if you can't download it; GitHub, for one, often won't hand an issue's images to a script), and Figma frames through a connected Figma tool. None is fine; say so.
+   - **Launch one judge sub-agent** with the Agent tool (`subagent_type: general-purpose`) and this prompt, filled in: "Read .claude/skills/{{REPO}}-qa/judge.md and follow it. Task: <the task>. Plan: <the plan, or none>. Wireframes: <paths or links, or none>. Captures: <id, path> per capture. Write no files except the temporary frames judge.md describes." Don't paste judge.md into it.
+   - **On a FAIL, fix the product, not the evidence.** Change the code the finding points at, capture the screen again, and judge only the new captures. Never re-shoot the same broken state, crop the problem out, or keep a different screen instead.
+   - **After three failed rounds, stop and ask the user,** showing each failing capture with what the judge said, and the wireframes it couldn't open. They decide whether it's fine as it is, what to change, or to stop.
+   - **When qa itself runs as a sub-agent** (it can't start one of its own), return the captures, their paths and the wireframes marked "needs judging", and let the caller run the judge.
+6. **Write a QA summary** suited to drop into a PR's Test Plan / QA section: which surfaces changed, what QA ran for each, the evidence (uploaded asset URLs, recording and screenshot paths, before/after table, captured output, test results), the judge's verdict and what was fixed after it, pass/fail, and anything you could NOT cover and why. Lead with the result, keep it tight.
 
 ## Capturing a recording
 
@@ -66,7 +72,7 @@ A screenshot sitting in the user's Downloads folder never reaches the reviewer. 
 - **Record when recording is possible.** For anything with an interaction, a transition, or more than one step, a recording is the evidence; screenshots are the fallback, not the default. A still can't show that the flow works.
 - **Never fabricate evidence.** If you can't capture a recording or screenshot (no browser tooling, no display, no fixture data), say so plainly and give the manual repro steps a human would follow — a described gap beats a faked artifact. Never describe a recording you didn't make.
 - **Don't record secrets.** A capture picks up whatever is on screen — tokens, real user data, an open password manager, unrelated browser tabs. Record the app window, not the whole desktop, and check the artifact before you point the user at it.
-- **Don't change code to make QA pass.** A failure here is a real signal — that's a bug for the debug skill, not something to patch around. Report it.
+- **Fix the product, never the evidence.** When the judge fails a capture, fix the code it points at and capture again. Don't edit tests, re-shoot the same state, crop, or swap in a different screen to get a pass. A failure that needs more than a QA-sized fix is a bug for the debug skill: report it.
 - **Local / dev only.** Never QA against production or with production credentials unless the user explicitly says so. Tear down any app or server you started.
 
 ## When NOT to use
