@@ -7,9 +7,15 @@ before 0.6.0 are recorded in the git tags (`v0.2.0`–`v0.5.1`).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-20
+
 ### Added
 
 - **QA checks what its captures show, not just that they exist.** The `qa` skill now hands every screenshot and key frames from each recording to an independent judge, a sub-agent that didn't take them, which checks them against the wireframes (repo images, designs on the issue, Figma frames), the behavior the change is meant to have, how the screen looks, and the task. A failed capture means fixing the code and capturing again, not re-shooting it; after three failed rounds QA stops and shows you each failing capture with what the judge found. rest-of-the-owl runs the judge itself after its QA sub-agent returns. Run `klaussy init --force` to get the new `judge.md` in skills that are already scaffolded.
+
+### Fixed
+
+- **worktree-cleanup removes worktrees whose only change is to `.gitignore`.** Adding ignore rules to keep `git status` quiet used to mark a worktree dirty, so it was never cleaned up. The skill now treats it as clean and removes it with a single `--force`, after checking it again right before removal. It first lists what the new rules hide. Tool output such as agent config, caches and build dirs is fine. Source, tests or docs hidden by a rule like `*.py` keep the worktree. Run `klaussy init --force` to update skills that are already scaffolded.
 
 ## [0.45.0] - 2026-10-17
 
