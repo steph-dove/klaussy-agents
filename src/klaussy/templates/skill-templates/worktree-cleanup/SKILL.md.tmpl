@@ -1,6 +1,6 @@
 ---
 name: {{REPO}}-worktree-cleanup
-description: Use when the user wants stale or unused git worktrees cleaned up. Classifies every worktree as merged, abandoned, dirty, or in use, proposes which to remove, and on confirmation removes them with `git worktree remove` and prunes the leftovers. Treats a worktree whose only change is to `.gitignore` as clean. Never touches uncommitted work.
+description: Use when the user wants stale or unused git worktrees cleaned up. Classifies every worktree as merged, abandoned, dirty, or in use, proposes which to remove, and on confirmation removes them with `git worktree remove` and prunes the leftovers. A worktree whose only change is new `.gitignore` rules that hide no work counts as clean. Never touches any other uncommitted work.
 allowed-tools: Read Bash(git *)
 ---
 
@@ -16,7 +16,8 @@ Remove the git worktrees nobody is using any more, without losing work.
 
 Collect these for each one. Every check is read-only, run with `git -C <path>`:
 
-- **Dirty:** `status --porcelain` prints anything, untracked files included, except when every line it prints is a `.gitignore` file (at any depth, modified or new). That's **ignore-only**: rules added to keep `git status` clean, not work. Treat it as clean.
+- **Dirty:** `status --porcelain` prints anything, untracked files included, unless the worktree is ignore-only (below).
+- **Ignore-only:** every `status --porcelain` line is a modified (` M`) or new (`??`) file whose path is exactly `.gitignore` or ends in `/.gitignore`. A rename, a deletion, or a quoted path doesn't count. New rules can also hide real work, so list what they hide: pipe `ls-files --others --ignored --exclude-standard --directory` into `check-ignore -v --stdin`, which prints the rule that matched each path. A path is hidden by this worktree if its rule is a line the worktree added (an added line in `diff HEAD -- <that .gitignore>`, or any line of a new `.gitignore`). Hidden tool or generated output is fine: agent config dirs, caches, build output, virtualenvs, logs. Hidden source, tests, or docs the branch would normally commit, such as `src/work.py` behind a `*.py` rule, make the worktree Dirty, and you name those paths. Otherwise the edits are rules added to keep `git status` clean, not work. Treat the worktree as clean.
 - **Unpushed:** `log --oneline @{u}..` is non-empty, or there's no upstream and `log --oneline <base>..HEAD` is non-empty.
 - **Merged:** `merge-base --is-ancestor HEAD <base>` succeeds, or the upstream shows `[gone]` in `git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads`.
 - **Last activity:** `log -1 --format=%cr`.
@@ -35,18 +36,19 @@ If `$KLAUSSY_SESSION_NOTES_DIR` is set, check its notes for the worktree's path 
 
 ## 3. Confirm
 
-Show one table: path, branch, bucket, reason, last activity. List exactly what you'll remove and wait for the user to confirm, or to strike items from the list. For an ignore-only worktree, say its `.gitignore` edits will be discarded.
+Show one table: path, branch, bucket, reason, last activity. List exactly what you'll remove and wait for the user to confirm, or to strike items from the list. For an ignore-only worktree, say its `.gitignore` edits will be discarded, and list the paths they hide, since removal deletes those too.
 
 ## 4. Remove
 
-1. `git worktree remove <path>` for each confirmed entry. If git refuses, report why and move on. Do not retry with `--force`, with one exception: git refuses an ignore-only worktree because of the `.gitignore` edit. Reverting the edit doesn't help, since the files it hid then show as untracked. Run `git -C <path> status --porcelain` again right before removing. If every line is still a `.gitignore` file, use `git worktree remove --force <path>`. Otherwise, report it and keep the worktree.
-2. `git worktree prune` for the prunable entries and any leftover admin files.
-3. Offer to delete each removed worktree's local branch with `git branch -d <branch>`. `-d` refuses a branch that isn't merged by ancestry, which is what happens after a squash merge. Use `-D` only for a branch whose upstream is gone, and only after the user confirms that branch by name.
-4. Finish with `git worktree list` and report what was removed and what was kept, one line each.
+1. `git worktree remove <path>` for each confirmed entry. If git refuses, report why and move on. Do not retry with `--force`, except as step 2 allows.
+2. Git refuses an ignore-only worktree because of the `.gitignore` edit. Reverting the edit doesn't help, since the files it hid then show as untracked. For each confirmed ignore-only worktree, run the full ignore-only check from section 2 again for that same `<path>`, immediately before removing it. Only if it still passes, run `git worktree remove --force <path>` with a single `--force`. If it fails, report what changed and keep the worktree. A locked worktree stays in Keep; a single `--force` doesn't remove a locked one anyway.
+3. `git worktree prune` for the prunable entries and any leftover admin files.
+4. Offer to delete each removed worktree's local branch with `git branch -d <branch>`. `-d` refuses a branch that isn't merged by ancestry, which is what happens after a squash merge. Use `-D` only for a branch whose upstream is gone, and only after the user confirms that branch by name.
+5. Finish with `git worktree list` and report what was removed and what was kept, one line each.
 
 ## Rules
 
-- Never pass `--force` to `git worktree remove` except for an ignore-only worktree that you re-checked just before removing it. Never remove a worktree with uncommitted or unpushed work. Losing that work can't be undone.
+- Never pass `--force` to `git worktree remove` except for an ignore-only worktree that you re-checked just before removing it (Remove step 2). Never remove a worktree with unpushed commits, or with uncommitted work other than ignore-only `.gitignore` edits. Losing that work can't be undone.
 - Never remove the main worktree or the one you're running in.
 - Removing a worktree deletes its directory, including ignored build output. Name that in the confirmation if a worktree holds a large ignored tree someone might want, such as a `.venv` or `node_modules`.
 
